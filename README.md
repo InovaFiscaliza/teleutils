@@ -12,7 +12,7 @@
 
 # About
 
-<img align="left" width="100" height="100" src="" alt="Imagem ou logo do Projeto"> 
+<img align="left" width="100" height="100" src="" alt="Imagem ou logo do Projeto">
 
 <br>
 
@@ -49,7 +49,7 @@ For more details, see the [open issues](<put_link_here_to_issues_page>)
 * [ ] Initial deployment
   * [x] Create the project structure
 
-  
+
 <p align="right">(<a href="#indexerd-md-top">back to top</a>)</p>
 
 <!-- CONTRIBUTING -->

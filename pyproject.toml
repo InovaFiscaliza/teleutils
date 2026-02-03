@@ -1,0 +1,26 @@
+[project]
+name = "teleutils"
+version = "0.1.0"
+description = "Python Utility Functions Library for Call Details Records ( CDRs ) from Brazilian Telecommunications Carriers"
+readme = "README.md"
+authors = [
+    { name = "Maxwel de Souza Freitas", email = "maxwel@maxwelfreitas.com.br" }
+]
+requires-python = ">=3.9"
+dependencies = []
+
+[project.scripts]
+teleutils = "teleutils:main"
+
+[build-system]
+requires = ["uv_build>=0.9.2,<0.10.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "jupyter>=1.1.1",
+    "matplotlib>=3.9.4",
+    "pandas>=2.3.3",
+    "pre-commit>=4.3.0",
+    "pyarrow>=21.0.0",
+]
