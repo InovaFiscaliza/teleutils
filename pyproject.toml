@@ -7,7 +7,11 @@ authors = [
     { name = "Maxwel de Souza Freitas", email = "maxwel@maxwelfreitas.com.br" }
 ]
 requires-python = ">=3.9"
-dependencies = []
+dependencies = [
+    "pandas==2.3.3",
+    "pyarrow==21.0.0",
+    "pyspark==3.5.5",
+]
 
 [project.scripts]
 teleutils = "teleutils:main"
@@ -20,7 +24,5 @@ build-backend = "uv_build"
 dev = [
     "jupyter>=1.1.1",
     "matplotlib>=3.9.4",
-    "pandas>=2.3.3",
     "pre-commit>=4.3.0",
-    "pyarrow>=21.0.0",
 ]
