@@ -37,6 +37,15 @@ def _spark_normalize_number(number_series: pd.Series) -> pd.DataFrame:
 
 
 class RoboCallsTransformer:
+    _LIMIAR_CHAMADA_OFENSORA = 6
+
+    _TRANSFORM_MAP: dict[str, str] = {
+        "ericsson": "transform_cdr_ericsson",
+        "tim_volte": "transform_cdr_tim_volte",
+        "tim_stir": "transform_cdr_tim_stir",
+        "vivo_volte": "transform_cdr_vivo_volte",
+    }
+
     _TRANSFORMED_COLUMNS = [
         "referencia",
         "tipo_de_chamada",
@@ -49,15 +58,6 @@ class RoboCallsTransformer:
         "chamada_autenticada",
         "chamada_caixa_postal",
     ]
-
-    _LIMIAR_CHAMADA_OFENSORA = 6
-
-    _TRANSFORM_MAP: dict[str, str] = {
-        "ericsson": "transform_cdr_ericsson",
-        "tim_volte": "transform_cdr_tim_volte",
-        "tim_stir": "transform_cdr_tim_stir",
-        "vivo_volte": "transform_cdr_vivo_volte",
-    }
 
     def __init__(
         self,
@@ -109,6 +109,18 @@ class RoboCallsTransformer:
         df = self._add_chamada_curta(df)
         return df
 
+    def _write_parquet(self, df: DataFrame, target_file: str) -> None:
+        """
+        Grava o DataFrame como parquet sem particionamento por coluna.
+
+        O cast explícito em tipo_de_chamada evita que o Spark converta
+        valores numéricos em string para integer ao inferir o tipo
+        da coluna de particionamento.
+        """
+        df.withColumn(
+            "tipo_de_chamada", F.col("tipo_de_chamada").cast(T.StringType())
+        ).write.mode("overwrite").parquet(target_file)
+
     @log_operation
     def transform_cdr_ericsson(self, source_file: str, target_file: str):
         date_time_fmt = "yyyy-MM-dd HH:mm:ss"
@@ -122,7 +134,7 @@ class RoboCallsTransformer:
             .select(self._TRANSFORMED_COLUMNS)
         )
 
-        df.write.mode("overwrite").parquet(target_file)
+        self._write_parquet(df, target_file)
         return self.spark.read.parquet(target_file)
 
     @log_operation
@@ -171,7 +183,7 @@ class RoboCallsTransformer:
             .select(self._TRANSFORMED_COLUMNS)
         )
 
-        df.write.mode("overwrite").parquet(target_file)
+        self._write_parquet(df, target_file)
         return self.spark.read.parquet(target_file)
 
     @log_operation
@@ -199,7 +211,7 @@ class RoboCallsTransformer:
             .select(self._TRANSFORMED_COLUMNS)
         )
 
-        df.write.mode("overwrite").parquet(target_file)
+        self._write_parquet(df, target_file)
         return self.spark.read.parquet(target_file)
 
     @log_operation
@@ -271,7 +283,7 @@ class RoboCallsTransformer:
             .select(self._TRANSFORMED_COLUMNS)
         )
 
-        df.write.mode("overwrite").parquet(target_file)
+        self._write_parquet(df, target_file)
         return self.spark.read.parquet(target_file)
 
     def transform_cdr(self, source_file: str, target_file: str, format_key: str):
