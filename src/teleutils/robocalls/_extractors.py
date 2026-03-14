@@ -1,14 +1,15 @@
+from __future__ import annotations
+
 import logging
 from dataclasses import dataclass
 from functools import wraps
-from typing import Optional
 
 from pyspark.sql import DataFrame, SparkSession
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
+@dataclass(frozen=True)
 class CDRSchema:
     """
     Representa a configuração de leitura e mapeamento de colunas de um arquivo CDR.
@@ -23,6 +24,14 @@ class CDRSchema:
     column_indices: list[int]  # Índices das colunas a selecionar
     column_names: list[str]  # Nomes finais das colunas (na mesma ordem dos índices)
     job_description: str  # Descrição do job para monitoramento no Spark UI
+
+    def __post_init__(self):
+        if len(self.column_indices) != len(self.column_names):
+            raise ValueError(
+                f"Schema '{self.name}': column_indices tem "
+                f"{len(self.column_indices)} elemento(s), mas column_names tem "
+                f"{len(self.column_names)}. Devem ter o mesmo tamanho."
+            )
 
 
 def log_extraction(method):
@@ -140,26 +149,32 @@ class RoboCallsExtractor:
         é um princípio fundamental de design. Novos formatos são adicionados
         apenas incluindo um novo CDRSchema — sem duplicar código.
         """
-        self._sc.setJobDescription(schema.job_description)
+        logger.info("Iniciando extração [%s]: %s", schema.name, source_file)
+        try:
+            self._sc.setJobDescription(schema.job_description)
 
-        df = (
-            self.spark.read.format("csv")
-            .option("delimiter", schema.delimiter)
-            .option("header", schema.has_header)
-            .load(source_file)
-        )
-
-        # Valida se todos os índices solicitados existem no DataFrame lido.
-        # Falhar cedo com mensagem clara é melhor do que erros crípticos do Spark.
-        max_index = max(schema.column_indices)
-        if max_index >= len(df.columns):
-            raise ValueError(
-                f"Schema '{schema.name}' requer coluna no índice {max_index}, "
-                f"mas o arquivo possui apenas {len(df.columns)} colunas: {source_file}"
+            df = (
+                self.spark.read.format("csv")
+                .option("delimiter", schema.delimiter)
+                .option("header", schema.has_header)
+                .load(source_file)
             )
 
-        columns_to_keep = [df.columns[i] for i in schema.column_indices]
-        return df.select(columns_to_keep).toDF(*schema.column_names)
+            # Valida se todos os índices solicitados existem no DataFrame lido.
+            # Falhar cedo com mensagem clara é melhor do que erros crípticos do Spark.
+            max_index = max(schema.column_indices)
+            if max_index >= len(df.columns):
+                raise ValueError(
+                    f"Schema '{schema.name}' requer coluna no índice {max_index}, "
+                    f"mas o arquivo possui apenas {len(df.columns)} colunas: {source_file}"
+                )
+
+            columns_to_keep = [df.columns[i] for i in schema.column_indices]
+            logger.info("Extração [%s] concluída.", schema.name)
+            return df.select(columns_to_keep).toDF(*schema.column_names)
+        except Exception as e:
+            logger.exception("Falha na extração [%s]: %s", schema.name, source_file, e)
+            raise
 
     @log_extraction
     def extract_cdr_ericsson(self, source_file: str) -> DataFrame:
