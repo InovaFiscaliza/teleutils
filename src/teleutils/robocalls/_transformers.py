@@ -1,25 +1,14 @@
+from __future__ import annotations
+
+from typing import Callable
+
 import pandas as pd
-from pyspark.sql import SparkSession
+from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
 from pyspark.sql import types as T
 from pyspark.sql.functions import pandas_udf
 
 from teleutils.preprocessing import normalize_number
-
-TRANSFORMED_COLUMNS = [
-    "referencia",
-    "tipo_de_chamada",
-    "data_hora",
-    "numero_de_a_formatado",
-    "numero_de_b_formatado",
-    "hora_da_chamada",
-    "duracao_da_chamada",
-    "chamada_curta",
-    "chamada_autenticada",
-    "chamada_caixa_postal",
-]
-LIMIAR_CHAMADA_OFENSORA = 6
-
 
 _return_schema = T.StructType(
     [
@@ -44,10 +33,32 @@ def _spark_normalize_number(number_series: pd.Series) -> pd.DataFrame:
 
 
 class RoboCallsTransformer:
+    _TRANSFORMED_COLUMNS = [
+        "referencia",
+        "tipo_de_chamada",
+        "data_hora",
+        "numero_de_a_formatado",
+        "numero_de_b_formatado",
+        "hora_da_chamada",
+        "duracao_da_chamada",
+        "chamada_curta",
+        "chamada_autenticada",
+        "chamada_caixa_postal",
+    ]
+
+    _LIMIAR_CHAMADA_OFENSORA = 6
+
+    _TRANSFORM_MAP: dict[str, str] = {
+        "ericsson": "transform_cdr_ericsson",
+        "tim_volte": "transform_cdr_tim_volte",
+        "tim_stir": "transform_cdr_tim_stir",
+        "vivo_volte": "transform_cdr_vivo_volte",
+    }
+
     def __init__(
         self,
         spark: SparkSession,
-        limiar_chamada_ofensora: int = LIMIAR_CHAMADA_OFENSORA,
+        limiar_chamada_ofensora: int = _LIMIAR_CHAMADA_OFENSORA,
     ):
         self.spark = spark
         self.limiar_chamada_ofensora = limiar_chamada_ofensora
@@ -81,27 +92,51 @@ class RoboCallsTransformer:
     def _add_chamada_curta(self, df):
         return df.withColumn(
             "chamada_curta",
-            F.when(F.col("duracao_da_chamada") <= LIMIAR_CHAMADA_OFENSORA, 1).otherwise(
-                F.lit(0)
-            ),
+            F.when(
+                F.col("duracao_da_chamada") <= self.limiar_chamada_ofensora, 1
+            ).otherwise(F.lit(0)),
         )
 
+    def _apply_standard_pipeline(
+        self, df: DataFrame, date_time_fmt: str = "yyyy-MM-dd HH-mm-ss"
+    ) -> DataFrame:
+        df = self._format_columns(df, date_time_fmt)
+        df = self._format_numbers(df)
+        df = self._add_chamada_curta(df)
+        return df
+
     def transform_cdr_ericsson(self, source_file: str):
+        date_time_fmt = "yyyy-MM-dd HH:mm:ss"
         df = self.spark.read.parquet(source_file).filter(
             F.col("tipo_de_chamada") == "TER"
         )
-        df = self._format_columns(df, "yyyy-MM-dd HH:mm:ss")
-        df = self._format_numbers(df)
-        df = self._add_chamada_curta(df)
+        df = self._apply_standard_pipeline(df, date_time_fmt)
         df = (
             df.withColumn("chamada_autenticada", F.lit(0))
             .withColumn("chamada_caixa_postal", F.lit(0))
-            .select(TRANSFORMED_COLUMNS)
+            .select(self._TRANSFORMED_COLUMNS)
         )
 
         return df
 
     def transform_cdr_tim_volte(self, source_file: str):
+        """
+        Transforma CDR no formato TIM VoLTE.
+
+        Realiza duas leituras distintas sobre `source_file`:
+        uma para identificar chamadas de caixa postal (tipo 'FORv')
+        e outra para as chamadas principais (tipo 'TERv').
+
+        Assume que `source_file` está particionado por `tipo_de_chamada`
+        no estilo Hive (ex: tipo_de_chamada=FORv/). Sem esse particionamento,
+        o arquivo será lido integralmente duas vezes, sem partition pruning.
+
+        Args:
+            source_file: Caminho para o diretório parquet particionado.
+
+        Returns:
+            DataFrame com as colunas definidas em _TRANSFORMED_COLUMNS.
+        """
         df_voice_mail = (
             self.spark.read.parquet(source_file)
             .filter(F.col("tipo_de_chamada") == "FORv")
@@ -118,9 +153,7 @@ class RoboCallsTransformer:
             F.col("tipo_de_chamada") == "TERv"
         )
 
-        df = self._format_columns(df)
-        df = self._format_numbers(df)
-        df = self._add_chamada_curta(df)
+        df = self._apply_standard_pipeline(df)
         df = (
             df.join(df_voice_mail, on="referencia", how="left")
             .withColumn(
@@ -128,7 +161,7 @@ class RoboCallsTransformer:
                 F.coalesce(F.col("chamada_caixa_postal"), F.lit(0)),
             )
             .withColumn("chamada_autenticada", F.lit(0))
-            .select(TRANSFORMED_COLUMNS)
+            .select(self._TRANSFORMED_COLUMNS)
         )
 
         return df
@@ -149,17 +182,34 @@ class RoboCallsTransformer:
         df = (
             df.withColumn(
                 "chamada_autenticada",
-                F.when(
-                    F.col("autenticacao").startswith("TN-Validation-Pa"), 1
-                ).otherwise(F.lit(0)),
+                F.when(F.col("autenticacao").startswith("TN-Validation-Pa"), 1)
+                .when(F.col("autenticacao").startswith("No-TN-Validation"), 1)
+                .otherwise(F.lit(0)),
             )
             .withColumn("chamada_caixa_postal", F.lit(0))
-            .select(TRANSFORMED_COLUMNS)
+            .select(self._TRANSFORMED_COLUMNS)
         )
 
         return df
 
     def transform_cdr_vivo_volte(self, source_file: str):
+        """
+        Transforma CDR no formato Vivo VoLTE.
+
+        Realiza duas leituras distintas sobre `source_file`:
+        uma para identificar chamadas de caixa postal (tipo '3')
+        e outra para as chamadas principais (tipo '4').
+
+        Assume que `source_file` está particionado por `tipo_de_chamada`
+        no estilo Hive (ex: tipo_de_chamada=3/). Sem esse particionamento,
+        o arquivo será lido integralmente duas vezes, sem partition pruning.
+
+        Args:
+            source_file: Caminho para o diretório parquet particionado.
+
+        Returns:
+            DataFrame com as colunas definidas em _TRANSFORMED_COLUMNS.
+        """
         date_time_fmt = "yyyyMMdd HHmmss"
         voice_mail_columns_to_keep = [
             "referencia",
@@ -179,12 +229,13 @@ class RoboCallsTransformer:
             voice_mail_columns_to_keep
         )
 
-        df = self.spark.read.parquet(source_file).filter(
-            F.col("tipo_de_chamada") == "4"
+        df = (
+            self.spark.read.parquet(source_file)
+            .filter(F.col("tipo_de_chamada") == "4")
+            .withColumn("autenticacao", F.split(F.col("numero_de_a"), ";").getItem(1))
+            .withColumn("numero_de_a", F.split(F.col("numero_de_a"), ";").getItem(0))
         )
-        df = self._format_columns(df, date_time_fmt)
-        df = self._format_numbers(df)
-        df = self._add_chamada_curta(df)
+        df = self._apply_standard_pipeline(df, date_time_fmt)
         df = (
             df.join(
                 df_voice_mail,
@@ -195,8 +246,27 @@ class RoboCallsTransformer:
                 "chamada_caixa_postal",
                 F.coalesce(F.col("chamada_caixa_postal"), F.lit(0)),
             )
-            .withColumn("chamada_autenticada", F.lit(0))
-            .select(TRANSFORMED_COLUMNS)
+            .withColumn(
+                "chamada_autenticada",
+                F.when(
+                    F.col("autenticacao").startswith("verstat=TN-Validation-Pass"), 1
+                )
+                .when(
+                    F.col("autenticacao").startswith("verstat=TN-Validation-Fail"), -1
+                )
+                .when(F.col("autenticacao").startswith("verstat=No-TN-Validation"), -1)
+                .otherwise(F.lit(0)),
+            )
+            .select(self._TRANSFORMED_COLUMNS)
         )
 
         return df
+
+    def transform_cdr(self, source_file: str, format_key: str):
+        if format_key not in self._TRANSFORM_MAP:
+            raise KeyError(
+                f"Formato '{format_key}' não reconhecido. "
+                f"Disponíveis: {list(self._TRANSFORM_MAP.keys())}"
+            )
+        method: Callable = getattr(self, self._TRANSFORM_MAP[format_key])
+        return method(source_file)
