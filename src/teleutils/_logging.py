@@ -22,17 +22,17 @@ def log_operation(method: Callable) -> Callable:
     @wraps(method)
     def wrapper(self, source_file: str, *args, **kwargs):
         logger = logging.getLogger(self.__class__.__module__)
-        logger.info("Plano de operação [%s] definido: %s", method.__name__, source_file)
+        logger.info("Iniciando operação [%s]: %s", method.__name__, source_file)
         try:
             result = method(self, source_file, *args, **kwargs)
             logger.info(
-                "Plano de operação [%s] registrado. Execução ocorrerá na próxima action.",
+                "Operação [%s] concluída com sucesso.",
                 method.__name__,
             )
             return result
         except Exception as e:
             logger.exception(
-                "Falha no registro do plano de operação [%s]: %s %s",
+                "Falha na operação [%s]: %s %s",
                 method.__name__,
                 source_file,
                 e,

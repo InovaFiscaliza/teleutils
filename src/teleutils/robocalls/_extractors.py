@@ -120,7 +120,9 @@ class RoboCallsExtractor:
         # SparkContext armazenado uma única vez, evitando chamadas repetidas
         self._sc = spark.sparkContext
 
-    def _extract_cdr(self, source_file: str, schema: CDRSchema) -> DataFrame:
+    def _extract_cdr(
+        self, source_file: str, target_file: str, schema: CDRSchema
+    ) -> DataFrame:
         """
         Lógica central de extração, reutilizada por todos os métodos públicos.
 
@@ -147,29 +149,34 @@ class RoboCallsExtractor:
             )
 
         columns_to_keep = [df.columns[i] for i in schema.column_indices]
-        return df.select(columns_to_keep).toDF(*schema.column_names)
+        df = df.select(columns_to_keep).toDF(*schema.column_names)
+        df.write.mode("overwrite").partitionBy("tipo_de_chamada").parquet(target_file)
+        return self.spark.read.parquet(target_file)
 
     @log_operation
-    def extract_cdr_ericsson(self, source_file: str) -> DataFrame:
+    def extract_cdr_ericsson(self, source_file: str, target_file: str) -> DataFrame:
         """Extrai CDR no formato Ericsson."""
-        return self._extract_cdr(source_file, self._SCHEMAS["ericsson"])
+        return self._extract_cdr(source_file, target_file, self._SCHEMAS["ericsson"])
 
     @log_operation
-    def extract_cdr_tim_volte(self, source_file: str) -> DataFrame:
+    def extract_cdr_tim_volte(self, source_file: str, target_file: str) -> DataFrame:
         """Extrai CDR no formato TIM VoLTE."""
-        return self._extract_cdr(source_file, self._SCHEMAS["tim_volte"])
+        return self._extract_cdr(source_file, target_file, self._SCHEMAS["tim_volte"])
 
     @log_operation
-    def extract_cdr_tim_stir(self, source_file: str) -> DataFrame:
+    def extract_cdr_tim_stir(self, source_file: str, target_file: str) -> DataFrame:
         """Extrai CDR no formato TIM STIR."""
-        return self._extract_cdr(source_file, self._SCHEMAS["tim_stir"])
+        return self._extract_cdr(source_file, target_file, self._SCHEMAS["tim_stir"])
 
     @log_operation
-    def extract_cdr_vivo_volte(self, source_file: str) -> DataFrame:
+    def extract_cdr_vivo_volte(self, source_file: str, target_file: str) -> DataFrame:
         """Extrai CDR no formato Vivo VoLTE."""
-        return self._extract_cdr(source_file, self._SCHEMAS["vivo_volte"])
+        return self._extract_cdr(source_file, target_file, self._SCHEMAS["vivo_volte"])
 
-    def extract_cdr(self, source_file: str, format_key: str) -> DataFrame:
+    @log_operation
+    def extract_cdr(
+        self, source_file: str, target_file: str, format_key: str
+    ) -> DataFrame:
         """
         Método genérico para extração por chave de formato.
 
@@ -181,4 +188,4 @@ class RoboCallsExtractor:
                 f"Formato '{format_key}' não reconhecido. "
                 f"Disponíveis: {list(self._SCHEMAS.keys())}"
             )
-        return self._extract_cdr(source_file, self._SCHEMAS[format_key])
+        return self._extract_cdr(source_file, target_file, self._SCHEMAS[format_key])

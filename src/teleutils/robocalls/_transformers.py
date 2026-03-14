@@ -110,7 +110,7 @@ class RoboCallsTransformer:
         return df
 
     @log_operation
-    def transform_cdr_ericsson(self, source_file: str):
+    def transform_cdr_ericsson(self, source_file: str, target_file: str):
         date_time_fmt = "yyyy-MM-dd HH:mm:ss"
         df = self.spark.read.parquet(source_file).filter(
             F.col("tipo_de_chamada") == "TER"
@@ -122,10 +122,11 @@ class RoboCallsTransformer:
             .select(self._TRANSFORMED_COLUMNS)
         )
 
-        return df
+        df.write.mode("overwrite").parquet(target_file)
+        return self.spark.read.parquet(target_file)
 
     @log_operation
-    def transform_cdr_tim_volte(self, source_file: str):
+    def transform_cdr_tim_volte(self, source_file: str, target_file: str):
         """
         Transforma CDR no formato TIM VoLTE.
 
@@ -170,10 +171,11 @@ class RoboCallsTransformer:
             .select(self._TRANSFORMED_COLUMNS)
         )
 
-        return df
+        df.write.mode("overwrite").parquet(target_file)
+        return self.spark.read.parquet(target_file)
 
     @log_operation
-    def transform_cdr_tim_stir(self, source_file: str):
+    def transform_cdr_tim_stir(self, source_file: str, target_file: str):
         sip_number_pattern = r"sip:(\d+)@"
 
         df = self.spark.read.parquet(source_file).filter(
@@ -197,10 +199,11 @@ class RoboCallsTransformer:
             .select(self._TRANSFORMED_COLUMNS)
         )
 
-        return df
+        df.write.mode("overwrite").parquet(target_file)
+        return self.spark.read.parquet(target_file)
 
     @log_operation
-    def transform_cdr_vivo_volte(self, source_file: str):
+    def transform_cdr_vivo_volte(self, source_file: str, target_file: str):
         """
         Transforma CDR no formato Vivo VoLTE.
 
@@ -268,13 +271,14 @@ class RoboCallsTransformer:
             .select(self._TRANSFORMED_COLUMNS)
         )
 
-        return df
+        df.write.mode("overwrite").parquet(target_file)
+        return self.spark.read.parquet(target_file)
 
-    def transform_cdr(self, source_file: str, format_key: str):
+    def transform_cdr(self, source_file: str, target_file: str, format_key: str):
         if format_key not in self._TRANSFORM_MAP:
             raise KeyError(
                 f"Formato '{format_key}' não reconhecido. "
                 f"Disponíveis: {list(self._TRANSFORM_MAP.keys())}"
             )
         method: Callable = getattr(self, self._TRANSFORM_MAP[format_key])
-        return method(source_file)
+        return method(source_file, target_file)
