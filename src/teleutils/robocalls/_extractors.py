@@ -136,6 +136,7 @@ class RoboCallsExtractor:
             self.spark.read.format("csv")
             .option("delimiter", schema.delimiter)
             .option("header", schema.has_header)
+            .option("inferSchema", False)
             .load(source_file)
         )
 
