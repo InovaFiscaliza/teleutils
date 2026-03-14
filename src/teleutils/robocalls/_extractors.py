@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from functools import wraps
 
 from pyspark.sql import DataFrame, SparkSession
+
+from teleutils._logging import log_operation
 
 logger = logging.getLogger(__name__)
 
@@ -32,28 +33,6 @@ class CDRSchema:
                 f"{len(self.column_indices)} elemento(s), mas column_names tem "
                 f"{len(self.column_names)}. Devem ter o mesmo tamanho."
             )
-
-
-def log_extraction(method):
-    """
-    Decorador para registrar o início e fim de cada extração.
-
-    Decoradores são ideais aqui pois aplicam comportamento transversal
-    (logging) sem poluir a lógica principal de cada método.
-    """
-
-    @wraps(method)
-    def wrapper(self, source_file: str, *args, **kwargs) -> DataFrame:
-        logger.info("Iniciando extração [%s]: %s", method.__name__, source_file)
-        try:
-            result = method(self, source_file, *args, **kwargs)
-            logger.info("Extração [%s] concluída com sucesso.", method.__name__)
-            return result
-        except Exception as e:
-            logger.exception("Falha na extração [%s]: %s", method.__name__, e)
-            raise
-
-    return wrapper
 
 
 class RoboCallsExtractor:
@@ -149,49 +128,43 @@ class RoboCallsExtractor:
         é um princípio fundamental de design. Novos formatos são adicionados
         apenas incluindo um novo CDRSchema — sem duplicar código.
         """
-        logger.info("Iniciando extração [%s]: %s", schema.name, source_file)
-        try:
-            self._sc.setJobDescription(schema.job_description)
+        self._sc.setJobDescription(schema.job_description)
 
-            df = (
-                self.spark.read.format("csv")
-                .option("delimiter", schema.delimiter)
-                .option("header", schema.has_header)
-                .load(source_file)
+        df = (
+            self.spark.read.format("csv")
+            .option("delimiter", schema.delimiter)
+            .option("header", schema.has_header)
+            .load(source_file)
+        )
+
+        # Valida se todos os índices solicitados existem no DataFrame lido.
+        # Falhar cedo com mensagem clara é melhor do que erros crípticos do Spark.
+        max_index = max(schema.column_indices)
+        if max_index >= len(df.columns):
+            raise ValueError(
+                f"Schema '{schema.name}' requer coluna no índice {max_index}, "
+                f"mas o arquivo possui apenas {len(df.columns)} colunas: {source_file}"
             )
 
-            # Valida se todos os índices solicitados existem no DataFrame lido.
-            # Falhar cedo com mensagem clara é melhor do que erros crípticos do Spark.
-            max_index = max(schema.column_indices)
-            if max_index >= len(df.columns):
-                raise ValueError(
-                    f"Schema '{schema.name}' requer coluna no índice {max_index}, "
-                    f"mas o arquivo possui apenas {len(df.columns)} colunas: {source_file}"
-                )
+        columns_to_keep = [df.columns[i] for i in schema.column_indices]
+        return df.select(columns_to_keep).toDF(*schema.column_names)
 
-            columns_to_keep = [df.columns[i] for i in schema.column_indices]
-            logger.info("Extração [%s] concluída.", schema.name)
-            return df.select(columns_to_keep).toDF(*schema.column_names)
-        except Exception as e:
-            logger.exception("Falha na extração [%s]: %s", schema.name, source_file, e)
-            raise
-
-    @log_extraction
+    @log_operation
     def extract_cdr_ericsson(self, source_file: str) -> DataFrame:
         """Extrai CDR no formato Ericsson."""
         return self._extract_cdr(source_file, self._SCHEMAS["ericsson"])
 
-    @log_extraction
+    @log_operation
     def extract_cdr_tim_volte(self, source_file: str) -> DataFrame:
         """Extrai CDR no formato TIM VoLTE."""
         return self._extract_cdr(source_file, self._SCHEMAS["tim_volte"])
 
-    @log_extraction
+    @log_operation
     def extract_cdr_tim_stir(self, source_file: str) -> DataFrame:
         """Extrai CDR no formato TIM STIR."""
         return self._extract_cdr(source_file, self._SCHEMAS["tim_stir"])
 
-    @log_extraction
+    @log_operation
     def extract_cdr_vivo_volte(self, source_file: str) -> DataFrame:
         """Extrai CDR no formato Vivo VoLTE."""
         return self._extract_cdr(source_file, self._SCHEMAS["vivo_volte"])

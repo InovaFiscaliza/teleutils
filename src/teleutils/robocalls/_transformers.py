@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Callable
 
 import pandas as pd
@@ -8,7 +9,10 @@ from pyspark.sql import functions as F
 from pyspark.sql import types as T
 from pyspark.sql.functions import pandas_udf
 
+from teleutils._logging import log_operation
 from teleutils.preprocessing import normalize_number
+
+logger = logging.getLogger(__name__)
 
 _return_schema = T.StructType(
     [
@@ -105,6 +109,7 @@ class RoboCallsTransformer:
         df = self._add_chamada_curta(df)
         return df
 
+    @log_operation
     def transform_cdr_ericsson(self, source_file: str):
         date_time_fmt = "yyyy-MM-dd HH:mm:ss"
         df = self.spark.read.parquet(source_file).filter(
@@ -119,6 +124,7 @@ class RoboCallsTransformer:
 
         return df
 
+    @log_operation
     def transform_cdr_tim_volte(self, source_file: str):
         """
         Transforma CDR no formato TIM VoLTE.
@@ -166,6 +172,7 @@ class RoboCallsTransformer:
 
         return df
 
+    @log_operation
     def transform_cdr_tim_stir(self, source_file: str):
         sip_number_pattern = r"sip:(\d+)@"
 
@@ -192,6 +199,7 @@ class RoboCallsTransformer:
 
         return df
 
+    @log_operation
     def transform_cdr_vivo_volte(self, source_file: str):
         """
         Transforma CDR no formato Vivo VoLTE.
