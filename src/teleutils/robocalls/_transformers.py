@@ -36,6 +36,14 @@ def _spark_normalize_number(number_series: pd.Series) -> pd.DataFrame:
 
 
 class RoboCallsTransformer:
+    # Valores possíveis de chamada_autenticada:
+    #  0 = não autenticada (é nulo)
+    # +1 = autenticação válida (contém TN-Validation-Pa)
+    # -1 = autenticação falhou (em qualquer outro caso)
+    _AUTH_NONE = 0
+    _AUTH_PASS = 1
+    _AUTH_FAIL = -1
+
     _LIMIAR_CHAMADA_OFENSORA = 6
 
     _TRANSFORM_MAP: dict[str, str] = {
@@ -100,6 +108,14 @@ class RoboCallsTransformer:
             ).otherwise(F.lit(0)),
         )
 
+    def _add_chamada_autenticada(self, df):
+        return df.withColumn(
+            "chamada_autenticada",
+            F.when(F.col("autenticacao").isNull(), self._AUTH_NONE)
+            .when(F.col("autenticacao").contains("TN-Validation-Pa"), self._AUTH_PASS)
+            .otherwise(F.lit(self._AUTH_FAIL)),
+        )
+
     def _apply_standard_pipeline(
         self, df: DataFrame, date_time_fmt: str = "yyyy-MM-dd HH-mm-ss"
     ) -> DataFrame:
@@ -112,9 +128,10 @@ class RoboCallsTransformer:
         """
         Grava o DataFrame como parquet sem particionamento por coluna.
 
-        O cast explícito em tipo_de_chamada evita que o Spark converta
-        valores numéricos em string para integer ao inferir o tipo
-        da coluna de particionamento.
+        Diferente da extração (particionada por tipo_de_chamada), a camada
+        transformada é gravada flat porque o analyzer agrupa por
+        numero_de_a_formatado + hora_da_chamada — o particionamento por
+        tipo_de_chamada não traria pruning real nessa etapa.
         """
         df.withColumn(
             "tipo_de_chamada", F.col("tipo_de_chamada").cast(T.StringType())
@@ -199,15 +216,9 @@ class RoboCallsTransformer:
         )
         df = self._format_numbers(df)
         df = self._add_chamada_curta(df)
-        df = (
-            df.withColumn(
-                "chamada_autenticada",
-                F.when(F.col("autenticacao").startswith("TN-Validation-Pa"), 1)
-                .when(F.col("autenticacao").startswith("No-TN-Validation"), 1)
-                .otherwise(F.lit(0)),
-            )
-            .withColumn("chamada_caixa_postal", F.lit(0))
-            .select(self._TRANSFORMED_COLUMNS)
+        df = self._add_chamada_autenticada(df)
+        df = df.withColumn("chamada_caixa_postal", F.lit(0)).select(
+            self._TRANSFORMED_COLUMNS
         )
 
         self._write_parquet(df, target_file)
@@ -258,6 +269,7 @@ class RoboCallsTransformer:
             .withColumn("numero_de_a", F.split(F.col("numero_de_a"), ";").getItem(0))
         )
         df = self._apply_standard_pipeline(df, date_time_fmt)
+        df = self._add_chamada_autenticada(df)
         df = (
             df.join(
                 df_voice_mail,
@@ -267,17 +279,6 @@ class RoboCallsTransformer:
             .withColumn(
                 "chamada_caixa_postal",
                 F.coalesce(F.col("chamada_caixa_postal"), F.lit(0)),
-            )
-            .withColumn(
-                "chamada_autenticada",
-                F.when(
-                    F.col("autenticacao").startswith("verstat=TN-Validation-Pass"), 1
-                )
-                .when(
-                    F.col("autenticacao").startswith("verstat=TN-Validation-Fail"), -1
-                )
-                .when(F.col("autenticacao").startswith("verstat=No-TN-Validation"), -1)
-                .otherwise(F.lit(0)),
             )
             .select(self._TRANSFORMED_COLUMNS)
         )
