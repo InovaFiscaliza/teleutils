@@ -33,6 +33,15 @@ class CDRSchema:
                 f"{len(self.column_indices)} elemento(s), mas column_names tem "
                 f"{len(self.column_names)}. Devem ter o mesmo tamanho."
             )
+        if not self.column_indices:
+            raise ValueError(
+                f"Schema '{self.name}': column_indices não pode ser vazio."
+            )
+        if any(i < 0 for i in self.column_indices):
+            raise ValueError(
+                f"Schema '{self.name}': índices negativos não são permitidos. "
+                f"Recebido: {self.column_indices}"
+            )
 
 
 class RoboCallsExtractor:
@@ -146,7 +155,9 @@ class RoboCallsExtractor:
         if max_index >= len(df.columns):
             raise ValueError(
                 f"Schema '{schema.name}' requer coluna no índice {max_index}, "
-                f"mas o arquivo possui apenas {len(df.columns)} colunas: {source_file}"
+                f"mas o arquivo possui apenas {len(df.columns)} colunas.\n"
+                f"Verifique se o delimitador '{schema.delimiter}' está correto "
+                f"para o arquivo: {source_file}"
             )
 
         columns_to_keep = [df.columns[i] for i in schema.column_indices]
