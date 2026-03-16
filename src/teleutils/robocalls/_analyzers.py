@@ -20,15 +20,11 @@ class RoboCallsAnalyzer:
                 F.count("referencia").alias("total_chamadas"),
                 F.sum("chamada_curta").alias("total_chamadas_curtas"),
                 F.sum("chamada_caixa_postal").alias("total_chamadas_caixa_postal"),
-                F.sum(
-                    F.when(
-                        F.col("chamada_autenticada") > 0, F.col("chamada_autenticada")
-                    ).otherwise(0)
-                ).alias("total_chamadas_autenticadas"),
+                F.sum(F.greatest(F.col("chamada_autenticada"), F.lit(0))).alias(
+                    "total_chamadas_autenticadas"
+                ),
             )
             .orderBy(F.desc("total_chamadas_curtas"))
         )
-        if target_file:
-            df_agg.write.mode("overwrite").parquet(target_file)
-            df_agg = self.spark.read.parquet(target_file)
-        return df_agg
+        df_agg.write.mode("overwrite").parquet(target_file)
+        return self.spark.read.parquet(target_file)
