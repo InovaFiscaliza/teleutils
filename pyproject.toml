@@ -1,6 +1,6 @@
 [project]
 name = "teleutils"
-version = "0.1.0"
+version = "0.0.1"
 description = "Python Utility Functions Library for Call Details Records ( CDRs ) from Brazilian Telecommunications Carriers"
 readme = "README.md"
 authors = [
