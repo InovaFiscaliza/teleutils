@@ -184,20 +184,3 @@ class RoboCallsExtractor:
     def extract_cdr_vivo_volte(self, source_file: str, target_file: str) -> DataFrame:
         """Extrai CDR no formato Vivo VoLTE."""
         return self._extract_cdr(source_file, target_file, self._SCHEMAS["vivo_volte"])
-
-    @log_operation
-    def extract_cdr(
-        self, source_file: str, target_file: str, format_key: str
-    ) -> DataFrame:
-        """
-        Método genérico para extração por chave de formato.
-
-        Permite chamar extractor.extract_cdr(path, "ericsson") programaticamente,
-        útil quando o formato é determinado em tempo de execução (ex: lendo de config).
-        """
-        if format_key not in self._SCHEMAS:
-            raise KeyError(
-                f"Formato '{format_key}' não reconhecido. "
-                f"Disponíveis: {list(self._SCHEMAS.keys())}"
-            )
-        return self._extract_cdr(source_file, target_file, self._SCHEMAS[format_key])

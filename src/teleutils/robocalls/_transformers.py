@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from typing import Callable
 
 import pandas as pd
 from pyspark.sql import DataFrame, SparkSession
@@ -285,12 +284,3 @@ class RoboCallsTransformer:
 
         self._write_parquet(df, target_file)
         return self.spark.read.parquet(target_file)
-
-    def transform_cdr(self, source_file: str, target_file: str, format_key: str):
-        if format_key not in self._TRANSFORM_MAP:
-            raise KeyError(
-                f"Formato '{format_key}' não reconhecido. "
-                f"Disponíveis: {list(self._TRANSFORM_MAP.keys())}"
-            )
-        method: Callable = getattr(self, self._TRANSFORM_MAP[format_key])
-        return method(source_file, target_file)
