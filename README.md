@@ -1,7 +1,4 @@
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/InovaFiscaliza/teleutils)
-[![PyPI](https://img.shields.io/pypi/v/teleutils?style)]()
-[![License](https://img.shields.io/github/license/InovaFiscaliza/teleutils)]()
-[![Python](https://img.shields.io/badge/python-3.9+-blue)]()
 
 # TeleUtils
 
