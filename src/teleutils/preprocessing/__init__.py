@@ -1,4 +1,4 @@
-from teleutils.preprocessing._number_format import (
+from teleutils.preprocessing.number_format import (
     normalize_number,
     normalize_number_pair,
 )

@@ -110,10 +110,10 @@ df_analyzed.show(10)
 
 | Módulo | Responsabilidade | Detalhes |
 |--------|------------------|----------|
-| `preprocessing._number_format` | Normalização de números telefônicos brasileiros | [Ver detalhes](#number_format) |
-| `robocalls._extractors` | Extração de dados brutos em formato CDR | [Ver detalhes](#extractors) |
-| `robocalls._transformers` | Transformação e padronização dos dados | [Ver detalhes](#transformers) |
-| `robocalls._analyzers` | Análise agregada e detecção de padrões | [Ver detalhes](#analyzers) |
+| `preprocessing.number_format` | Normalização de números telefônicos brasileiros | [Ver detalhes](#number_format) |
+| `robocalls.extractors` | Extração de dados brutos em formato CDR | [Ver detalhes](#extractors) |
+| `robocalls.transformers` | Transformação e padronização dos dados | [Ver detalhes](#transformers) |
+| `robocalls.analyzers` | Análise agregada e detecção de padrões | [Ver detalhes](#analyzers) |
 
 ---
 
@@ -121,7 +121,7 @@ df_analyzed.show(10)
 
 <a id="number_format"></a>
 
-### Formatação de Números Telefônicos (`preprocessing._number_format`)
+### Formatação de Números Telefônicos (`preprocessing.number_format`)
 
 O módulo de formatação de números implementa a normalização de números telefônicos brasileiros de acordo com os padrões ANATEL (Agência Nacional de Telecomunicações) e o padrão internacional ITU-T E.164.
 
@@ -157,7 +157,7 @@ print(f"A: {a_fmt} ({a_ok}), B: {b_fmt} ({b_ok})")
 
 <a id="extractors"></a>
 
-### Extração de CDR (`robocalls._extractors`)
+### Extração de CDR (`robocalls.extractors`)
 
 O módulo de extração fornece ferramentas para ler e padronizar arquivos CDR em múltiplos formatos de operadoras brasileiras. A extração é baseada em esquemas configuráveis que definem delimitador, índices de coluna e nomes finais.
 
@@ -202,7 +202,7 @@ df.show(5)
 
 <a id="transformers"></a>
 
-### Transformação de Dados (`robocalls._transformers`)
+### Transformação de Dados (`robocalls.transformers`)
 
 O módulo de transformação padroniza dados CDR brutos, normalizando números telefônicos, parseando timestamps, e enriquecendo registros com indicadores binários de padrão de abuso (chamadas curtas, caixa postal, autenticação).
 
@@ -272,7 +272,7 @@ df_transformed.show(5)
 
 <a id="analyzers"></a>
 
-### Análise de Padrões (`robocalls._analyzers`)
+### Análise de Padrões (`robocalls.analyzers`)
 
 O módulo de análise agrupa recursos CDR por número originador e hora da chamada, computando métricas que indicam atividade abusiva (robocalls, campanhas agressivas de telemarketing).
 
