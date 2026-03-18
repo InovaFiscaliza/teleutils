@@ -74,7 +74,7 @@ class RoboCallsAnalyzer:
         - total_chamadas: Quantidade total de chamadas no grupo
         - total_chamadas_curtas: Quantidade de chamadas com duração <= limiar
           (alta concentração indica robocall)
-        - total_chamadas_caixa_postal: Quantidade encaminhadas ao correio de voz
+        - total_chamadas_caixa_postal: Quantidade encaminhadas ao correio de voz com duração > limiar
           (pode indicar tentativa de contato com sistema automático)
         - total_chamadas_autenticadas: Quantidade com autenticação bem-sucedida
           (score 1; valores -1 e 0 não contam)
@@ -143,7 +143,11 @@ class RoboCallsAnalyzer:
             .agg(
                 F.count("referencia").alias("total_chamadas"),
                 F.sum("chamada_curta").alias("total_chamadas_curtas"),
-                F.sum("chamada_caixa_postal").alias("total_chamadas_caixa_postal"),
+                F.sum(
+                    F.when(
+                        F.col("chamada_curta") == 0, F.col("chamada_caixa_postal")
+                    ).otherwise(0)
+                ).alias("total_chamadas_caixa_postal"),
                 F.sum(F.greatest(F.col("chamada_autenticada"), F.lit(0))).alias(
                     "total_chamadas_autenticadas"
                 ),
