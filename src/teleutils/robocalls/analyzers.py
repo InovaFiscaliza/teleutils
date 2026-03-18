@@ -98,7 +98,7 @@ class RoboCallsAnalyzer:
                 - total_chamadas_curtas (long): Contagem de chamadas com
                   duração <= limiar_chamada_ofensora
                 - total_chamadas_caixa_postal (long): Contagem de chamadas
-                  encaminhadas ao correio de voz
+                  encaminhadas ao correio de voz com duração > limiar_chamada_ofensora
                 - total_chamadas_autenticadas (long): Contagem de chamadas
                   com chamada_autenticada == 1 (autenticação bem-sucedida)
 
