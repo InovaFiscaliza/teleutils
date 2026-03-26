@@ -148,7 +148,7 @@ class RoboCallsAnalyzer:
                         F.col("chamada_curta") == 0, F.col("chamada_caixa_postal")
                     ).otherwise(0)
                 ).alias("total_chamadas_caixa_postal"),
-                F.sum(F.greatest(F.col("chamada_autenticada"), F.lit(0))).alias(
+                F.sum((F.col("chamada_autenticada") == 1).cast("int")).alias(
                     "total_chamadas_autenticadas"
                 ),
             )
