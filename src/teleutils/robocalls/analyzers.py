@@ -151,6 +151,20 @@ class RoboCallsAnalyzer:
                 F.sum((F.col("chamada_autenticada") == 1).cast("int")).alias(
                     "total_chamadas_autenticadas"
                 ),
+                F.sum(
+                    F.when(
+                        (F.col("chamada_autenticada") == 1), F.col("chamada_curta")
+                    ).otherwise(0)
+                ).alias("total_chamadas_curtas_autenticadas"),
+                F.sum(
+                    F.when(
+                        (
+                            (F.col("chamada_autenticada") == 1)
+                            & (F.col("chamada_curta") == 0)
+                        ),
+                        F.col("chamada_caixa_postal"),
+                    ).otherwise(0)
+                ).alias("total_chamadas_caixa_postal_autenticadas"),
             )
             .orderBy(F.desc("total_chamadas_curtas"))
         )
