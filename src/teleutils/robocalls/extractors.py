@@ -11,7 +11,7 @@ lógica de leitura, validação de índices de coluna e escrita particionada. No
 formatos podem ser adicionados declarando um novo `CDRSchema` no dicionário de
 classe `_SCHEMAS`, sem necessidade de duplicar código.
 
-Note:
+Nota:
     Os arquivos extraídos são salvos como parquet particionado por tipo_de_chamada.
     Os índices de coluna são baseados em zero e devem corresponder ao layout do
     arquivo CSV de entrada após aplicação do delimitador configurado.
@@ -38,7 +38,7 @@ class CDRSchema:
     possui um esquema distinto que especifica o delimitador, presença de cabeçalho,
     quais colunas do arquivo original devem ser selecionadas e seus nomes finais.
 
-    Attributes:
+    Atributos:
         name (str): Nome descritivo do formato CDR (ex: "Ericsson", "TIM VoLTE").
         delimiter (str): Caractere delimitador usado no arquivo CSV
             (ex: ";" ou "|").
@@ -50,14 +50,14 @@ class CDRSchema:
             Exemplo: ["referencia", "numero_de_a", "_data", "_hora", ...].
         job_description (str): Descrição do job para monitoramento no Spark UI.
 
-    Note:
+    Nota:
         A dataclass é congelada (frozen=True), garantindo imutabilidade.
         O método `__post_init__` valida automaticamente que:
         - `column_indices` e `column_names` têm o mesmo tamanho
         - `column_indices` não está vazio
         - Nenhum índice é negativo
 
-    Example:
+    Exemplo:
         >>> schema = CDRSchema(
         ...     name="Ericsson",
         ...     delimiter=";",
@@ -107,7 +107,7 @@ class RoboCallsExtractor:
     separação entre lógica e configuração (padrão de design Strategy) facilita a
     manutenção e a adição de novos formatos.
 
-    Attributes:
+    Atributos:
         spark (SparkSession): Sessão Spark usada para leitura e escrita de dados.
     """
 
@@ -185,7 +185,7 @@ class RoboCallsExtractor:
     def __init__(self, spark: SparkSession) -> None:
         """Inicializa o extrator com uma sessão Spark.
 
-        Args:
+        Parâmetros:
             spark (SparkSession): Sessão Spark ativa para operações de I/O.
         """
         self.spark = spark
@@ -205,21 +205,21 @@ class RoboCallsExtractor:
         4. Seleciona e renomeia as colunas conforme o esquema
         5. Grava o resultado como parquet, particionado por tipo_de_chamada
 
-        Args:
+        Parâmetros:
             source_file (str): Caminho para o arquivo CSV de entrada.
             target_file (str): Caminho para o diretório parquet de saída.
             schema (CDRSchema): Esquema que define o mapeamento de colunas.
 
-        Returns:
+        Retorna:
             DataFrame: DataFrame do Spark contendo os registros extraídos e renomeados.
 
-        Raises:
+        Lança:
             ValueError: Se algum índice em schema.column_indices exceder o número de
                 colunas do arquivo CSV, ou se o delimitador não estiver correto.
             FileNotFoundError: Se o arquivo de entrada não existir.
             Exception: Qualquer erro lançado pelo Spark ao ler ou gravar parquet.
 
-        Note:
+        Nota:
             O particionamento por tipo_de_chamada no arquivo de saída melhora a velocidade
             de leitura em operações subsequentes que filtrem por esse campo.
             Falhas de validação são capturadas cedo com mensagens descritivas,
@@ -255,14 +255,14 @@ class RoboCallsExtractor:
     def extract_cdr_ericsson(self, source_file: str, target_file: str) -> DataFrame:
         """Extrai CDR no formato Ericsson.
 
-        Args:
+        Parâmetros:
             source_file (str): Caminho para o arquivo CSV Ericsson de entrada.
             target_file (str): Caminho para o diretório parquet de saída.
 
-        Returns:
+        Retorna:
             DataFrame: DataFrame contendo os registros Ericsson extraídos.
 
-        Example:
+        Exemplo:
             >>> extrator = RoboCallsExtractor(spark)
             >>> df = extrator.extract_cdr_ericsson(
             ...     source_file="dados/ericsson.csv",
@@ -275,14 +275,14 @@ class RoboCallsExtractor:
     def extract_cdr_tim_volte(self, source_file: str, target_file: str) -> DataFrame:
         """Extrai CDR no formato TIM VoLTE.
 
-        Args:
+        Parâmetros:
             source_file (str): Caminho para o arquivo CSV TIM VoLTE de entrada.
             target_file (str): Caminho para o diretório parquet de saída.
 
-        Returns:
+        Retorna:
             DataFrame: DataFrame contendo os registros TIM VoLTE extraídos.
 
-        Example:
+        Exemplo:
             >>> extrator = RoboCallsExtractor(spark)
             >>> df = extrator.extract_cdr_tim_volte(
             ...     source_file="dados/tim_volte.csv",
@@ -295,14 +295,14 @@ class RoboCallsExtractor:
     def extract_cdr_tim_stir(self, source_file: str, target_file: str) -> DataFrame:
         """Extrai CDR no formato TIM STIR.
 
-        Args:
+        Parâmetros:
             source_file (str): Caminho para o arquivo CSV TIM STIR de entrada.
             target_file (str): Caminho para o diretório parquet de saída.
 
-        Returns:
+        Retorna:
             DataFrame: DataFrame contendo os registros TIM STIR extraídos.
 
-        Example:
+        Exemplo:
             >>> extrator = RoboCallsExtractor(spark)
             >>> df = extrator.extract_cdr_tim_stir(
             ...     source_file="dados/tim_stir.csv",
@@ -315,14 +315,14 @@ class RoboCallsExtractor:
     def extract_cdr_vivo_volte(self, source_file: str, target_file: str) -> DataFrame:
         """Extrai CDR no formato Vivo VoLTE.
 
-        Args:
+        Parâmetros:
             source_file (str): Caminho para o arquivo CSV Vivo VoLTE de entrada.
             target_file (str): Caminho para o diretório parquet de saída.
 
-        Returns:
+        Retorna:
             DataFrame: DataFrame contendo os registros Vivo VoLTE extraídos.
 
-        Example:
+        Exemplo:
             >>> extrator = RoboCallsExtractor(spark)
             >>> df = extrator.extract_cdr_vivo_volte(
             ...     source_file="dados/vivo_volte.csv",
