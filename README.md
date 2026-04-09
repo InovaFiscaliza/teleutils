@@ -293,8 +293,10 @@ O módulo de análise agrupa recursos CDR por número originador e hora da chama
 | `hora_da_chamada` | `string` | Hora cheia em formato `YYYYMMDDHH` (agregação) |
 | `total_chamadas` | `long` | Contagem total de chamadas no grupo |
 | `total_chamadas_curtas` | `long` | Contagem de chamadas com duração ≤ limiar |
-| `total_chamadas_caixa_postal` | `long` | Contagem de chamadas encaminhadas ao correio de voz |
-| `total_chamadas_autenticadas` | `long` | Contagem de chamadas com autenticação bem-sucedida (score = 1) |
+| `total_chamadas_caixa_postal` | `long` | Contagem de chamadas **não curtas** encaminhadas ao correio de voz |
+| `total_chamadas_autenticadas` | `long` | Contagem de chamadas com autenticação bem-sucedida (`chamada_autenticada == 1`) |
+| `total_chamadas_curtas_autenticadas` | `long` | Contagem de chamadas curtas com autenticação bem-sucedida (`chamada_autenticada == 1`) |
+| `total_chamadas_caixa_postal_autenticadas` | `long` | Contagem de chamadas não curtas encaminhadas ao correio de voz com autenticação bem-sucedida (`chamada_autenticada == 1`) |
 
 **Exemplo de Uso:**
 
@@ -391,4 +393,4 @@ TeleUtils é licenciado sob **GNU General Public License v3.0**. Veja o arquivo 
 ---
 
 **Desenvolvido por:** [InovaFiscaliza](https://github.com/InovaFiscaliza)
-**Última atualização:** Março 2026
+**Última atualização:** Abril 2026
