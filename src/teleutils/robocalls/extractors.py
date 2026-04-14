@@ -4,7 +4,8 @@ Este módulo fornece ferramentas para ler arquivos de CDR (Call Detail Records) 
 diferentes operadoras telefônicas e formatos de tecnologia, extraindo as colunas
 relevantes e normalizando seus nomes. Suporta formatos de fabricantes diversos
 (Ericsson, TIM VoLTE, TIM STIR, Vivo VoLTE) através de um mecanismo baseado em
-esquemas de mapeamento.
+esquemas de mapeamento, incluindo a opção de informar explicitamente o schema
+Spark de leitura quando o arquivo de origem não possui cabeçalho confiável.
 
 A extração é centralizada no método privado `_extract_cdr`, que padroniza a
 lógica de leitura, validação de índices de coluna e escrita particionada. Novos
@@ -23,6 +24,7 @@ import logging
 from dataclasses import dataclass
 
 from pyspark.sql import DataFrame, SparkSession
+from pyspark.sql import types as T
 
 from teleutils._logging import log_operation
 
@@ -44,7 +46,13 @@ class CDRSchema:
         name (str): Nome descritivo do formato CDR (ex: "Ericsson", "TIM VoLTE").
         delimiter (str): Caractere delimitador usado no arquivo CSV
             (ex: ";" ou "|").
+        schema (T.StructType | None): Schema opcional usado na leitura do CSV.
+            Útil para arquivos sem cabeçalho ou com cabeçalho inconsistente,
+            garantindo nomes e quantidade de colunas previsíveis.
         has_header (bool): Indica se o arquivo contém uma linha de cabeçalho.
+        column_to_filter (tuple[str, str] | None): Filtro opcional aplicado após a
+            seleção e renomeação das colunas. Deve referenciar um nome presente em
+            `column_names`.
         column_indices (list[int]): Índices das colunas do arquivo original a serem
             selecionadas, em ordem zero-indexada. Exemplo: [0, 1, 2, 3, 4, 9, 11].
         column_names (list[str]): Nomes das colunas no DataFrame de saída,
@@ -55,17 +63,20 @@ class CDRSchema:
     Nota:
         A dataclass é congelada (frozen=True), garantindo imutabilidade.
         O método `__post_init__` valida automaticamente que:
-        - `skip_rows` não é negativo
+                - `schema`, quando informado, é um `StructType`
         - `column_indices` e `column_names` têm o mesmo tamanho
         - `column_indices` não está vazio
         - Nenhum índice é negativo
+                - `schema`, quando informado, contém colunas suficientes para os índices
+                    declarados
 
     Exemplo:
         >>> schema = CDRSchema(
         ...     name="Ericsson",
         ...     delimiter=";",
+                ...     schema=None,
         ...     has_header=True,
-        ...     skip_rows=0,
+                ...     column_to_filter=None,
         ...     column_indices=[0, 1, 2, 3, 4, 9, 11],
         ...     column_names=["referencia", "numero_de_a", "_data", "_hora",
         ...                   "tipo_de_chamada", "numero_de_b", "duracao_da_chamada"],
@@ -75,15 +86,23 @@ class CDRSchema:
 
     name: str  # Nome do formato (ex: "Ericsson", "TIM VoLTE")
     delimiter: str  # Delimitador do CSV
+    schema: (
+        T.StructType | None
+    )  # Esquema de leitura opcional para arquivos sem cabeçalho ou com cabeçalho inconsistente
     has_header: bool  # Se o arquivo possui cabeçalho
     column_to_filter: (
         tuple[str, str] | None
-    )  # Tupla (nome_coluna, valor) para filtrar linhas, ou None para não filtrar, necessário para excluir linhas de cabeçalho mal formatadas em alguns arquivos
+    )  # Tupla (nome_coluna, valor) para filtrar linhas, ou None para não filtrar
     column_indices: list[int]  # Índices das colunas a selecionar
     column_names: list[str]  # Nomes finais das colunas (na mesma ordem dos índices)
     job_description: str  # Descrição do job para monitoramento no Spark UI
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
+        if self.schema is not None and not isinstance(self.schema, T.StructType):
+            raise ValueError(
+                f"Schema '{self.name}': schema deve ser None ou um StructType. "
+                f"Recebido: {type(self.schema).__name__}"
+            )
         if self.column_to_filter is not None:
             if (
                 not isinstance(self.column_to_filter, tuple)
@@ -115,6 +134,11 @@ class CDRSchema:
                 f"Schema '{self.name}': índices negativos não são permitidos. "
                 f"Recebido: {self.column_indices}"
             )
+        if self.schema is not None and max(self.column_indices) >= len(self.schema):
+            raise ValueError(
+                f"Schema '{self.name}': schema possui {len(self.schema)} campo(s), "
+                f"mas column_indices requer o índice {max(self.column_indices)}."
+            )
 
 
 class RoboCallsExtractor:
@@ -141,6 +165,7 @@ class RoboCallsExtractor:
         "ericsson": CDRSchema(
             name="Ericsson",
             delimiter=";",
+            schema=None,
             has_header=True,
             column_to_filter=None,
             column_indices=[0, 1, 2, 3, 4, 9, 11],
@@ -158,6 +183,9 @@ class RoboCallsExtractor:
         "tim_volte": CDRSchema(
             name="Tim VoLTE",
             delimiter=";",
+            schema=T.StructType(
+                [T.StructField(f"_c{i}", T.StringType(), True) for i in range(17)]
+            ),
             has_header=False,
             column_to_filter=("tipo_de_chamada", "TipodeCDR(role-of-Node)"),
             column_indices=[0, 1, 2, 3, 4, 7, 12, 16],
@@ -176,6 +204,7 @@ class RoboCallsExtractor:
         "tim_stir": CDRSchema(
             name="Tim Stir",
             delimiter=";",
+            schema=None,
             has_header=True,
             column_to_filter=None,
             column_indices=[0, 1, 2, 5, 6, 11, 13, 14],
@@ -194,6 +223,7 @@ class RoboCallsExtractor:
         "vivo_volte": CDRSchema(
             name="Vivo VoLTE",
             delimiter="|",
+            schema=None,
             has_header=False,
             column_to_filter=None,
             column_indices=[0, 2, 5, 12, 13, 31, 45],
@@ -265,6 +295,7 @@ class RoboCallsExtractor:
             source_file,
             sep=schema.delimiter,
             header=schema.has_header,
+            schema=schema.schema,
             inferSchema=False,
         )
 
@@ -277,7 +308,10 @@ class RoboCallsExtractor:
                 f"Schema '{schema.name}' requer coluna no índice {max_index}, "
                 f"mas o arquivo possui apenas {len(df.columns)} colunas.\n"
                 f"Verifique se o delimitador '{schema.delimiter}' está correto "
-                f"para o arquivo: {source_file}"
+                f"para o arquivo: {source_file}\n"
+                f"Índices solicitados: {schema.column_indices}\n"
+                f"Colunas disponíveis: {list(enumerate(df.columns))}\n"
+                f"Configuração do schema: {schema!r}"
             )
 
         logger.info(
