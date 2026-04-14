@@ -454,13 +454,13 @@ class RoboCallsTransformer:
         )
 
         df = self._apply_standard_pipeline(df)
+        df = self._add_chamada_autenticada(df)
         df = (
             df.join(df_voice_mail, on="referencia", how="left")
             .withColumn(
                 "chamada_caixa_postal",
                 F.coalesce(F.col("chamada_caixa_postal"), F.lit(0)),
             )
-            .withColumn("chamada_autenticada", F.lit(0))
             .select(self._TRANSFORMED_COLUMNS)
         )
 
