@@ -28,6 +28,8 @@ from teleutils._logging import log_operation
 
 logger = logging.getLogger(__name__)
 
+MAX_RECORDS_PER_FILE = 1000000  # Limite de registros por arquivo parquet para evitar arquivos muito grandes
+
 
 @dataclass(frozen=True)
 class CDRSchema:
@@ -74,17 +76,30 @@ class CDRSchema:
     name: str  # Nome do formato (ex: "Ericsson", "TIM VoLTE")
     delimiter: str  # Delimitador do CSV
     has_header: bool  # Se o arquivo possui cabeçalho
-    skip_rows: int  # Quantidade de linhas a pular no início do arquivo (útil para arquivos com metadados ou múltiplos cabeçalhos)
+    column_to_filter: (
+        tuple[str, str] | None
+    )  # Tupla (nome_coluna, valor) para filtrar linhas, ou None para não filtrar, necessário para excluir linhas de cabeçalho mal formatadas em alguns arquivos
     column_indices: list[int]  # Índices das colunas a selecionar
     column_names: list[str]  # Nomes finais das colunas (na mesma ordem dos índices)
     job_description: str  # Descrição do job para monitoramento no Spark UI
 
     def __post_init__(self):
-        if self.skip_rows < 0:
-            raise ValueError(
-                f"Schema '{self.name}': skip_rows deve ser maior ou igual a 0. "
-                f"Recebido: {self.skip_rows}"
-            )
+        if self.column_to_filter is not None:
+            if (
+                not isinstance(self.column_to_filter, tuple)
+                or len(self.column_to_filter) != 2
+                or not all(isinstance(v, str) for v in self.column_to_filter)
+            ):
+                raise ValueError(
+                    f"Schema '{self.name}': column_to_filter deve ser None ou uma "
+                    f"tupla de duas strings. Recebido: {self.column_to_filter!r}"
+                )
+            col_name, _ = self.column_to_filter
+            if col_name not in self.column_names:
+                raise ValueError(
+                    f"Schema '{self.name}': coluna '{col_name}' em column_to_filter "
+                    f"não está presente em column_names: {self.column_names}"
+                )
         if len(self.column_indices) != len(self.column_names):
             raise ValueError(
                 f"Schema '{self.name}': column_indices tem "
@@ -127,7 +142,7 @@ class RoboCallsExtractor:
             name="Ericsson",
             delimiter=";",
             has_header=True,
-            skip_rows=0,
+            column_to_filter=None,
             column_indices=[0, 1, 2, 3, 4, 9, 11],
             column_names=[
                 "referencia",
@@ -144,7 +159,7 @@ class RoboCallsExtractor:
             name="Tim VoLTE",
             delimiter=";",
             has_header=True,
-            skip_rows=1,
+            column_to_filter=("tipo_de_chamada", "TipodeCDR(role-of-Node)"),
             column_indices=[0, 1, 2, 3, 4, 7, 12, 16],
             column_names=[
                 "numero_de_a",
@@ -162,7 +177,7 @@ class RoboCallsExtractor:
             name="Tim Stir",
             delimiter=";",
             has_header=True,
-            skip_rows=0,
+            column_to_filter=None,
             column_indices=[0, 1, 2, 5, 6, 11, 13, 14],
             column_names=[
                 "numero_de_a",
@@ -180,7 +195,7 @@ class RoboCallsExtractor:
             name="Vivo VoLTE",
             delimiter="|",
             has_header=False,
-            skip_rows=0,
+            column_to_filter=None,
             column_indices=[0, 2, 5, 12, 13, 31, 45],
             column_names=[
                 "tipo_de_chamada",
@@ -240,20 +255,6 @@ class RoboCallsExtractor:
         """
         self._sc.setJobDescription(schema.job_description)
 
-        # Spark não suporta pular linhas diretamente na leitura, então usamos RDD para filtrar
-        if schema.skip_rows > 0:
-            logger.info(
-                "Pulando as primeiras %d linha(s) do arquivo: %s",
-                schema.skip_rows,
-                source_file,
-            )
-            raw_rdd = self._sc.textFile(source_file)
-            source_file = (
-                raw_rdd.zipWithIndex()
-                .filter(lambda x: x[1] >= schema.skip_rows)
-                .map(lambda x: x[0])
-            )
-
         logger.info(
             "Lendo arquivo CSV: %s com delimitador '%s' e header=%s",
             source_file,
@@ -284,11 +285,24 @@ class RoboCallsExtractor:
         )
         columns_to_keep = [df.columns[i] for i in schema.column_indices]
         df = df.select(columns_to_keep).toDF(*schema.column_names)
+
+        if schema.column_to_filter is not None:
+            col_name, col_value = schema.column_to_filter
+            logger.info(
+                "Aplicando filtro: %s = '%s' para o esquema '%s'",
+                col_name,
+                col_value,
+                schema.name,
+            )
+            df = df.filter(df[col_name] != col_value)
+
         logger.info(
             "Escrevendo DataFrame extraído para parquet particionado por 'tipo_de_chamada': %s",
             target_file,
         )
-        df.write.mode("overwrite").partitionBy("tipo_de_chamada").parquet(target_file)
+        df.repartition("tipo_de_chamada").write.mode("overwrite").partitionBy(
+            "tipo_de_chamada"
+        ).option("maxRecordsPerFile", MAX_RECORDS_PER_FILE).parquet(target_file)
         return self.spark.read.parquet(target_file)
 
     @log_operation
