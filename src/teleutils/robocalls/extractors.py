@@ -249,12 +249,11 @@ class RoboCallsExtractor:
                 .map(lambda x: x[0])
             )
 
-        df = (
-            self.spark.read.format("csv")
-            .option("delimiter", schema.delimiter)
-            .option("header", schema.has_header)
-            .option("inferSchema", False)
-            .load(source_file)
+        df = self.spark.read.csv(
+            source_file,
+            sep=schema.delimiter,
+            header=schema.has_header,
+            inferSchema=False,
         )
 
         # Valida se todos os índices solicitados existem no DataFrame lido.
