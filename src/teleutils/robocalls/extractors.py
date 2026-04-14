@@ -242,6 +242,11 @@ class RoboCallsExtractor:
 
         # Spark não suporta pular linhas diretamente na leitura, então usamos RDD para filtrar
         if schema.skip_rows > 0:
+            logger.info(
+                "Pulando as primeiras %d linha(s) do arquivo: %s",
+                schema.skip_rows,
+                source_file,
+            )
             raw_rdd = self._sc.textFile(source_file)
             source_file = (
                 raw_rdd.zipWithIndex()
@@ -249,6 +254,12 @@ class RoboCallsExtractor:
                 .map(lambda x: x[0])
             )
 
+        logger.info(
+            "Lendo arquivo CSV: %s com delimitador '%s' e header=%s",
+            source_file,
+            schema.delimiter,
+            schema.has_header,
+        )
         df = self.spark.read.csv(
             source_file,
             sep=schema.delimiter,
@@ -258,6 +269,7 @@ class RoboCallsExtractor:
 
         # Valida se todos os índices solicitados existem no DataFrame lido.
         # Falhar cedo com mensagem clara é melhor do que erros crípticos do Spark.
+        logger.info("Validando índices de coluna para o esquema '%s'", schema.name)
         max_index = max(schema.column_indices)
         if max_index >= len(df.columns):
             raise ValueError(
@@ -267,8 +279,15 @@ class RoboCallsExtractor:
                 f"para o arquivo: {source_file}"
             )
 
+        logger.info(
+            "Selecionando e renomeando colunas conforme o esquema '%s'", schema.name
+        )
         columns_to_keep = [df.columns[i] for i in schema.column_indices]
         df = df.select(columns_to_keep).toDF(*schema.column_names)
+        logger.info(
+            "Escrevendo DataFrame extraído para parquet particionado por 'tipo_de_chamada': %s",
+            target_file,
+        )
         df.write.mode("overwrite").partitionBy("tipo_de_chamada").parquet(target_file)
         return self.spark.read.parquet(target_file)
 
