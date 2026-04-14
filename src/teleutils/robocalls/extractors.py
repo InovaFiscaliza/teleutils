@@ -53,6 +53,7 @@ class CDRSchema:
     Nota:
         A dataclass é congelada (frozen=True), garantindo imutabilidade.
         O método `__post_init__` valida automaticamente que:
+        - `skip_rows` não é negativo
         - `column_indices` e `column_names` têm o mesmo tamanho
         - `column_indices` não está vazio
         - Nenhum índice é negativo
@@ -62,6 +63,7 @@ class CDRSchema:
         ...     name="Ericsson",
         ...     delimiter=";",
         ...     has_header=True,
+        ...     skip_rows=0,
         ...     column_indices=[0, 1, 2, 3, 4, 9, 11],
         ...     column_names=["referencia", "numero_de_a", "_data", "_hora",
         ...                   "tipo_de_chamada", "numero_de_b", "duracao_da_chamada"],
@@ -72,11 +74,17 @@ class CDRSchema:
     name: str  # Nome do formato (ex: "Ericsson", "TIM VoLTE")
     delimiter: str  # Delimitador do CSV
     has_header: bool  # Se o arquivo possui cabeçalho
+    skip_rows: int  # Quantidade de linhas a pular no início do arquivo (útil para arquivos com metadados ou múltiplos cabeçalhos)
     column_indices: list[int]  # Índices das colunas a selecionar
     column_names: list[str]  # Nomes finais das colunas (na mesma ordem dos índices)
     job_description: str  # Descrição do job para monitoramento no Spark UI
 
     def __post_init__(self):
+        if self.skip_rows < 0:
+            raise ValueError(
+                f"Schema '{self.name}': skip_rows deve ser maior ou igual a 0. "
+                f"Recebido: {self.skip_rows}"
+            )
         if len(self.column_indices) != len(self.column_names):
             raise ValueError(
                 f"Schema '{self.name}': column_indices tem "
@@ -119,6 +127,7 @@ class RoboCallsExtractor:
             name="Ericsson",
             delimiter=";",
             has_header=True,
+            skip_rows=0,
             column_indices=[0, 1, 2, 3, 4, 9, 11],
             column_names=[
                 "referencia",
@@ -135,7 +144,8 @@ class RoboCallsExtractor:
             name="Tim VoLTE",
             delimiter=";",
             has_header=True,
-            column_indices=[0, 1, 2, 3, 4, 7, 12],
+            skip_rows=1,
+            column_indices=[0, 1, 2, 3, 4, 7, 12, 16],
             column_names=[
                 "numero_de_a",
                 "_data",
@@ -144,6 +154,7 @@ class RoboCallsExtractor:
                 "numero_de_b",
                 "duracao_da_chamada",
                 "referencia",
+                "autenticacao",
             ],
             job_description="Extraindo CDR: Tim VoLTE",
         ),
@@ -151,6 +162,7 @@ class RoboCallsExtractor:
             name="Tim Stir",
             delimiter=";",
             has_header=True,
+            skip_rows=0,
             column_indices=[0, 1, 2, 5, 6, 11, 13, 14],
             column_names=[
                 "numero_de_a",
@@ -168,6 +180,7 @@ class RoboCallsExtractor:
             name="Vivo VoLTE",
             delimiter="|",
             has_header=False,
+            skip_rows=0,
             column_indices=[0, 2, 5, 12, 13, 31, 45],
             column_names=[
                 "tipo_de_chamada",
@@ -226,6 +239,15 @@ class RoboCallsExtractor:
             facilitando diagnóstico de problemas de configuração ou formato.
         """
         self._sc.setJobDescription(schema.job_description)
+
+        # Spark não suporta pular linhas diretamente na leitura, então usamos RDD para filtrar
+        if schema.skip_rows > 0:
+            raw_rdd = self._sc.textFile(source_file)
+            source_file = (
+                raw_rdd.zipWithIndex()
+                .filter(lambda x: x[1] >= schema.skip_rows)
+                .map(lambda x: x[0])
+            )
 
         df = (
             self.spark.read.format("csv")
