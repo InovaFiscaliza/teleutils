@@ -158,7 +158,7 @@ class RoboCallsExtractor:
         "tim_volte": CDRSchema(
             name="Tim VoLTE",
             delimiter=";",
-            has_header=True,
+            has_header=False,
             column_to_filter=("tipo_de_chamada", "TipodeCDR(role-of-Node)"),
             column_indices=[0, 1, 2, 3, 4, 7, 12, 16],
             column_names=[
