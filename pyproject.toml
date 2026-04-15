@@ -25,6 +25,7 @@ dev = [
     "jupyter>=1.1.1",
     "matplotlib>=3.9.4",
     "pre-commit>=4.3.0",
+    "pytest>=8.4.2",
 ]
 
 [[tool.uv.index]]
