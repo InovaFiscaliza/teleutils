@@ -3,7 +3,7 @@
 Este módulo fornece ferramentas para ler arquivos de CDR (Call Detail Records) de
 diferentes operadoras telefônicas e formatos de tecnologia, extraindo as colunas
 relevantes e normalizando seus nomes. Suporta formatos de fabricantes diversos
-(Ericsson, TIM VoLTE, TIM STIR, Vivo VoLTE) através de um mecanismo baseado em
+(Ericsson, TIM VoLTE, Vivo VoLTE) através de um mecanismo baseado em
 esquemas de mapeamento, incluindo a opção de informar explicitamente o schema
 Spark de leitura quando o arquivo de origem não possui cabeçalho confiável.
 
@@ -201,25 +201,6 @@ class RoboCallsExtractor:
             ],
             job_description="Extraindo CDR: Tim VoLTE",
         ),
-        "tim_stir": CDRSchema(
-            name="Tim Stir",
-            delimiter=";",
-            schema=None,
-            has_header=True,
-            column_to_filter=None,
-            column_indices=[0, 1, 2, 5, 6, 11, 13, 14],
-            column_names=[
-                "numero_de_a",
-                "_data",
-                "_hora",
-                "tipo_de_chamada",
-                "referencia",
-                "numero_de_b",
-                "duracao_da_chamada",
-                "autenticacao",
-            ],
-            job_description="Extraindo CDR: Tim Stir",
-        ),
         "vivo_volte": CDRSchema(
             name="Vivo VoLTE",
             delimiter="|",
@@ -378,26 +359,6 @@ class RoboCallsExtractor:
             ... )
         """
         return self._extract_cdr(source_file, target_file, self._SCHEMAS["tim_volte"])
-
-    @log_operation
-    def extract_cdr_tim_stir(self, source_file: str, target_file: str) -> DataFrame:
-        """Extrai CDR no formato TIM STIR.
-
-        Parâmetros:
-            source_file (str): Caminho para o arquivo CSV TIM STIR de entrada.
-            target_file (str): Caminho para o diretório parquet de saída.
-
-        Retorna:
-            DataFrame: DataFrame contendo os registros TIM STIR extraídos.
-
-        Exemplo:
-            >>> extrator = RoboCallsExtractor(spark)
-            >>> df = extrator.extract_cdr_tim_stir(
-            ...     source_file="dados/tim_stir.csv",
-            ...     target_file="parquet/tim_stir_extracted"
-            ... )
-        """
-        return self._extract_cdr(source_file, target_file, self._SCHEMAS["tim_stir"])
 
     @log_operation
     def extract_cdr_vivo_volte(self, source_file: str, target_file: str) -> DataFrame:

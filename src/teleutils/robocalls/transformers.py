@@ -6,7 +6,7 @@ chamadas abusivas e robocalls. As transformações incluem: normalização de n�
 telefônicos, conversão de timestamps, cálculo de indicadores binários (chamada curta,
 caixa postal, autenticação) e seleção de colunas finais.
 
-Cada formato de CDR (Ericsson, TIM VoLTE, TIM STIR, Vivo VoLTE) possui um método
+Cada formato de CDR (Ericsson, TIM VoLTE, Vivo VoLTE) possui um método
 de transformação específico que aplica um pipeline padrão comum a todos e, depois,
 adições específicas de formato (ex: extração de autenticação STIR, detecção de
 correio de voz).
@@ -128,7 +128,6 @@ class RoboCallsTransformer:
     _TRANSFORM_MAP: dict[str, str] = {
         "ericsson": "transform_cdr_ericsson",
         "tim_volte": "transform_cdr_tim_volte",
-        "tim_stir": "transform_cdr_tim_stir",
         "vivo_volte": "transform_cdr_vivo_volte",
     }
 
@@ -289,7 +288,7 @@ class RoboCallsTransformer:
 
         Nota:
             Este método é relevante principalmente para CDRs do tipo STIR/SHAKEN
-            (ex: TIM STIR, Vivo VoLTE). Outros formatos podem ter essa coluna como
+            (ex: TIM VoLTE, Vivo VoLTE). Outros formatos podem ter essa coluna como
             null em todos os registros.
 
         Exemplo:
@@ -462,57 +461,6 @@ class RoboCallsTransformer:
                 F.coalesce(F.col("chamada_caixa_postal"), F.lit(0)),
             )
             .select(self._TRANSFORMED_COLUMNS)
-        )
-
-        self._write_parquet(df, target_file)
-        return self.spark.read.parquet(target_file)
-
-    @log_operation
-    def transform_cdr_tim_stir(self, source_file: str, target_file: str):
-        """Transforma CDR no formato TIM STIR.
-
-        Aplica transformações específicas do formato STIR/SHAKEN:
-        1. Filtra apenas chamadas tipo "82" (tipo interno de chamada TIM)
-        2. Extrai numero_de_b a partir de campo SIP usando regex (sip:(\d+)@)
-        3. Aplica pipeline padrão de transformação
-        4. Processa autenticação usando _add_chamada_autenticada
-        5. Inicializa chamada_caixa_postal como 0 (TIM STIR não fornece esse dado)
-
-        Parâmetros:
-            source_file (str): Caminho para o diretório parquet TIM STIR extraído.
-            target_file (str): Caminho para o diretório parquet transformado de saída.
-
-        Retorna:
-            DataFrame: DataFrame com colunas definidas em _TRANSFORMED_COLUMNS.
-
-        Nota:
-            - O campo numero_de_b no CDR bruto está em formato SIP
-              (sip:numero@dominio); a regex extrai apenas os dígitos.
-            - Autenticação é processada a partir do campo autenticacao, que contém
-              header HTTP ou atributo SIP com validação STIR/SHAKEN.
-
-        Exemplo:
-            >>> transformer = RoboCallsTransformer(spark)
-            >>> df = transformer.transform_cdr_tim_stir(
-            ...     source_file="parquet/tim_stir_extracted",
-            ...     target_file="parquet/tim_stir_transformed"
-            ... )
-        """
-        sip_number_pattern = r"sip:(\d+)@"
-
-        df = self.spark.read.parquet(source_file).filter(
-            F.col("tipo_de_chamada") == "82"
-        )
-
-        df = self._format_columns(df)
-        df = df.withColumn(
-            "numero_de_b", F.regexp_extract(F.col("numero_de_b"), sip_number_pattern, 1)
-        )
-        df = self._format_numbers(df)
-        df = self._add_chamada_curta(df)
-        df = self._add_chamada_autenticada(df)
-        df = df.withColumn("chamada_caixa_postal", F.lit(0)).select(
-            self._TRANSFORMED_COLUMNS
         )
 
         self._write_parquet(df, target_file)
