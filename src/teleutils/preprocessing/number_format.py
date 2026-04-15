@@ -218,9 +218,6 @@ def normalize_number(subscriber_number, national_destination_code=""):
     # remove collect call indicator or the international/national prefix
     clean_subscriber_number = PREFFIX.sub("", clean_subscriber_number)
 
-    if len(clean_subscriber_number) > 13:
-        return (subscriber_number, False)
-
     if len(clean_subscriber_number) >= 10:
         normalized_subscriber_number = E164_FULL_NUMBERS.findall(
             clean_subscriber_number
