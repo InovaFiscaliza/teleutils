@@ -3,8 +3,9 @@
 Este módulo fornece ferramentas para ler arquivos de CDR (Call Detail Records) de
 diferentes operadoras telefônicas e formatos de tecnologia, extraindo as colunas
 relevantes e normalizando seus nomes. Suporta formatos de fabricantes diversos
-(Ericsson, TIM VoLTE, TIM STIR, Vivo VoLTE) através de um mecanismo baseado em
-esquemas de mapeamento.
+(Ericsson, TIM VoLTE, Vivo VoLTE, Claro Nokia) através de um mecanismo baseado em
+esquemas de mapeamento, incluindo a opção de informar explicitamente o schema
+Spark de leitura quando o arquivo de origem não possui cabeçalho confiável.
 
 A extração é centralizada no método privado `_extract_cdr`, que padroniza a
 lógica de leitura, validação de índices de coluna e escrita particionada. Novos
@@ -23,10 +24,13 @@ import logging
 from dataclasses import dataclass
 
 from pyspark.sql import DataFrame, SparkSession
+from pyspark.sql import types as T
 
 from teleutils._logging import log_operation
 
 logger = logging.getLogger(__name__)
+
+MAX_RECORDS_PER_FILE = 1000000  # Limite de registros por arquivo parquet para evitar arquivos muito grandes
 
 
 @dataclass(frozen=True)
@@ -42,7 +46,13 @@ class CDRSchema:
         name (str): Nome descritivo do formato CDR (ex: "Ericsson", "TIM VoLTE").
         delimiter (str): Caractere delimitador usado no arquivo CSV
             (ex: ";" ou "|").
+        schema (T.StructType | None): Schema opcional usado na leitura do CSV.
+            Útil para arquivos sem cabeçalho ou com cabeçalho inconsistente,
+            garantindo nomes e quantidade de colunas previsíveis.
         has_header (bool): Indica se o arquivo contém uma linha de cabeçalho.
+        column_to_filter (tuple[str, str] | None): Filtro opcional aplicado após a
+            seleção e renomeação das colunas. Deve referenciar um nome presente em
+            `column_names`.
         column_indices (list[int]): Índices das colunas do arquivo original a serem
             selecionadas, em ordem zero-indexada. Exemplo: [0, 1, 2, 3, 4, 9, 11].
         column_names (list[str]): Nomes das colunas no DataFrame de saída,
@@ -53,15 +63,20 @@ class CDRSchema:
     Nota:
         A dataclass é congelada (frozen=True), garantindo imutabilidade.
         O método `__post_init__` valida automaticamente que:
+                - `schema`, quando informado, é um `StructType`
         - `column_indices` e `column_names` têm o mesmo tamanho
         - `column_indices` não está vazio
         - Nenhum índice é negativo
+                - `schema`, quando informado, contém colunas suficientes para os índices
+                    declarados
 
     Exemplo:
         >>> schema = CDRSchema(
         ...     name="Ericsson",
         ...     delimiter=";",
+                ...     schema=None,
         ...     has_header=True,
+                ...     column_to_filter=None,
         ...     column_indices=[0, 1, 2, 3, 4, 9, 11],
         ...     column_names=["referencia", "numero_de_a", "_data", "_hora",
         ...                   "tipo_de_chamada", "numero_de_b", "duracao_da_chamada"],
@@ -71,12 +86,39 @@ class CDRSchema:
 
     name: str  # Nome do formato (ex: "Ericsson", "TIM VoLTE")
     delimiter: str  # Delimitador do CSV
+    schema: (
+        T.StructType | None
+    )  # Esquema de leitura opcional para arquivos sem cabeçalho ou com cabeçalho inconsistente
     has_header: bool  # Se o arquivo possui cabeçalho
+    column_to_filter: (
+        tuple[str, str] | None
+    )  # Tupla (nome_coluna, valor) para filtrar linhas, ou None para não filtrar
     column_indices: list[int]  # Índices das colunas a selecionar
     column_names: list[str]  # Nomes finais das colunas (na mesma ordem dos índices)
     job_description: str  # Descrição do job para monitoramento no Spark UI
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
+        if self.schema is not None and not isinstance(self.schema, T.StructType):
+            raise ValueError(
+                f"Schema '{self.name}': schema deve ser None ou um StructType. "
+                f"Recebido: {type(self.schema).__name__}"
+            )
+        if self.column_to_filter is not None:
+            if (
+                not isinstance(self.column_to_filter, tuple)
+                or len(self.column_to_filter) != 2
+                or not all(isinstance(v, str) for v in self.column_to_filter)
+            ):
+                raise ValueError(
+                    f"Schema '{self.name}': column_to_filter deve ser None ou uma "
+                    f"tupla de duas strings. Recebido: {self.column_to_filter!r}"
+                )
+            col_name, _ = self.column_to_filter
+            if col_name not in self.column_names:
+                raise ValueError(
+                    f"Schema '{self.name}': coluna '{col_name}' em column_to_filter "
+                    f"não está presente em column_names: {self.column_names}"
+                )
         if len(self.column_indices) != len(self.column_names):
             raise ValueError(
                 f"Schema '{self.name}': column_indices tem "
@@ -91,6 +133,11 @@ class CDRSchema:
             raise ValueError(
                 f"Schema '{self.name}': índices negativos não são permitidos. "
                 f"Recebido: {self.column_indices}"
+            )
+        if self.schema is not None and max(self.column_indices) >= len(self.schema):
+            raise ValueError(
+                f"Schema '{self.name}': schema possui {len(self.schema)} campo(s), "
+                f"mas column_indices requer o índice {max(self.column_indices)}."
             )
 
 
@@ -118,7 +165,9 @@ class RoboCallsExtractor:
         "ericsson": CDRSchema(
             name="Ericsson",
             delimiter=";",
+            schema=None,
             has_header=True,
+            column_to_filter=None,
             column_indices=[0, 1, 2, 3, 4, 9, 11],
             column_names=[
                 "referencia",
@@ -134,8 +183,12 @@ class RoboCallsExtractor:
         "tim_volte": CDRSchema(
             name="Tim VoLTE",
             delimiter=";",
-            has_header=True,
-            column_indices=[0, 1, 2, 3, 4, 7, 12],
+            schema=T.StructType(
+                [T.StructField(f"_c{i}", T.StringType(), True) for i in range(17)]
+            ),
+            has_header=False,
+            column_to_filter=("tipo_de_chamada", "TipodeCDR(role-of-Node)"),
+            column_indices=[0, 1, 2, 3, 4, 7, 12, 16],
             column_names=[
                 "numero_de_a",
                 "_data",
@@ -144,30 +197,16 @@ class RoboCallsExtractor:
                 "numero_de_b",
                 "duracao_da_chamada",
                 "referencia",
-            ],
-            job_description="Extraindo CDR: Tim VoLTE",
-        ),
-        "tim_stir": CDRSchema(
-            name="Tim Stir",
-            delimiter=";",
-            has_header=True,
-            column_indices=[0, 1, 2, 5, 6, 11, 13, 14],
-            column_names=[
-                "numero_de_a",
-                "_data",
-                "_hora",
-                "tipo_de_chamada",
-                "referencia",
-                "numero_de_b",
-                "duracao_da_chamada",
                 "autenticacao",
             ],
-            job_description="Extraindo CDR: Tim Stir",
+            job_description="Extraindo CDR: Tim VoLTE",
         ),
         "vivo_volte": CDRSchema(
             name="Vivo VoLTE",
             delimiter="|",
+            schema=None,
             has_header=False,
+            column_to_filter=None,
             column_indices=[0, 2, 5, 12, 13, 31, 45],
             column_names=[
                 "tipo_de_chamada",
@@ -179,6 +218,24 @@ class RoboCallsExtractor:
                 "referencia",
             ],
             job_description="Extraindo CDR: Vivo VoLTE",
+        ),
+        "claro_nokia": CDRSchema(
+            name="Claro Nokia",
+            delimiter=";",
+            schema=None,
+            has_header=True,
+            column_to_filter=None,
+            column_indices=[0, 2, 3, 7, 8, 13, 15],
+            column_names=[
+                "tipo_de_chamada",
+                "referencia",
+                "data_hora",
+                "numero_de_a",
+                "numero_de_b",
+                "numero_conectado",
+                "duracao_da_chamada",
+            ],
+            job_description="Extraindo CDR: Claro Nokia",
         ),
     }
 
@@ -227,28 +284,58 @@ class RoboCallsExtractor:
         """
         self._sc.setJobDescription(schema.job_description)
 
-        df = (
-            self.spark.read.format("csv")
-            .option("delimiter", schema.delimiter)
-            .option("header", schema.has_header)
-            .option("inferSchema", False)
-            .load(source_file)
+        logger.info(
+            "Lendo arquivo CSV: %s com delimitador '%s' e header=%s",
+            source_file,
+            schema.delimiter,
+            schema.has_header,
+        )
+        df = self.spark.read.csv(
+            source_file,
+            sep=schema.delimiter,
+            header=schema.has_header,
+            schema=schema.schema,
+            inferSchema=False,
         )
 
         # Valida se todos os índices solicitados existem no DataFrame lido.
         # Falhar cedo com mensagem clara é melhor do que erros crípticos do Spark.
+        logger.info("Validando índices de coluna para o esquema '%s'", schema.name)
         max_index = max(schema.column_indices)
         if max_index >= len(df.columns):
             raise ValueError(
                 f"Schema '{schema.name}' requer coluna no índice {max_index}, "
                 f"mas o arquivo possui apenas {len(df.columns)} colunas.\n"
                 f"Verifique se o delimitador '{schema.delimiter}' está correto "
-                f"para o arquivo: {source_file}"
+                f"para o arquivo: {source_file}\n"
+                f"Índices solicitados: {schema.column_indices}\n"
+                f"Colunas disponíveis: {list(enumerate(df.columns))}\n"
+                f"Configuração do schema: {schema!r}"
             )
 
-        columns_to_keep = [df.columns[i] for i in schema.column_indices]
+        logger.info(
+            "Selecionando e renomeando colunas conforme o esquema '%s'", schema.name
+        )
+        columns_to_keep = [f"`{df.columns[i]}`" for i in schema.column_indices]
         df = df.select(columns_to_keep).toDF(*schema.column_names)
-        df.write.mode("overwrite").partitionBy("tipo_de_chamada").parquet(target_file)
+
+        if schema.column_to_filter is not None:
+            col_name, col_value = schema.column_to_filter
+            logger.info(
+                "Aplicando filtro: %s = '%s' para o esquema '%s'",
+                col_name,
+                col_value,
+                schema.name,
+            )
+            df = df.filter(df[col_name] != col_value)
+
+        logger.info(
+            "Escrevendo DataFrame extraído para parquet particionado por 'tipo_de_chamada': %s",
+            target_file,
+        )
+        df.repartition("tipo_de_chamada").write.mode("overwrite").partitionBy(
+            "tipo_de_chamada"
+        ).option("maxRecordsPerFile", MAX_RECORDS_PER_FILE).parquet(target_file)
         return self.spark.read.parquet(target_file)
 
     @log_operation
@@ -292,26 +379,6 @@ class RoboCallsExtractor:
         return self._extract_cdr(source_file, target_file, self._SCHEMAS["tim_volte"])
 
     @log_operation
-    def extract_cdr_tim_stir(self, source_file: str, target_file: str) -> DataFrame:
-        """Extrai CDR no formato TIM STIR.
-
-        Parâmetros:
-            source_file (str): Caminho para o arquivo CSV TIM STIR de entrada.
-            target_file (str): Caminho para o diretório parquet de saída.
-
-        Retorna:
-            DataFrame: DataFrame contendo os registros TIM STIR extraídos.
-
-        Exemplo:
-            >>> extrator = RoboCallsExtractor(spark)
-            >>> df = extrator.extract_cdr_tim_stir(
-            ...     source_file="dados/tim_stir.csv",
-            ...     target_file="parquet/tim_stir_extracted"
-            ... )
-        """
-        return self._extract_cdr(source_file, target_file, self._SCHEMAS["tim_stir"])
-
-    @log_operation
     def extract_cdr_vivo_volte(self, source_file: str, target_file: str) -> DataFrame:
         """Extrai CDR no formato Vivo VoLTE.
 
@@ -330,3 +397,23 @@ class RoboCallsExtractor:
             ... )
         """
         return self._extract_cdr(source_file, target_file, self._SCHEMAS["vivo_volte"])
+
+    @log_operation
+    def extract_cdr_claro_nokia(self, source_file: str, target_file: str) -> DataFrame:
+        """Extrai CDR no formato Claro Nokia.
+
+        Parâmetros:
+            source_file (str): Caminho para o arquivo CSV Claro Nokia de entrada.
+            target_file (str): Caminho para o diretório parquet de saída.
+
+        Retorna:
+            DataFrame: DataFrame contendo os registros Claro Nokia extraídos.
+
+        Exemplo:
+            >>> extrator = RoboCallsExtractor(spark)
+            >>> df = extrator.extract_cdr_claro_nokia(
+            ...     source_file="dados/claro_nokia.csv",
+            ...     target_file="parquet/claro_nokia_extracted"
+            ... )
+        """
+        return self._extract_cdr(source_file, target_file, self._SCHEMAS["claro_nokia"])

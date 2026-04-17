@@ -6,7 +6,7 @@ chamadas abusivas e robocalls. As transformações incluem: normalização de n�
 telefônicos, conversão de timestamps, cálculo de indicadores binários (chamada curta,
 caixa postal, autenticação) e seleção de colunas finais.
 
-Cada formato de CDR (Ericsson, TIM VoLTE, TIM STIR, Vivo VoLTE) possui um método
+Cada formato de CDR (Ericsson, TIM VoLTE, Vivo VoLTE, Claro Nokia) possui um método
 de transformação específico que aplica um pipeline padrão comum a todos e, depois,
 adições específicas de formato (ex: extração de autenticação STIR, detecção de
 correio de voz).
@@ -128,7 +128,6 @@ class RoboCallsTransformer:
     _TRANSFORM_MAP: dict[str, str] = {
         "ericsson": "transform_cdr_ericsson",
         "tim_volte": "transform_cdr_tim_volte",
-        "tim_stir": "transform_cdr_tim_stir",
         "vivo_volte": "transform_cdr_vivo_volte",
     }
 
@@ -190,17 +189,18 @@ class RoboCallsTransformer:
             >>> df_formatted.select("hora_da_chamada").collect()
             [Row(hora_da_chamada='2026012114')]
         """
+
+        if "data_hora" not in df.columns:
+            df = df.withColumn(
+                "data_hora", F.concat_ws(" ", F.col("_data"), F.col("_hora"))
+            )
+
         return (
             df.withColumn(
                 "duracao_da_chamada",
                 F.coalesce(F.col("duracao_da_chamada").cast(T.IntegerType()), F.lit(0)),
             )
-            .withColumn(
-                "data_hora",
-                F.to_timestamp(
-                    F.concat_ws(" ", F.col("_data"), F.col("_hora")), date_time_fmt
-                ),
-            )
+            .withColumn("data_hora", F.to_timestamp(F.col("data_hora"), date_time_fmt))
             .withColumn(
                 "hora_da_chamada", F.date_format(F.col("data_hora"), "yyyyMMddHH")
             )
@@ -289,7 +289,7 @@ class RoboCallsTransformer:
 
         Nota:
             Este método é relevante principalmente para CDRs do tipo STIR/SHAKEN
-            (ex: TIM STIR, Vivo VoLTE). Outros formatos podem ter essa coluna como
+            (ex: TIM VoLTE, Vivo VoLTE). Outros formatos podem ter essa coluna como
             null em todos os registros.
 
         Exemplo:
@@ -454,65 +454,14 @@ class RoboCallsTransformer:
         )
 
         df = self._apply_standard_pipeline(df)
+        df = self._add_chamada_autenticada(df)
         df = (
             df.join(df_voice_mail, on="referencia", how="left")
             .withColumn(
                 "chamada_caixa_postal",
                 F.coalesce(F.col("chamada_caixa_postal"), F.lit(0)),
             )
-            .withColumn("chamada_autenticada", F.lit(0))
             .select(self._TRANSFORMED_COLUMNS)
-        )
-
-        self._write_parquet(df, target_file)
-        return self.spark.read.parquet(target_file)
-
-    @log_operation
-    def transform_cdr_tim_stir(self, source_file: str, target_file: str):
-        """Transforma CDR no formato TIM STIR.
-
-        Aplica transformações específicas do formato STIR/SHAKEN:
-        1. Filtra apenas chamadas tipo "82" (tipo interno de chamada TIM)
-        2. Extrai numero_de_b a partir de campo SIP usando regex (sip:(\d+)@)
-        3. Aplica pipeline padrão de transformação
-        4. Processa autenticação usando _add_chamada_autenticada
-        5. Inicializa chamada_caixa_postal como 0 (TIM STIR não fornece esse dado)
-
-        Parâmetros:
-            source_file (str): Caminho para o diretório parquet TIM STIR extraído.
-            target_file (str): Caminho para o diretório parquet transformado de saída.
-
-        Retorna:
-            DataFrame: DataFrame com colunas definidas em _TRANSFORMED_COLUMNS.
-
-        Nota:
-            - O campo numero_de_b no CDR bruto está em formato SIP
-              (sip:numero@dominio); a regex extrai apenas os dígitos.
-            - Autenticação é processada a partir do campo autenticacao, que contém
-              header HTTP ou atributo SIP com validação STIR/SHAKEN.
-
-        Exemplo:
-            >>> transformer = RoboCallsTransformer(spark)
-            >>> df = transformer.transform_cdr_tim_stir(
-            ...     source_file="parquet/tim_stir_extracted",
-            ...     target_file="parquet/tim_stir_transformed"
-            ... )
-        """
-        sip_number_pattern = r"sip:(\d+)@"
-
-        df = self.spark.read.parquet(source_file).filter(
-            F.col("tipo_de_chamada") == "82"
-        )
-
-        df = self._format_columns(df)
-        df = df.withColumn(
-            "numero_de_b", F.regexp_extract(F.col("numero_de_b"), sip_number_pattern, 1)
-        )
-        df = self._format_numbers(df)
-        df = self._add_chamada_curta(df)
-        df = self._add_chamada_autenticada(df)
-        df = df.withColumn("chamada_caixa_postal", F.lit(0)).select(
-            self._TRANSFORMED_COLUMNS
         )
 
         self._write_parquet(df, target_file)
@@ -593,6 +542,74 @@ class RoboCallsTransformer:
                 "chamada_caixa_postal",
                 F.coalesce(F.col("chamada_caixa_postal"), F.lit(0)),
             )
+            .select(self._TRANSFORMED_COLUMNS)
+        )
+
+        self._write_parquet(df, target_file)
+        return self.spark.read.parquet(target_file)
+
+    @log_operation
+    def transform_cdr_claro_nokia(self, source_file: str, target_file: str):
+        """Transforma CDR no formato Claro Nokia.
+
+        Aplica pipeline padrão de transformação e, depois, inicializa campos
+        específicos do formato Claro Nokia (autenticação como 0,
+        pois Claro Nokia não fornece esses dados).
+
+        Parâmetros:
+            source_file (str): Caminho para o diretório parquet Claro Nokia extraído.
+            target_file (str): Caminho para o diretório parquet transformado de saída.
+
+        Retorna:
+            DataFrame: DataFrame com colunas definidas em _TRANSFORMED_COLUMNS.
+
+        Exemplo:
+            >>> transformer = RoboCallsTransformer(spark)
+            >>> df = transformer.transform_cdr_claro_nokia(
+            ...     source_file="parquet/claro_nokia_extracted",
+            ...     target_file="parquet/claro_nokia_transformed"
+            ... )
+        """
+        date_time_fmt = "yyyy-MM-dd HH:mm:ss"
+
+        df_ptc = (
+            self.spark.read.parquet(source_file)
+            .filter(F.col("tipo_de_chamada") == "PTC")
+            .select("referencia", "numero_de_a")
+            .withColumn("chamada_ptc", F.lit(1))
+        )
+
+        df_poc_without_ptc = (
+            self.spark.read.parquet(source_file)
+            .filter(F.col("tipo_de_chamada") == "POC")
+            .join(df_ptc, on=["referencia", "numero_de_a"], how="left")
+            .filter(F.col("chamada_ptc").isNull())
+        )
+
+        df_voice_mail = (
+            self.spark.read.parquet(source_file)
+            .filter(F.col("tipo_de_chamada")=="FOR")
+            .withColumn("chamada_caixa_postal", F.lit(1))
+            .select("referencia", "numero_de_a", "chamada_caixa_postal")
+        )
+
+        tipo_de_chamada_to_keep = ["MTC", "UCA", "FOR", "MOC"]
+        df = (
+            self.spark.read.parquet(source_file)
+            .filter(F.col("tipo_de_chamada").isin(tipo_de_chamada_to_keep))
+            .unionByName(df_poc_without_ptc, allowMissingColumns=True)
+            .dropDuplicates(["referencia", "numero_de_a"])
+        )
+
+        df = self._apply_standard_pipeline(df, date_time_fmt)
+
+        df = (
+            df.join(df_voice_mail, on=["referencia", "numero_de_a"], how="left")
+            .withColumn(
+                "chamada_caixa_postal",
+                F.coalesce(F.col("chamada_caixa_postal"), F.lit(0)),
+            )
+            .withColumn("chamada_autenticada", F.lit(0))
             .select(self._TRANSFORMED_COLUMNS)
         )
 

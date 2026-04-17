@@ -33,10 +33,15 @@ Example:
 References:
     - ANATEL Numbering Plan: https://www.anatel.gov.br/
     - ITU-T E.164 Standard: https://handle.itu.int/11.1002/1000/10688
+
 """
 
 import re
 import string
+
+import pandas as pd
+from pyspark.sql.functions import pandas_udf
+from pyspark.sql.types import BooleanType, StringType, StructField, StructType
 
 #: Regex pattern for matching Brazilian phone numbers with length >= 10 digits.
 #: Covers full E.164 format numbers including country code (55), area codes,
@@ -144,6 +149,14 @@ PREFFIX = re.compile(
     re.VERBOSE,
 )
 
+# Schema definition for Spark UDF return type (numero_formatado, numero_valido)
+SPARK_NORMALIZE_NUMBER_RETURN_SCHEMA = StructType(
+    [
+        StructField("numero_formatado", StringType(), True),
+        StructField("numero_valido", BooleanType(), True),
+    ]
+)
+
 
 def _clean_numbers(text):
     """
@@ -217,9 +230,6 @@ def normalize_number(subscriber_number, national_destination_code=""):
     clean_subscriber_number = _clean_numbers(subscriber_number)
     # remove collect call indicator or the international/national prefix
     clean_subscriber_number = PREFFIX.sub("", clean_subscriber_number)
-
-    if len(clean_subscriber_number) > 13:
-        return (subscriber_number, False)
 
     if len(clean_subscriber_number) >= 10:
         normalized_subscriber_number = E164_FULL_NUMBERS.findall(
@@ -296,4 +306,20 @@ def normalize_number_pair(number_a, number_b, national_destination_code=""):
         is_number_a_valid,
         normalized_number_b,
         is_number_b_valid,
+    )
+
+
+@pandas_udf(SPARK_NORMALIZE_NUMBER_RETURN_SCHEMA)
+def spark_normalize_number(number_a_series: pd.Series) -> pd.DataFrame:
+    # Processar em batch (vetorizado)
+    results = []
+    for number_a in number_a_series:
+        results.append(normalize_number(number_a))
+
+    return pd.DataFrame(
+        results,
+        columns=[
+            "numero_formatado",
+            "numero_valido",
+        ],
     )
