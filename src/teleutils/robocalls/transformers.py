@@ -602,7 +602,7 @@ class RoboCallsTransformer:
         )
 
         df = self._apply_standard_pipeline(df, date_time_fmt)
-        
+
         df = (
             df.join(df_voice_mail, on=["referencia", "numero_de_a"], how="left")
             .withColumn(
@@ -610,15 +610,6 @@ class RoboCallsTransformer:
                 F.coalesce(F.col("chamada_caixa_postal"), F.lit(0)),
             )
             .withColumn("chamada_autenticada", F.lit(0))
-            .select(self._TRANSFORMED_COLUMNS)
-        )
-
-        df = (
-            df.join(df_voice_mail, on="referencia", how="left")
-            .withColumn(
-                "chamada_caixa_postal",
-                F.coalesce(F.col("chamada_caixa_postal"), F.lit(0)),
-            )
             .select(self._TRANSFORMED_COLUMNS)
         )
 
