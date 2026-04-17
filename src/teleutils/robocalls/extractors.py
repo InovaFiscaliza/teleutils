@@ -3,7 +3,7 @@
 Este módulo fornece ferramentas para ler arquivos de CDR (Call Detail Records) de
 diferentes operadoras telefônicas e formatos de tecnologia, extraindo as colunas
 relevantes e normalizando seus nomes. Suporta formatos de fabricantes diversos
-(Ericsson, TIM VoLTE, Vivo VoLTE) através de um mecanismo baseado em
+(Ericsson, TIM VoLTE, Vivo VoLTE, Claro Nokia) através de um mecanismo baseado em
 esquemas de mapeamento, incluindo a opção de informar explicitamente o schema
 Spark de leitura quando o arquivo de origem não possui cabeçalho confiável.
 

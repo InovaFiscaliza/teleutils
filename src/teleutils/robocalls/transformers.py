@@ -6,7 +6,7 @@ chamadas abusivas e robocalls. As transformações incluem: normalização de n�
 telefônicos, conversão de timestamps, cálculo de indicadores binários (chamada curta,
 caixa postal, autenticação) e seleção de colunas finais.
 
-Cada formato de CDR (Ericsson, TIM VoLTE, Vivo VoLTE) possui um método
+Cada formato de CDR (Ericsson, TIM VoLTE, Vivo VoLTE, Claro Nokia) possui um método
 de transformação específico que aplica um pipeline padrão comum a todos e, depois,
 adições específicas de formato (ex: extração de autenticação STIR, detecção de
 correio de voz).
@@ -557,7 +557,7 @@ class RoboCallsTransformer:
         pois Claro Nokia não fornece esses dados).
 
         Parâmetros:
-            source_file (str): Caminho para o diretório parquet Ericsson extraído.
+            source_file (str): Caminho para o diretório parquet Claro Nokia extraído.
             target_file (str): Caminho para o diretório parquet transformado de saída.
 
         Retorna:
@@ -565,9 +565,9 @@ class RoboCallsTransformer:
 
         Exemplo:
             >>> transformer = RoboCallsTransformer(spark)
-            >>> df = transformer.transform_cdr_ericsson(
-            ...     source_file="parquet/ericsson_extracted",
-            ...     target_file="parquet/ericsson_transformed"
+            >>> df = transformer.transform_cdr_claro_nokia(
+            ...     source_file="parquet/claro_nokia_extracted",
+            ...     target_file="parquet/claro_nokia_transformed"
             ... )
         """
         date_time_fmt = "yyyy-MM-dd HH:mm:ss"
