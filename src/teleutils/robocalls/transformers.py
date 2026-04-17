@@ -586,6 +586,13 @@ class RoboCallsTransformer:
             .filter(F.col("chamada_ptc").isNull())
         )
 
+        df_voice_mail = (
+            self.spark.read.parquet(source_file)
+            .filter(F.col("tipo_de_chamada")=="FOR")
+            .withColumn("chamada_caixa_postal", F.lit(1))
+            .select("referencia", "numero_de_a", "chamada_caixa_postal")
+        )
+
         tipo_de_chamada_to_keep = ["MTC", "UCA", "FOR", "MOC"]
         df = (
             self.spark.read.parquet(source_file)
@@ -595,13 +602,22 @@ class RoboCallsTransformer:
         )
 
         df = self._apply_standard_pipeline(df, date_time_fmt)
+        
         df = (
-            df.withColumn("chamada_autenticada", F.lit(0))
+            df.join(df_voice_mail, on=["referencia", "numero_de_a"], how="left")
             .withColumn(
                 "chamada_caixa_postal",
-                F.when(
-                    F.substring(F.col("numero_conectado"), 1, 4) == "C294", F.lit(1)
-                ).otherwise(0),
+                F.coalesce(F.col("chamada_caixa_postal"), F.lit(0)),
+            )
+            .withColumn("chamada_autenticada", F.lit(0))
+            .select(self._TRANSFORMED_COLUMNS)
+        )
+
+        df = (
+            df.join(df_voice_mail, on="referencia", how="left")
+            .withColumn(
+                "chamada_caixa_postal",
+                F.coalesce(F.col("chamada_caixa_postal"), F.lit(0)),
             )
             .select(self._TRANSFORMED_COLUMNS)
         )
