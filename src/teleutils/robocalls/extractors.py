@@ -219,6 +219,24 @@ class RoboCallsExtractor:
             ],
             job_description="Extraindo CDR: Vivo VoLTE",
         ),
+        "claro_nokia": CDRSchema(
+            name="Claro Nokia",
+            delimiter=";",
+            schema=None,
+            has_header=True,
+            column_to_filter=None,
+            column_indices=[0, 2, 3, 7, 8, 13, 15],
+            column_names=[
+                "tipo_de_chamada",
+                "referencia",
+                "data_hora",
+                "numero_de_a",
+                "numero_de_b",
+                "numero_conectado",
+                "duracao_da_chamada",
+            ],
+            job_description="Extraindo CDR: Claro Nokia",
+        ),
     }
 
     def __init__(self, spark: SparkSession) -> None:
@@ -379,3 +397,23 @@ class RoboCallsExtractor:
             ... )
         """
         return self._extract_cdr(source_file, target_file, self._SCHEMAS["vivo_volte"])
+
+    @log_operation
+    def extract_cdr_claro_nokia(self, source_file: str, target_file: str) -> DataFrame:
+        """Extrai CDR no formato Claro Nokia.
+
+        Parâmetros:
+            source_file (str): Caminho para o arquivo CSV Claro Nokia de entrada.
+            target_file (str): Caminho para o diretório parquet de saída.
+
+        Retorna:
+            DataFrame: DataFrame contendo os registros Claro Nokia extraídos.
+
+        Exemplo:
+            >>> extrator = RoboCallsExtractor(spark)
+            >>> df = extrator.extract_cdr_claro_nokia(
+            ...     source_file="dados/claro_nokia.csv",
+            ...     target_file="parquet/claro_nokia_extracted"
+            ... )
+        """
+        return self._extract_cdr(source_file, target_file, self._SCHEMAS["claro_nokia"])
