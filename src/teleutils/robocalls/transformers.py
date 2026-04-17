@@ -189,17 +189,18 @@ class RoboCallsTransformer:
             >>> df_formatted.select("hora_da_chamada").collect()
             [Row(hora_da_chamada='2026012114')]
         """
+
+        if "data_hora" not in df.columns:
+            df = df.withColumn(
+                "data_hora", F.concat_ws(" ", F.col("_data"), F.col("_hora"))
+            )
+
         return (
             df.withColumn(
                 "duracao_da_chamada",
                 F.coalesce(F.col("duracao_da_chamada").cast(T.IntegerType()), F.lit(0)),
             )
-            .withColumn(
-                "data_hora",
-                F.to_timestamp(
-                    F.concat_ws(" ", F.col("_data"), F.col("_hora")), date_time_fmt
-                ),
-            )
+            .withColumn("data_hora", F.to_timestamp(F.col("data_hora"), date_time_fmt))
             .withColumn(
                 "hora_da_chamada", F.date_format(F.col("data_hora"), "yyyyMMddHH")
             )
@@ -540,6 +541,67 @@ class RoboCallsTransformer:
             .withColumn(
                 "chamada_caixa_postal",
                 F.coalesce(F.col("chamada_caixa_postal"), F.lit(0)),
+            )
+            .select(self._TRANSFORMED_COLUMNS)
+        )
+
+        self._write_parquet(df, target_file)
+        return self.spark.read.parquet(target_file)
+
+    @log_operation
+    def transform_cdr_claro_nokia(self, source_file: str, target_file: str):
+        """Transforma CDR no formato Claro Nokia.
+
+        Aplica pipeline padrão de transformação e, depois, inicializa campos
+        específicos do formato Claro Nokia (autenticação como 0,
+        pois Claro Nokia não fornece esses dados).
+
+        Parâmetros:
+            source_file (str): Caminho para o diretório parquet Ericsson extraído.
+            target_file (str): Caminho para o diretório parquet transformado de saída.
+
+        Retorna:
+            DataFrame: DataFrame com colunas definidas em _TRANSFORMED_COLUMNS.
+
+        Exemplo:
+            >>> transformer = RoboCallsTransformer(spark)
+            >>> df = transformer.transform_cdr_ericsson(
+            ...     source_file="parquet/ericsson_extracted",
+            ...     target_file="parquet/ericsson_transformed"
+            ... )
+        """
+        date_time_fmt = "yyyy-MM-dd HH:mm:ss"
+
+        df_ptc = (
+            self.spark.read.parquet(source_file)
+            .filter(F.col("tipo_de_chamada") == "PTC")
+            .select("referencia", "numero_de_a")
+            .withColumn("chamada_ptc", F.lit(1))
+        )
+
+        df_poc_without_ptc = (
+            self.spark.read.parquet(source_file)
+            .filter(F.col("tipo_de_chamada") == "POC")
+            .join(df_ptc, on=["referencia", "numero_de_a"], how="left")
+            .filter(F.col("chamada_ptc").isNull())
+        )
+
+        tipo_de_chamada_to_keep = ["MTC", "UCA", "FOR", "MOC"]
+        df = (
+            self.spark.read.parquet(source_file)
+            .filter(F.col("tipo_de_chamada").isin(tipo_de_chamada_to_keep))
+            .unionByName(df_poc_without_ptc, allowMissingColumns=True)
+            .dropDuplicates(["referencia", "numero_de_a"])
+        )
+
+        df = self._apply_standard_pipeline(df, date_time_fmt)
+        df = (
+            df.withColumn("chamada_autenticada", F.lit(0))
+            .withColumn(
+                "chamada_caixa_postal",
+                F.when(
+                    F.substring(F.col("numero_conectado"), 1, 4) == "C294", F.lit(1)
+                ).otherwise(0),
             )
             .select(self._TRANSFORMED_COLUMNS)
         )
