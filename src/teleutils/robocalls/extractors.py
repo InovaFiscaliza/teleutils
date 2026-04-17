@@ -316,7 +316,7 @@ class RoboCallsExtractor:
         logger.info(
             "Selecionando e renomeando colunas conforme o esquema '%s'", schema.name
         )
-        columns_to_keep = [df.columns[i] for i in schema.column_indices]
+        columns_to_keep = [f"`{df.columns[i]}`" for i in schema.column_indices]
         df = df.select(columns_to_keep).toDF(*schema.column_names)
 
         if schema.column_to_filter is not None:
