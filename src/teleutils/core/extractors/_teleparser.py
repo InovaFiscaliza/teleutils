@@ -42,11 +42,11 @@ class CDRTeleparserExtractor:
 			name="Ericsson",
 			column_mapping=[
 				("networkCallReference", "referencia"),
-				("`callingPartyNumber.digits`", "numero_origem"),
+				("callingPartyNumber.digits", "numero_origem"),
 				("dateForStartOfCharge", "_data"),
 				("timeForStartOfCharge", "_hora"),
 				("CallModule", "_tipo_chamada"),
-				("`calledPartyNumber.digits`", "numero_destino"),
+				("calledPartyNumber.digits", "numero_destino"),
 				("chargeableDuration", "duracao"),
 			],
 			job_description="Extraindo CDR Parquet: Ericsson",
