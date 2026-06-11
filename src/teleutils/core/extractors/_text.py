@@ -212,7 +212,7 @@ class CDRTextExtractor:
                 "numero_origem",
                 "_data",
                 "_hora",
-                "tipo_chamada",
+                "_tipo_chamada",
                 "numero_destino",
                 "duracao",
             ],

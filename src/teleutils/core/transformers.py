@@ -337,6 +337,14 @@ class CDRTransformer:
         date_time_fmt = "yyyy-MM-dd HH:mm:ss"
         df = self.spark.read.parquet(source_file)
         df = self._apply_standard_pipeline(df, date_time_fmt)
+        df = df.withColumn(
+            "tipo_chamada",
+            F.when(F.col("_tipo_chamada") == "TER", "msTerminating")
+            .when(F.col("_tipo_chamada") == "TRA", "transit")
+            .when(F.col("_tipo_chamada") == "ORI", "msOriginating")
+            .when(F.col("_tipo_chamada") == "ROA", "roamingCallForwarding")
+            .when(F.col("_tipo_chamada") == "FOR", "callForwarding"),
+        )
 
         self._write_parquet(df, target_file)
         return self.spark.read.parquet(target_file)
