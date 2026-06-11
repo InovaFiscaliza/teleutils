@@ -42,11 +42,10 @@ from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
 from pyspark.sql import types as T
 
+from teleutils._config import MAX_RECORDS_PER_FILE
 from teleutils._logging import log_operation
 
 logger = logging.getLogger(__name__)
-
-MAX_RECORDS_PER_FILE = 1000000  # Limite de registros por arquivo parquet para evitar arquivos muito grandes
 
 
 @dataclass(frozen=True)

@@ -43,6 +43,7 @@ from pyspark.sql import functions as F
 from pyspark.sql import types as T
 from pyspark.sql.functions import pandas_udf  # type: ignore
 
+from teleutils._config import MAX_RECORDS_PER_FILE
 from teleutils._logging import log_operation
 from teleutils.preprocessing import normalize_number
 
@@ -316,7 +317,9 @@ class CDRTransformer:
             - O schema é padronizado imediatamente antes da gravação.
         """
         df = self._select_transformed_columns(df)
-        df.write.mode("overwrite").parquet(target_file)
+        df.repartition("no_tipo_chamada").write.mode("overwrite").partitionBy(
+            "no_tipo_chamada"
+        ).option("maxRecordsPerFile", MAX_RECORDS_PER_FILE).parquet(target_file)
 
     @log_operation
     def transform_cdr_ericsson(self, source_file: str, target_file: str):
