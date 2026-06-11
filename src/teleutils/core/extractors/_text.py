@@ -385,12 +385,12 @@ class CDRTextExtractor:
             df = df.filter(df[col_name] != col_value)
 
         logger.info(
-            "Escrevendo DataFrame extraído para parquet particionado por 'tipo_chamada': %s",
+            "Escrevendo DataFrame extraído para parquet: %s",
             target_file,
         )
-        df.repartition("tipo_chamada").write.mode("overwrite").partitionBy(
-            "tipo_chamada"
-        ).option("maxRecordsPerFile", MAX_RECORDS_PER_FILE).parquet(target_file)
+        df.write.mode("overwrite").option(
+            "maxRecordsPerFile", MAX_RECORDS_PER_FILE
+        ).parquet(target_file)
         return self.spark.read.parquet(target_file)
 
     @log_operation
