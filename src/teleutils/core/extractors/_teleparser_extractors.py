@@ -45,7 +45,7 @@ class CDRTeleparserExtractor:
                 ("callingPartyNumber.digits", "numero_origem"),
                 ("dateForStartOfCharge", "_data"),
                 ("timeForStartOfCharge", "_hora"),
-                ("CallModule", "_tipo_chamada"),
+                ("CallModule", "tipo_chamada"),
                 ("calledPartyNumber.digits", "numero_destino"),
                 ("chargeableDuration", "duracao"),
             ],
