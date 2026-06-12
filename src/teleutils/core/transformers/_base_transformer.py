@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import logging
@@ -7,14 +6,13 @@ from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
 from pyspark.sql import types as T
 
-from teleutils._config import MAX_RECORDS_PER_FILE
+from teleutils._config import MAX_RECORDS_PER_FILE, SPARK_DEFAULT_PARALLELISM
 from teleutils.preprocessing import spark_normalize_number
 
 logger = logging.getLogger(__name__)
 
 
 class CDRBaseTransformer:
-
     def __init__(
         self,
         spark: SparkSession,
@@ -52,7 +50,8 @@ class CDRBaseTransformer:
 
         if "data_hora" not in df.columns:
             df = df.withColumn(
-                "data_hora", F.concat_ws(" ", F.col("_data"), F.col("_hora"))
+                "data_hora",
+                F.nullif(F.concat_ws(" ", F.col("_data"), F.col("_hora")), F.lit("")),
             )
 
         return df.withColumn(
@@ -221,6 +220,8 @@ class CDRBaseTransformer:
             - O schema é padronizado imediatamente antes da gravação.
         """
         df = self._select_transformed_columns(df)
-        df.repartition("no_tipo_chamada").write.mode("overwrite").partitionBy(
-            "no_tipo_chamada"
-        ).option("maxRecordsPerFile", MAX_RECORDS_PER_FILE).parquet(target_file)
+        df.repartition(SPARK_DEFAULT_PARALLELISM, "no_tipo_chamada").write.mode(
+            "overwrite"
+        ).partitionBy("no_tipo_chamada").option(
+            "maxRecordsPerFile", MAX_RECORDS_PER_FILE
+        ).parquet(target_file)

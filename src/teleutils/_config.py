@@ -34,10 +34,12 @@ Notes:
 # chamadas que passaram pelo processo de autenticação da operadora.
 AUTENTICATED_CALL_FLAG = "TN-Validation-Passed"
 
+SPARK_DEFAULT_PARALLELISM = 20
+
 # Limite operacional aplicado na escrita de parquet para reduzir a geração de
 # arquivos excessivamente grandes, o que facilita particionamento e manuseio.
 # -1 = sem limite, deixa o Spark decidir o tamanho do arquivo final
-MAX_RECORDS_PER_FILE = -1
+MAX_RECORDS_PER_FILE = 1000000
 
 # Regra de negócio padrão para classificar chamadas muito curtas, utilizada nas
 # rotinas analíticas de detecção de padrões potencialmente abusivos.
