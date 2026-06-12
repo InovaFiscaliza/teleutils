@@ -220,8 +220,4 @@ class CDRBaseTransformer:
             - O schema é padronizado imediatamente antes da gravação.
         """
         df = self._select_transformed_columns(df)
-        df.repartition(SPARK_DEFAULT_PARALLELISM, "no_tipo_chamada").write.mode(
-            "overwrite"
-        ).partitionBy("no_tipo_chamada").option(
-            "maxRecordsPerFile", MAX_RECORDS_PER_FILE
-        ).parquet(target_file)
+        df.write.mode("overwrite").partitionBy("no_tipo_chamada").parquet(target_file)
