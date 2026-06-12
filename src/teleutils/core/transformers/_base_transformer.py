@@ -6,7 +6,6 @@ from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
 from pyspark.sql import types as T
 
-from teleutils._config import MAX_RECORDS_PER_FILE, SPARK_DEFAULT_PARALLELISM
 from teleutils.preprocessing import spark_normalize_number
 
 logger = logging.getLogger(__name__)
@@ -219,5 +218,6 @@ class CDRBaseTransformer:
             - A escrita usa ``overwrite`` para permitir reprocessamento idempotente.
             - O schema é padronizado imediatamente antes da gravação.
         """
+        logger.info("Escrevendo DataFrame transformado para parquet: %s", target_file)
         df = self._select_transformed_columns(df)
         df.write.mode("overwrite").partitionBy("no_tipo_chamada").parquet(target_file)
