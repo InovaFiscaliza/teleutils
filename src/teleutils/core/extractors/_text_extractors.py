@@ -368,7 +368,7 @@ class CDRTextExtractor:
                 "prestadora", F.element_at(F.split(F.input_file_name(), "/"), -3)
             )
             .withColumn("tipo_cdr", F.element_at(F.split(F.input_file_name(), "/"), -2))
-            .withColumn("arquivo_origem", F.input_file_name())
+            .withColumn("arquivo_origem", F.element_at(F.split(F.input_file_name(), "/"), -1))
         )
 
         if schema.column_to_filter is not None:
