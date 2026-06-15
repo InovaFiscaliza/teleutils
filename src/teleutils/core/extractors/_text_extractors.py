@@ -387,9 +387,7 @@ class CDRTextExtractor:
             "Escrevendo DataFrame extraído para parquet: %s",
             target_file,
         )
-        df.write.mode("overwrite").option(
-            "maxRecordsPerFile", MAX_RECORDS_PER_FILE
-        ).parquet(target_file)
+        df.write.mode("overwrite").parquet(target_file)
         return self.spark.read.parquet(target_file)
 
     @log_operation

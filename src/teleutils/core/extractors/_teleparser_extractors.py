@@ -89,13 +89,13 @@ class CDRTeleparserExtractor:
                 "prestadora", F.element_at(F.split(F.input_file_name(), "/"), -3)
             )
             .withColumn("tipo_cdr", F.element_at(F.split(F.input_file_name(), "/"), -2))
-            .withColumn("arquivo_origem", F.input_file_name())
+            .withColumn(
+                "arquivo_origem", F.element_at(F.split(F.input_file_name(), "/"), -1)
+            )
         )
 
         logger.info("Escrevendo DataFrame extraido para parquet: %s", target_file)
-        df.write.mode("overwrite").option(
-            "maxRecordsPerFile", MAX_RECORDS_PER_FILE
-        ).parquet(target_file)
+        df.write.mode("overwrite").parquet(target_file)
         return self.spark.read.parquet(target_file)
 
     @log_operation
