@@ -5,29 +5,29 @@ projeto para manter consistência entre etapas de extração, classificação e
 persistência de dados de telecomunicações.
 
 Responsabilidades:
-	- Definir marcadores textuais compartilhados entre regras de negócio.
-	- Consolidar limites operacionais usados em rotinas de leitura e escrita.
-	- Evitar duplicação de valores sensíveis a manutenção em múltiplos módulos.
+        - Definir marcadores textuais compartilhados entre regras de negócio.
+        - Consolidar limites operacionais usados em rotinas de leitura e escrita.
+        - Evitar duplicação de valores sensíveis a manutenção em múltiplos módulos.
 
 Principais funcionalidades:
-	- Informar o indicador textual de chamadas autenticadas.
-	- Definir o limite máximo de registros por arquivo parquet gerado.
-	- Determinar o limiar padrão para classificação de chamadas curtas.
+        - Informar o indicador textual de chamadas autenticadas.
+        - Definir o limite máximo de registros por arquivo parquet gerado.
+        - Determinar o limiar padrão para classificação de chamadas curtas.
 
 Dependências relevantes:
-	- teleutils.robocalls.classifiers
-	- teleutils.core.extractors._text
+        - teleutils.robocalls.classifiers
+        - teleutils.core.extractors._text
 
 Example:
-	>>> from teleutils._config import SHORT_CALL_THRESHOLD
-	>>> SHORT_CALL_THRESHOLD
-	6
+        >>> from teleutils._config import SHORT_CALL_THRESHOLD
+        >>> SHORT_CALL_THRESHOLD
+        6
 
 Notes:
-	Este módulo deve permanecer enxuto e conter apenas configurações estáticas
-	reutilizáveis. Sempre que uma nova constante representar regra de negócio
-	transversal, prefira defini-la aqui em vez de replicá-la em módulos de
-	processamento.
+        Este módulo deve permanecer enxuto e conter apenas configurações estáticas
+        reutilizáveis. Sempre que uma nova constante representar regra de negócio
+        transversal, prefira defini-la aqui em vez de replicá-la em módulos de
+        processamento.
 """
 
 # Marcador textual utilizado pelo classificador de robocalls para identificar

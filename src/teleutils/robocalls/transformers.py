@@ -52,7 +52,7 @@ _return_schema = T.StructType(
 )
 
 
-@pandas_udf(_return_schema) # type: ignore
+@pandas_udf(_return_schema)  # type: ignore
 def _spark_normalize_number(number_series: pd.Series) -> pd.DataFrame:
     """Normaliza números telefônicos em formato vetorizado usando pandas_udf.
 
@@ -231,10 +231,10 @@ class RoboCallsTransformer:
         """
         return df.withColumn(
             "numero_de_a_formatado",
-            _spark_normalize_number("numero_de_a").getField("numero_formatado"), # type: ignore
+            _spark_normalize_number("numero_de_a").getField("numero_formatado"),  # type: ignore
         ).withColumn(
             "numero_de_b_formatado",
-            _spark_normalize_number("numero_de_b").getField("numero_formatado"), # type: ignore
+            _spark_normalize_number("numero_de_b").getField("numero_formatado"),  # type: ignore
         )
 
     def _add_chamada_curta(self, df):
@@ -588,7 +588,7 @@ class RoboCallsTransformer:
 
         df_voice_mail = (
             self.spark.read.parquet(source_file)
-            .filter(F.col("tipo_de_chamada")=="FOR")
+            .filter(F.col("tipo_de_chamada") == "FOR")
             .withColumn("chamada_caixa_postal", F.lit(1))
             .select("referencia", "numero_de_a", "chamada_caixa_postal")
         )
