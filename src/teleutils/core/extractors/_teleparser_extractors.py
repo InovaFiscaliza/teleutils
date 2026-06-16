@@ -115,4 +115,5 @@ class CDRTeleparserExtractor:
 
     @log_operation
     def extract_tim_ats(self, source_file: str, target_file: str) -> DataFrame:
-        return self._extract_cdr(source_file, target_file, self._SCHEMAS["tim_ats"])
+        df = self._extract_cdr(source_file, target_file, self._SCHEMAS["tim_ats"])
+        return df.withColumn("tipo_cdr", F.col("recordType"))
