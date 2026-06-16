@@ -114,6 +114,13 @@ class CDRTextTransformer(CDRBaseTransformer):
 
         df = self.spark.read.parquet(source_file)
         df = self._apply_standard_pipeline(df)
+        df = df.withColumn(
+            "tipo_chamada",
+            F.when(F.col("_tipo_chamada") == "TERv", "tERMINATING-ROLE")
+            .when(F.col("_tipo_chamada") == "ORIv", "oRIGINATING-ROLE")
+            .when(F.col("_tipo_chamada") == "FORv", "cALLFORWARDING-ROLE")
+            .otherwise(F.col("_tipo_chamada")),
+        )
 
         self._write_parquet(df, target_file)
         return self.spark.read.parquet(target_file)

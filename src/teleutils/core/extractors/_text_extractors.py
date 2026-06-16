@@ -42,7 +42,6 @@ from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
 from pyspark.sql import types as T
 
-from teleutils._config import MAX_RECORDS_PER_FILE
 from teleutils._logging import log_operation
 
 logger = logging.getLogger(__name__)
@@ -224,13 +223,13 @@ class CDRTextExtractor:
                 [T.StructField(f"_c{i}", T.StringType(), True) for i in range(17)]
             ),
             has_header=False,
-            column_to_filter=("tipo_chamada", "TipodeCDR(role-of-Node)"),
+            column_to_filter=("_tipo_chamada", "TipodeCDR(role-of-Node)"),
             column_indices=[0, 1, 2, 3, 4, 7, 12, 16],
             column_names=[
                 "numero_origem",
                 "_data",
                 "_hora",
-                "tipo_chamada",
+                "_tipo_chamada",
                 "numero_destino",
                 "duracao",
                 "referencia",
