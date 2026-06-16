@@ -52,6 +52,8 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
             ).otherwise(F.lit(None)),
         )
         df = self._apply_standard_pipeline(df, date_time_fmt)
+        # Remove duplicatas causadas por múltiplas linhas de CDR para o mesmo evento
+        df = df.distinct()
 
         self._write_parquet(df, target_file)
         return self.spark.read.parquet(target_file)
