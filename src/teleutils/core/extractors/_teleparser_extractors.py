@@ -59,6 +59,7 @@ class CDRTeleparserExtractor:
                 ("role-of-Node", "tipo_chamada"),
                 ("called-Party-Address_tEL-URI", "numero_destino"),
                 ("duration", "duracao"),
+                ("recordType", "_tipo_cdr"),
             ],
             job_description="Extraindo CDR Parquet: TIM ATS",
         ),
@@ -116,4 +117,4 @@ class CDRTeleparserExtractor:
     @log_operation
     def extract_tim_ats(self, source_file: str, target_file: str) -> DataFrame:
         df = self._extract_cdr(source_file, target_file, self._SCHEMAS["tim_ats"])
-        return df.withColumn("tipo_cdr", F.col("recordType"))
+        return df.withColumn("tipo_cdr", F.col("_tipo_cdr"))
