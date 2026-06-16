@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
 
-from teleutils._config import MAX_RECORDS_PER_FILE
 from teleutils._logging import log_operation
 
 logger = logging.getLogger(__name__)
@@ -50,6 +49,18 @@ class CDRTeleparserExtractor:
                 ("chargeableDuration", "duracao"),
             ],
             job_description="Extraindo CDR Parquet: Ericsson",
+        ),
+        "tim_ats": CDRTeleparserSchema(
+            name="TIM ATS",
+            column_mapping=[
+                ("network-Call-Reference", "referencia"),
+                ("calling-Party-Address-Generic", "_numero_origem"),
+                ("recordOpeningTime", "data_hora"),
+                ("role-of-Node", "tipo_chamada"),
+                ("called-Party-Address_tEL-URI", "numero_destino"),
+                ("duration", "duracao"),
+            ],
+            job_description="Extraindo CDR Parquet: TIM ATS",
         ),
     }
 
@@ -101,3 +112,7 @@ class CDRTeleparserExtractor:
     @log_operation
     def extract_cdr_ericsson(self, source_file: str, target_file: str) -> DataFrame:
         return self._extract_cdr(source_file, target_file, self._SCHEMAS["ericsson"])
+
+    @log_operation
+    def extract_tim_ats(self, source_file: str, target_file: str) -> DataFrame:
+        return self._extract_cdr(source_file, target_file, self._SCHEMAS["tim_ats"])
