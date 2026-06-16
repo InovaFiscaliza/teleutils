@@ -35,3 +35,23 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
 
         self._write_parquet(df, target_file)
         return self.spark.read.parquet(target_file)
+
+    @log_operation
+    def transform_cdr_tim_ats(self, source_file: str, target_file: str):
+        date_time_fmt = "yyyy-MM-dd HH:mm:ssxxx"
+        df = self.spark.read.parquet(source_file)
+
+        df = df.withColumn(
+            "numero_origem",
+            F.regexp_extract("_numero_origem", r"\+([^@;]+)", 1),
+        ).withColumn(
+            "autenticacao",
+            F.when(
+                F.col("_numero_origem").contains(";"),
+                F.regexp_extract("_numero_origem", r";\s*(.+)$", 1),
+            ).otherwise(F.lit(None)),
+        )
+        df = self._apply_standard_pipeline(df, date_time_fmt)
+
+        self._write_parquet(df, target_file)
+        return self.spark.read.parquet(target_file)
