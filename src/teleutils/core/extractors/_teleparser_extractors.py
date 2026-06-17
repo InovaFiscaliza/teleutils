@@ -106,6 +106,9 @@ class CDRTeleparserExtractor:
             )
         )
 
+        if "_tipo_cdr" in df.columns:
+            df = df.withColumn("tipo_cdr", F.col("_tipo_cdr")).drop("_tipo_cdr")
+
         logger.info("Escrevendo DataFrame extraido para parquet: %s", target_file)
         df.write.mode("overwrite").parquet(target_file)
         return self.spark.read.parquet(target_file)
@@ -117,4 +120,4 @@ class CDRTeleparserExtractor:
     @log_operation
     def extract_tim_ats(self, source_file: str, target_file: str) -> DataFrame:
         df = self._extract_cdr(source_file, target_file, self._SCHEMAS["tim_ats"])
-        return df.withColumn("tipo_cdr", F.col("_tipo_cdr"))
+        return df
