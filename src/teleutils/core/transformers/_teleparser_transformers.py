@@ -45,7 +45,7 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
             "numero_origem",
             F.regexp_extract("_numero_origem", r"\+([^@;]+)", 1),
         ).withColumn(
-            "autenticacao",
+            "_autenticacao",
             F.when(
                 F.col("_numero_origem").contains(";"),
                 F.regexp_extract("_numero_origem", r";\s*(.+)$", 1),
