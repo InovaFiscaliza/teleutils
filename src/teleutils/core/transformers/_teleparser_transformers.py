@@ -43,10 +43,7 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
 
         df = df.withColumn(
             "_autenticacao",
-            F.when(
-                F.col("_numero_origem_generico").contains(";"),
-                F.regexp_extract("_numero_origem_generico", r";\s*(.+)$", 1),
-            ).otherwise(F.lit(None)),
+            F.regexp_extract("_numero_origem_generico", r"(verstat=[a-zA-z\-]+)", 0),
         )
         df = self._apply_standard_pipeline(df, date_time_fmt)
 
