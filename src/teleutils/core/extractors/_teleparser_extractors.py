@@ -55,7 +55,7 @@ class CDRTeleparserExtractor:
             column_mapping=[
                 ("network-Call-Reference", "referencia"),
                 ("calling-Party-Address-Generic", "_numero_origem_generico"),
-                ("list-Of-Calling-Party-Address_tEL-URI", "_numero_origem_uri"),
+                ("list-Of-Calling-Party-Address_tEL-URI", "numero_origem"),
                 ("recordOpeningTime", "data_hora"),
                 ("role-of-Node", "tipo_chamada"),
                 ("called-Party-Address_tEL-URI", "numero_destino"),
