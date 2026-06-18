@@ -39,7 +39,7 @@ import re
 import string
 
 import pandas as pd
-from pyspark.sql.functions import pandas_udf
+from pyspark.sql.functions import pandas_udf  # type: ignore
 from pyspark.sql.types import BooleanType, StringType, StructField, StructType
 
 #: Padrão regex para números telefônicos brasileiros com 10 ou mais dígitos.
@@ -221,6 +221,10 @@ def normalize_number(subscriber_number, national_destination_code=""):
         ('invalido', False)
     """
     subscriber_number = str(subscriber_number)
+
+    if not subscriber_number:
+        return (None, False)
+
     if ";" in subscriber_number:
         # Regra de negócio: alguns fornecedores de CDR enviam múltiplos números
         # separados por ponto-e-vírgula no mesmo campo; utiliza-se apenas o primeiro.
@@ -298,9 +302,9 @@ def normalize_number_pair(number_a, number_b, national_destination_code=""):
     # Regra de negócio: se o número de origem for válido e completo (10 ou 11
     # dígitos), seus dois primeiros dígitos representam o DDD e podem ser
     # utilizados como contexto para normalizar o número de destino local.
-    if is_number_a_valid and len(normalized_number_a) in (10, 11):
+    if is_number_a_valid and len(normalized_number_a) in (10, 11):  # type: ignore
         if not national_destination_code:
-            national_destination_code = normalized_number_a[:2]
+            national_destination_code = normalized_number_a[:2]  # type: ignore
     else:
         national_destination_code = ""
 
