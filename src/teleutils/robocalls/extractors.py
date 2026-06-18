@@ -247,7 +247,7 @@ class RoboCallsExtractor:
         """
         self.spark = spark
         # SparkContext armazenado uma única vez, evitando chamadas repetidas
-        self._sc = spark.sparkContext
+        # self._sc = spark.sparkContext
 
     def _extract_cdr(
         self, source_file: str, target_file: str, schema: CDRSchema
@@ -282,7 +282,7 @@ class RoboCallsExtractor:
             Falhas de validação são capturadas cedo com mensagens descritivas,
             facilitando diagnóstico de problemas de configuração ou formato.
         """
-        self._sc.setJobDescription(schema.job_description)
+        # self._sc.setJobDescription(schema.job_description)
 
         logger.info(
             "Lendo arquivo CSV: %s com delimitador '%s' e header=%s",

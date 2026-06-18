@@ -68,12 +68,12 @@ class CDRTeleparserExtractor:
 
     def __init__(self, spark: SparkSession) -> None:
         self.spark = spark
-        self._sc = spark.sparkContext
+        # self._sc = spark.sparkContext
 
     def _extract_cdr(
         self, source_file: str, target_file: str, schema: CDRTeleparserSchema
     ) -> DataFrame:
-        self._sc.setJobDescription(schema.job_description)
+        # self._sc.setJobDescription(schema.job_description)
 
         logger.info("Lendo arquivo parquet: %s", source_file)
         df = self.spark.read.parquet(source_file)
