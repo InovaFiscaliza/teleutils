@@ -1,0 +1,16 @@
+stages:
+  - sync
+
+sync-from-github:
+  stage: sync
+  image:
+    name: alpine/git:latest
+    entrypoint: [""]
+  script:
+    - git remote add github https://${GITHUB_TOKEN}@github.com/InovaFiscaliza/teleutils.git || git remote set-url github https://${GITHUB_TOKEN}@github.com/InovaFiscaliza/teleutils.git
+    - git remote set-url origin https://oauth2:${GITLAB_PUSH_TOKEN}@git.anatel.gov.br/selfservice-bi-data-science/sfi/teleutils.git
+    - git fetch github --prune
+    - git remote set-head github -d || true
+    - git push origin --force --prune "refs/remotes/github/*:refs/heads/*"
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "schedule"'
