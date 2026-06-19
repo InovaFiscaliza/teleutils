@@ -97,8 +97,8 @@ class CDRTextTransformer(CDRBaseTransformer):
         return self.spark.read.parquet(target_file)
 
     @log_operation
-    def transform_cdr_tim_ats(self, source_file: str, target_file: str):
-        """Transforma CDR TIM ATS extraído para o schema final padronizado.
+    def transform_cdr_tim_huawei(self, source_file: str, target_file: str):
+        """Transforma CDR TIM Huawei extraído para o schema final padronizado.
 
         Args:
             source_file: Caminho do parquet intermediário de entrada.

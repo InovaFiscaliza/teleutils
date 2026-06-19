@@ -37,7 +37,7 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         return self.spark.read.parquet(target_file)
 
     @log_operation
-    def transform_cdr_tim_ats(self, source_file: str, target_file: str):
+    def transform_cdr_tim_huawei(self, source_file: str, target_file: str):
         date_time_fmt = "yyyy-MM-dd HH:mm:ssxxx"
         df = self.spark.read.parquet(source_file)
 

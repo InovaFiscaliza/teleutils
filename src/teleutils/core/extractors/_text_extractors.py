@@ -216,8 +216,8 @@ class CDRTextExtractor:
             ],
             job_description="Extraindo CDR: Ericsson",
         ),
-        "tim_ats": CDRSchema(
-            name="Tim ATS",
+        "tim_huawei": CDRSchema(
+            name="Tim Huawei",
             delimiter=";",
             schema=T.StructType(
                 [T.StructField(f"_c{i}", T.StringType(), True) for i in range(17)]
@@ -235,7 +235,7 @@ class CDRTextExtractor:
                 "referencia",
                 "_autenticacao",
             ],
-            job_description="Extraindo CDR: Tim ATS",
+            job_description="Extraindo CDR: Tim Huawei",
         ),
         "vivo_fcdr": CDRSchema(
             name="Vivo FCDR",
@@ -416,15 +416,15 @@ class CDRTextExtractor:
         return self._extract_cdr(source_file, target_file, self._SCHEMAS["ericsson"])
 
     @log_operation
-    def extract_cdr_tim_ats(self, source_file: str, target_file: str) -> DataFrame:
-        """Extrai registros CDR no layout TIM ATS.
+    def extract_cdr_tim_huawei(self, source_file: str, target_file: str) -> DataFrame:
+        """Extrai registros CDR no layout TIM Huawei.
 
         Args:
-            source_file: Caminho do arquivo de entrada no formato TIM ATS.
+            source_file: Caminho do arquivo de entrada no formato TIM Huawei.
             target_file: Diretório de saída em parquet padronizado.
 
         Returns:
-            DataFrame: Registros extraídos e normalizados do formato TIM ATS.
+            DataFrame: Registros extraídos e normalizados do formato TIM Huawei.
 
         Raises:
             ValueError: Se o arquivo não obedecer o layout esperado pelo schema.
@@ -432,12 +432,12 @@ class CDRTextExtractor:
 
         Example:
             >>> extrator = CDRTextExtractor(spark)
-            >>> df = extrator.extract_cdr_tim_ats(
-            ...     source_file="dados/tim_ats.csv",
-            ...     target_file="parquet/tim_ats_extracted"
+            >>> df = extrator.extract_cdr_tim_huawei(
+            ...     source_file="dados/tim_huawei.csv",
+            ...     target_file="parquet/tim_huawei_extracted"
             ... )
         """
-        return self._extract_cdr(source_file, target_file, self._SCHEMAS["tim_ats"])
+        return self._extract_cdr(source_file, target_file, self._SCHEMAS["tim_huawei"])
 
     @log_operation
     def extract_cdr_vivo_fcdr(self, source_file: str, target_file: str) -> DataFrame:

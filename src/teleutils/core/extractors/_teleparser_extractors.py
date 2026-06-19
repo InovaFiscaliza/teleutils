@@ -50,8 +50,8 @@ class CDRTeleparserExtractor:
             ],
             job_description="Extraindo CDR Parquet: Ericsson",
         ),
-        "tim_ats": CDRTeleparserSchema(
-            name="TIM ATS",
+        "tim_huawei": CDRTeleparserSchema(
+            name="TIM Huawei",
             column_mapping=[
                 ("network-Call-Reference", "referencia"),
                 ("calling-Party-Address-Generic", "_numero_origem_generico"),
@@ -62,7 +62,7 @@ class CDRTeleparserExtractor:
                 ("duration", "duracao"),
                 ("recordType", "_tipo_cdr"),
             ],
-            job_description="Extraindo CDR Parquet: TIM ATS",
+            job_description="Extraindo CDR Parquet: TIM Huawei",
         ),
     }
 
@@ -120,6 +120,6 @@ class CDRTeleparserExtractor:
         return self._extract_cdr(source_file, target_file, self._SCHEMAS["ericsson"])
 
     @log_operation
-    def extract_tim_ats(self, source_file: str, target_file: str) -> DataFrame:
-        df = self._extract_cdr(source_file, target_file, self._SCHEMAS["tim_ats"])
+    def extract_tim_huawei(self, source_file: str, target_file: str) -> DataFrame:
+        df = self._extract_cdr(source_file, target_file, self._SCHEMAS["tim_huawei"])
         return df
