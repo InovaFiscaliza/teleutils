@@ -98,6 +98,7 @@ class CDRTeleparserExtractor:
 
         df = (
             df.select(*select_expr)
+            .distinct()
             .withColumn(
                 "prestadora", F.element_at(F.split(F.input_file_name(), "/"), -3)
             )

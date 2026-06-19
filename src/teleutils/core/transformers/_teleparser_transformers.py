@@ -16,7 +16,7 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
             spark: Sessão Spark compartilhada pelo pipeline de transformação.
         """
 
-        self.spark = spark
+        super().__init__(spark)
 
     @log_operation
     def transform_cdr_ericsson(self, source_file: str, target_file: str):
@@ -61,7 +61,7 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
             df.withColumn(
                 "_autenticacao",
                 F.regexp_extract(
-                    "_numero_origem_generico", r"(verstat=[a-zA-z\-]+)", 0
+                    "_numero_origem_generico", r"(verstat=[a-zA-Z\-]+)", 0
                 ),
             )
             .withColumn("numero_origem", F.col("numero_origem").substr(3, 15))
