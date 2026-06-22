@@ -98,7 +98,6 @@ class CDRTeleparserExtractor:
 
         df = (
             df.select(*select_expr)
-            .distinct()
             .withColumn(
                 "prestadora", F.element_at(F.split(F.input_file_name(), "/"), -3)
             )
@@ -106,6 +105,7 @@ class CDRTeleparserExtractor:
             .withColumn(
                 "arquivo_origem", F.element_at(F.split(F.input_file_name(), "/"), -1)
             )
+            .distinct()
         )
 
         if "_tipo_cdr" in df.columns:
