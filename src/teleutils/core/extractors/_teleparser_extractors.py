@@ -64,6 +64,19 @@ class CDRTeleparserExtractor:
             ],
             job_description="Extraindo CDR Parquet: TIM Huawei",
         ),
+        "vivo_fcdr": CDRTeleparserSchema(
+            name="Vivo FCDR",
+            column_mapping=[
+                ("callModule", "tipo_chamada"),
+                ("callingPartyNumber", "_numero_origem"),
+                ("calledPartyNumber", "numero_destino"),
+                ("chargeableDurat", "duracao"),
+                ("dateForStartOfCharge", "_data"),
+                ("timeForStartOfCharge", "_hora"),
+                ("networkCallReference", "referencia"),
+            ],
+            job_description="Extraindo CDR Parquet: Vivo FCDR",
+        ),
     }
 
     def __init__(self, spark: SparkSession) -> None:
