@@ -76,7 +76,6 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
 
     @log_operation
     def transform_cdr_vivo_fcdr(self, source_file: str, target_file: str):
-
         date_time_fmt = "yyyyMMdd HHmmss"
         df = self.spark.read.parquet(source_file)
         df = self._preprocess_cdr_vivo_fcdr(df)
