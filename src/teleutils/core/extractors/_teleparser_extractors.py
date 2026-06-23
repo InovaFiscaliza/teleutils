@@ -136,3 +136,8 @@ class CDRTeleparserExtractor:
     def extract_tim_huawei(self, source_file: str, target_file: str) -> DataFrame:
         df = self._extract_cdr(source_file, target_file, self._SCHEMAS["tim_huawei"])
         return df
+
+    @log_operation
+    def extract_vivo_fcdr(self, source_file: str, target_file: str) -> DataFrame:
+        df = self._extract_cdr(source_file, target_file, self._SCHEMAS["vivo_fcdr"])
+        return df

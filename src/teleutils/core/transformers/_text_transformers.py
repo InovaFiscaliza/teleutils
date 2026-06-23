@@ -147,8 +147,9 @@ class CDRTextTransformer(CDRBaseTransformer):
         date_time_fmt = "yyyyMMdd HHmmss"
         df = self.spark.read.parquet(source_file)
 
-        # Pré-processamento específico de layout: separa campo composto para
-        # manter compatibilidade com o pipeline comum de autenticação.
+        # Extrair autenticação e prefixos adicionais dos números.
+        # A autenticação está contida na coluna _numero_origem,
+        # por exemplo: 551136128860;verstat=TN-Validation-Passe
         df = (
             df.withColumn("_split", F.split(F.col("_numero_origem"), ";"))
             .withColumn("numero_origem", F.col("_split").getItem(0))
