@@ -223,3 +223,23 @@ class CDRBaseTransformer:
         logger.info("Escrevendo DataFrame transformado para parquet: %s", target_file)
         df = self._select_transformed_columns(df)
         df.write.mode("overwrite").partitionBy("no_tipo_chamada").parquet(target_file)
+
+    def _preprocess_vivo_fcdr(self, df: DataFrame) -> DataFrame:
+        # Extrair autenticação e prefixos adicionais dos números.
+        # A autenticação está contida na coluna _numero_origem,
+        # por exemplo: 551136128860;verstat=TN-Validation-Passe
+        df = (
+            df.withColumn("_split", F.split(F.col("_numero_origem"), ";"))
+            .withColumn("numero_origem", F.col("_split").getItem(0))
+            .withColumn("_autenticacao", F.col("_split").getItem(1))
+            .drop("_split")
+            .withColumn(
+                "tipo_chamada",
+                F.when(F.col("_tipo_chamada") == "1", "msOriginating")
+                .when(F.col("_tipo_chamada") == "3", "callForwarding")
+                .when(F.col("_tipo_chamada") == "4", "msTerminating")
+                .otherwise(F.col("_tipo_chamada")),
+            )
+        )
+
+        return df

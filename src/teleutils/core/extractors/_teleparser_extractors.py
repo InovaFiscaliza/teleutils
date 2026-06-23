@@ -67,7 +67,7 @@ class CDRTeleparserExtractor:
         "vivo_fcdr": CDRTeleparserSchema(
             name="Vivo FCDR",
             column_mapping=[
-                ("callModule", "tipo_chamada"),
+                ("callModule", "_tipo_chamada"),
                 ("callingPartyNumber", "_numero_origem"),
                 ("calledPartyNumber", "numero_destino"),
                 ("chargeableDurat", "duracao"),

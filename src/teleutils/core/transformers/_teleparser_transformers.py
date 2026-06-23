@@ -74,19 +74,10 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
 
     @log_operation
     def transform_cdr_vivo_fcdr(self, source_file: str, target_file: str):
+
         date_time_fmt = "yyyyMMdd HHmmss"
         df = self.spark.read.parquet(source_file)
-
-        # Extrair autenticação e prefixos adicionais dos números.
-        # A autenticação está contida na coluna _numero_origem,
-        # por exemplo: 551136128860;verstat=TN-Validation-Passe
-        df = (
-            df.withColumn("_split", F.split(F.col("_numero_origem"), ";"))
-            .withColumn("numero_origem", F.col("_split").getItem(0))
-            .withColumn("_autenticacao", F.col("_split").getItem(1))
-            .drop("_split")
-        )
-
+        df = self._preprocess_vivo_fcdr(df)
         df = self._apply_standard_pipeline(df, date_time_fmt)
 
         self._write_parquet(df, target_file)

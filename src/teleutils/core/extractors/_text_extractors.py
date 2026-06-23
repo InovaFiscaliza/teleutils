@@ -245,7 +245,7 @@ class CDRTextExtractor:
             column_to_filter=None,
             column_indices=[0, 2, 5, 12, 13, 31, 45],
             column_names=[
-                "tipo_chamada",
+                "_tipo_chamada",
                 "_numero_origem",
                 "numero_destino",
                 "duracao",
