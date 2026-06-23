@@ -146,7 +146,7 @@ class CDRTextTransformer(CDRBaseTransformer):
 
         date_time_fmt = "yyyyMMdd HHmmss"
         df = self.spark.read.parquet(source_file)
-        df = self._preprocess_vivo_fcdr(df)
+        df = self._preprocess_cdr_vivo_fcdr(df)
         df = self._apply_standard_pipeline(df, date_time_fmt)
 
         self._write_parquet(df, target_file)

@@ -224,7 +224,7 @@ class CDRBaseTransformer:
         df = self._select_transformed_columns(df)
         df.write.mode("overwrite").partitionBy("no_tipo_chamada").parquet(target_file)
 
-    def _preprocess_vivo_fcdr(self, df: DataFrame) -> DataFrame:
+    def _preprocess_cdr_vivo_fcdr(self, df: DataFrame) -> DataFrame:
         # Extrair autenticação e prefixos adicionais dos números.
         # A autenticação está contida na coluna _numero_origem,
         # por exemplo: 551136128860;verstat=TN-Validation-Passe
