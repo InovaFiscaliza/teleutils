@@ -84,29 +84,57 @@ class CDRTeleparserExtractor:
         # self._sc = spark.sparkContext
 
     def _extract_cdr(
-        self, source_file: str, target_file: str, schema: CDRTeleparserSchema
+        self,
+        source_file: str,
+        target_file: str,
+        schema: CDRTeleparserSchema,
+        ignore_missing_columns: bool = False,
     ) -> DataFrame:
         # self._sc.setJobDescription(schema.job_description)
 
         logger.info("Lendo arquivo parquet: %s", source_file)
         df = self.spark.read.parquet(source_file)
 
+        logger.info(
+            "Parâmetro ignore_missing_columns: %s. %s colunas ausentes.",
+            ignore_missing_columns,
+            "Ignorando" if ignore_missing_columns else "Verificando",
+        )
+
         missing_columns = [
             source_col
             for source_col, _ in schema.column_mapping
             if source_col not in df.columns
         ]
-        if missing_columns:
+
+        if missing_columns and not ignore_missing_columns:
             raise ValueError(
                 f"Schema '{schema.name}' requer colunas ausentes no parquet: "
                 f"{missing_columns}. Colunas disponiveis: {df.columns}"
             )
 
+        if missing_columns and ignore_missing_columns:
+            logger.warning(
+                "Colunas ausentes no parquet: %s. Selecionando apenas colunas presentes.",
+                missing_columns,
+            )
+
+        # Filtrar o mapeamento para incluir apenas colunas presentes quando ignore_missing_columns=True
+        filtered_column_mapping = (
+            [
+                (source_col, target_col)
+                for source_col, target_col in schema.column_mapping
+                if source_col in df.columns
+            ]
+            if ignore_missing_columns
+            else schema.column_mapping
+        )
+
         select_expr = [
             F.col(f"`{source_col}`").alias(target_col)
             if "." in source_col
             else F.col(source_col).alias(target_col)
-            for source_col, target_col in schema.column_mapping
+            for source_col, target_col in filtered_column_mapping
         ]
 
         df = (
