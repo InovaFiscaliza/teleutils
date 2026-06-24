@@ -77,6 +77,25 @@ class CDRTeleparserExtractor:
             ],
             job_description="Extraindo CDR Parquet: Vivo FCDR",
         ),
+        "nokia": CDRTeleparserSchema(
+            name="Nokia",
+            column_mapping = [
+                ('record_type', 'tipo_chamada'), 
+                ('call_reference', 'referencia'), 
+                ('in_channel_allocated_time', 'data_hora'), 
+                ('calling_number', 'numero_origem'), 
+                ('dialled_digits', 'numero_destino'),
+                ('orig_mcz_duration', '_duracao_orig_mcz'),
+                ('term_mcz_duration', '_duracao_term_mcz'),
+                ('forw_mcz_duration', '_duracao_forw_mcz'),
+                ('roam_mcz_duration', '_duracao_roam_mcz'),
+                ('iaz_duration', '_duracao_iaz'),
+                ('oaz_duration', '_duracao_oaz'),
+                ('chargeable_duration', '_duracao_tarifavel'),
+                ('char_band_duration', '_duracao_banda_tarifavel'),
+            ],
+            job_description="Extraindo CDR Parquet: Nokia",
+        ),
     }
 
     def __init__(self, spark: SparkSession) -> None:
@@ -168,4 +187,9 @@ class CDRTeleparserExtractor:
     @log_operation
     def extract_cdr_vivo_fcdr(self, source_file: str, target_file: str) -> DataFrame:
         df = self._extract_cdr(source_file, target_file, self._SCHEMAS["vivo_fcdr"])
+        return df
+
+    @log_operation
+    def extract_cdr_nokia(self, source_file: str, target_file: str) -> DataFrame:
+        df = self._extract_cdr(source_file, target_file, self._SCHEMAS["nokia"], ignore_missing_columns=True)
         return df
