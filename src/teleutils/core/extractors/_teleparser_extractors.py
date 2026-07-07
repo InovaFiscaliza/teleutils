@@ -82,9 +82,10 @@ class CDRTeleparserExtractor:
             column_mapping=[
                 ("record_type", "tipo_chamada"),
                 ("call_reference", "referencia"),
-                ("in_channel_allocated_time", "data_hora"),
+                ("call_reference_time", "data_hora_referencia"),
                 ("calling_number", "numero_origem"),
-                ("dialled_digits", "numero_destino"),
+                ("called_number", "numero_destino"),
+                ("in_channel_allocated_time", "data_hora_alocacao_canal"),
                 ("orig_mcz_duration", "_duracao_orig_mcz"),
                 ("term_mcz_duration", "_duracao_term_mcz"),
                 ("forw_mcz_duration", "_duracao_forw_mcz"),
