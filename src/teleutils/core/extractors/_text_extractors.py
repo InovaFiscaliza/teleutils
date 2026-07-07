@@ -485,4 +485,27 @@ class CDRTextExtractor:
             ...     target_file="parquet/claro_nokia_extracted"
             ... )
         """
-        return self._extract_cdr(source_file, target_file, self._SCHEMAS["claro_nokia"])
+        df = self._extract_cdr(source_file, target_file, self._SCHEMAS["claro_nokia"])
+
+        # Corrige uma coluna referência (hexadecimal BCD invertida) no formato WORD:WORD:BYTE.
+        # Exemplo: 'C407FEF101' -> '704C1FEF10'
+        df = df.withColumn(
+            "referencia",  # Sobrescreve a coluna original
+            F.concat(
+                # --- Primeiro WORD (C407 -> 704C) ---
+                F.substring("referencia", 4, 1),
+                F.substring("referencia", 3, 1),
+                F.substring("referencia", 2, 1),
+                F.substring("referencia", 1, 1),
+                # --- Segundo WORD (FEF1 -> 1FEF) ---
+                F.substring("referencia", 8, 1),
+                F.substring("referencia", 7, 1),
+                F.substring("referencia", 6, 1),
+                F.substring("referencia", 5, 1),
+                # --- BYTE final (01 -> 10) ---
+                F.substring("referencia", 10, 1),
+                F.substring("referencia", 9, 1),
+            )
+        )
+
+        return df
