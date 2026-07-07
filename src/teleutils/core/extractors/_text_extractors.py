@@ -264,7 +264,7 @@ class CDRTextExtractor:
             column_indices=[0, 2, 3, 7, 8, 15],
             column_names=[
                 "tipo_chamada",
-                "referencia",
+                "_referencia",
                 "data_hora",
                 "numero_origem",
                 "numero_destino",
@@ -493,19 +493,19 @@ class CDRTextExtractor:
             "referencia",  # Sobrescreve a coluna original
             F.concat(
                 # --- Primeiro WORD (C407 -> 704C) ---
-                F.substring("referencia", 4, 1),
-                F.substring("referencia", 3, 1),
-                F.substring("referencia", 2, 1),
-                F.substring("referencia", 1, 1),
+                F.substring("_referencia", 4, 1),
+                F.substring("_referencia", 3, 1),
+                F.substring("_referencia", 2, 1),
+                F.substring("_referencia", 1, 1),
                 # --- Segundo WORD (FEF1 -> 1FEF) ---
-                F.substring("referencia", 8, 1),
-                F.substring("referencia", 7, 1),
-                F.substring("referencia", 6, 1),
-                F.substring("referencia", 5, 1),
+                F.substring("_referencia", 8, 1),
+                F.substring("_referencia", 7, 1),
+                F.substring("_referencia", 6, 1),
+                F.substring("_referencia", 5, 1),
                 # --- BYTE final (01 -> 10) ---
-                F.substring("referencia", 10, 1),
-                F.substring("referencia", 9, 1),
-            )
+                F.substring("_referencia", 10, 1),
+                F.substring("_referencia", 9, 1),
+            ),
         )
 
         return df
