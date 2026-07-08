@@ -103,6 +103,11 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         )
         df = df.withColumn(
             "tipo_chamada", record_type_mapping_expr.getItem(F.col("_tipo_chamada"))
+        ).withColumn(
+            "data_hora",
+            F.coalesce(
+                F.col("data_hora_alocacao_canal"), F.col("data_hora_referencia")
+            ),
         )
 
         df = self._apply_standard_pipeline(df, date_time_fmt)
