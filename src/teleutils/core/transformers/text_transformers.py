@@ -112,6 +112,11 @@ class CDRTextTransformer(CDRBaseTransformer):
                 F.substring("_referencia", 10, 1),
                 F.substring("_referencia", 9, 1),
             ),
+        ).withColumn(
+            "tipo_chamada",
+            F.when(F.col("_tipo_chamada") == "FOR", "FORW").otherwise(
+                F.col("_tipo_chamada")
+            ),
         )
 
         self._write_parquet(df, target_file)
