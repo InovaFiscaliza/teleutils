@@ -98,16 +98,43 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         coalesce_duration_expression = F.coalesce(*coalesce_duration_expression)
         df = df.withColumn("duracao", coalesce_duration_expression)
 
+        # Teleparser Nokia traz a descrição do campo record_type, o mapeamento a seguir converte para sigla.
         record_type_mapping_expr = F.create_map(
             *[F.lit(x) for x in chain(*NOKIA_RECORD_TYPE_MAPPING.items())]
         )
         df = df.withColumn(
             "tipo_chamada", record_type_mapping_expr.getItem(F.col("_tipo_chamada"))
-        ).withColumn(
+        )
+
+        # CDRs Nokia possuem um campo de duração específico para cada tipo, apenas um com valor não nulo por registro.
+        # A expressão a seguir garante apenas uma coluna com duracao final preenchida com o valor correto, independentemente do tipo de CDR.
+        df = df.withColumn(
             "data_hora",
             F.coalesce(
                 F.col("data_hora_alocacao_canal"), F.col("data_hora_referencia")
             ),
+        )
+
+        # CDRs do tipo FORW não possuem os campos calling_number e called_number
+        # considerar os campos alternativos orig_called_number e connected_to_number (→ numero_origem_original)
+        # os campos foram mapeados no extrator:
+        #
+        # +-------------------------+-------------------------+
+        # | Antes (CDR Bruto)       | Depois (CDR Extraído)   |
+        # |-------------------------|-------------------------|
+        # | calling_number          | _numero_origem          |
+        # | orig_calling_number     | numero_origem_original  |
+        # | called_number           | _numero_destino         |
+        # | connected_to_number     | numero_conectado        |
+        # | ------------------------|-------------------------|
+        #
+        # A execução com F.coalesce() garante que o mapeamento seja feito de maneira mais performática do que com F.when().otherwise().
+        df = df.withColumn(
+            "numero_origem",
+            F.coalesce(F.col("_numero_origem"), F.col("numero_origem_original")),
+        ).withColumn(
+            "numero_destino",
+            F.coalesce(F.col("_numero_destino"), F.col("numero_conectado")),
         )
 
         df = self._apply_standard_pipeline(df, date_time_fmt)
