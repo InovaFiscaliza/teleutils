@@ -93,6 +93,27 @@ class CDRTextTransformer(CDRBaseTransformer):
         df = self.spark.read.parquet(source_file)
         df = self._apply_standard_pipeline(df, date_time_fmt)
 
+        # Corrige a coluna referencia hexadecimal BCD invertida no formato WORD:WORD:BYTE.
+        # Exemplo: 'C407FEF101' -> '704C1FEF10'
+        df = df.withColumn(
+            "referencia",
+            F.concat(
+                # --- Primeiro WORD (C407 -> 704C) ---
+                F.substring("_referencia", 4, 1),
+                F.substring("_referencia", 3, 1),
+                F.substring("_referencia", 2, 1),
+                F.substring("_referencia", 1, 1),
+                # --- Segundo WORD (FEF1 -> 1FEF) ---
+                F.substring("_referencia", 8, 1),
+                F.substring("_referencia", 7, 1),
+                F.substring("_referencia", 6, 1),
+                F.substring("_referencia", 5, 1),
+                # --- BYTE final (01 -> 10) ---
+                F.substring("_referencia", 10, 1),
+                F.substring("_referencia", 9, 1),
+            ),
+        )
+
         self._write_parquet(df, target_file)
         return self.spark.read.parquet(target_file)
 
