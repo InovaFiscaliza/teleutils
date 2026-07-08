@@ -1,7 +1,11 @@
+from itertools import chain
+
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
+from pyspark.sql.types import IntegerType
 
 from teleutils._logging import log_operation
+from teleutils.core.transformers._nokia import NOKIA_RECORD_TYPE_MAPPING
 from teleutils.core.transformers.base_transformer import CDRBaseTransformer
 
 
@@ -79,6 +83,28 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         date_time_fmt = "yyyyMMdd HHmmss"
         df = self.spark.read.parquet(source_file)
         df = self._preprocess_cdr_vivo_fcdr(df)
+        df = self._apply_standard_pipeline(df, date_time_fmt)
+
+        self._write_parquet(df, target_file)
+        return self.spark.read.parquet(target_file)
+
+    @log_operation
+    def transform_cdr_nokia(self, source_file: str, target_file: str):
+        date_time_fmt = "dd/MM/yyyy HH:mm:ss"
+        df = self.spark.read.parquet(source_file)
+        duration_columns = [col for col in df.columns if col.startswith("_duracao")]
+        coalesce_duration_expression = [F.col(c) for c in duration_columns]
+        coalesce_duration_expression.append(F.lit("0"))
+        coalesce_duration_expression = F.coalesce(*coalesce_duration_expression)
+        df = df.withColumn("duracao", coalesce_duration_expression)
+
+        record_type_mapping_expr = F.create_map(
+            *[F.lit(x) for x in chain(*NOKIA_RECORD_TYPE_MAPPING.items())]
+        )
+        df = df.withColumn(
+            "tipo_chamada", record_type_mapping_expr.getItem(F.col("_tipo_chamada"))
+        )
+
         df = self._apply_standard_pipeline(df, date_time_fmt)
 
         self._write_parquet(df, target_file)
