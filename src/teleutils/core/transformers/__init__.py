@@ -1,6 +1,6 @@
-from teleutils.core.transformers._teleparser_transformers import (
+from teleutils.core.transformers.teleparser_transformers import (
     CDRTeleparserTransformer,
 )
-from teleutils.core.transformers._text_transformers import CDRTextTransformer
+from teleutils.core.transformers.text_transformers import CDRTextTransformer
 
 __all__ = ["CDRTeleparserTransformer", "CDRTextTransformer"]

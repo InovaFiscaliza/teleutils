@@ -1,4 +1,4 @@
-"""Módulo teleutils.core.extractors._text.
+"""Módulo teleutils.core.extractors.text_extractors.
 
 Responsável pela extração e padronização de registros de chamadas (CDR)
 provenientes de múltiplos layouts de arquivo texto/CSV utilizados por

@@ -2,7 +2,7 @@ from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 
 from teleutils._logging import log_operation
-from teleutils.core.transformers._base_transformer import CDRBaseTransformer
+from teleutils.core.transformers.base_transformer import CDRBaseTransformer
 
 
 class CDRTeleparserTransformer(CDRBaseTransformer):

@@ -16,7 +16,7 @@ Principais funcionalidades:
 
 Dependências relevantes:
         - teleutils.robocalls.classifiers
-        - teleutils.core.extractors._text
+        - teleutils.core.extractors.text_extractors
 
 Example:
         >>> from teleutils._config import SHORT_CALL_THRESHOLD
