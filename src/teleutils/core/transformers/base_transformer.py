@@ -80,7 +80,7 @@ class CDRBaseTransformer:
         df = df.withColumn(
             "numero_destino",
             F.regexp_replace(
-                F.regexp_replace(F.col("numero_destino"), "^c", "#"), "^b", "*"
+                F.regexp_replace(F.col("numero_destino"), r"^#", "c"), r"^\*", "b"
             ),
         )
 
