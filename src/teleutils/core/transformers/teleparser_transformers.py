@@ -129,12 +129,16 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         # | ------------------------|-------------------------|
         #
         # A execução com F.coalesce() garante que o mapeamento seja feito de maneira mais performática do que com F.when().otherwise().
+        #
+        # O script de chamadas abusivas não utiliza o campo numero_conectado, o mapeamento será implementado no futuro caso seja necessário.
+        # df = df.withColumn(
+        #     "numero_destino",
+        #     F.coalesce(F.col("numero_destino"), F.col("numero_conectado")),
+        # )
+
         df = df.withColumn(
             "numero_origem",
-            F.coalesce(F.col("_numero_origem"), F.col("numero_origem_original")),
-        ).withColumn(
-            "numero_destino",
-            F.coalesce(F.col("_numero_destino"), F.col("numero_conectado")),
+            F.coalesce(F.col("numero_origem"), F.col("numero_origem_original")),
         )
 
         df = self._apply_standard_pipeline(df, date_time_fmt)
