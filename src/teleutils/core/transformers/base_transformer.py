@@ -75,7 +75,14 @@ class CDRBaseTransformer:
             - Efeito colateral lógico: colunas temporárias são removidas ao final
               para manter o schema limpo.
         """
-        return (
+
+        # Substitui caracteres '#' e '*' por 'c' e 'b', respectivamente para uniformizar a saída do Teleparser.
+        df = df.withColumn(
+            "numero_destino", F.regexp_replace(F.col("numero_destino"), "#", "c")
+        )
+
+        # formata números de origem e destino, adicionando colunas de validade
+        df = (
             df.withColumn(
                 "_numero_origem_formatado",
                 spark_normalize_number("numero_origem"),  # type: ignore
@@ -102,6 +109,8 @@ class CDRBaseTransformer:
             .drop("_numero_origem_formatado")
             .drop("_numero_destino_formatado")
         )
+
+        return df
 
     def _add_tn_validation_status(self, df):
         """Deriva status textual de autenticação a partir de ``_autenticacao``.
