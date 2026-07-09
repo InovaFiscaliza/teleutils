@@ -129,7 +129,8 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         # | forwarded_to_number     | numero_destino_encaminhamento |
         # +------------------------+-------------------------------+
         #
-        # O script legado utiliza as colunas numero_origem_original e numero_origem_encaminhamento para derivar o campo numero_origem, numero_destino.
+        # O script legado utiliza as colunas numero_origem_original e numero_origem_encaminhamento para derivar os campos numero_origem e numero_destino.
+        # Os campos utilizados por esse script (numero_origem_original e numero_destino_original) mostraram o mesmo resultados e estão mais aderentes à documentação Nokia, portanto foram mantidos.
         # A execução com F.coalesce() garante que o mapeamento seja feito de maneira mais performática do que com F.when().otherwise().
         df = df.withColumn(
             "numero_origem",
@@ -137,7 +138,7 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         ).withColumn(
             "numero_destino",
             F.when(
-                F.col("tipo_chamada") == "FORW", F.col("numero_origem_encaminhamento")
+                F.col("tipo_chamada") == "FORW", F.col("numero_destino_original")
             ).otherwise(
                 F.col("numero_destino"),
             ),
