@@ -220,10 +220,11 @@ def normalize_number(subscriber_number, national_destination_code=""):
         >>> normalize_number("invalido")
         ('invalido', False)
     """
-    subscriber_number = str(subscriber_number)
 
     if not subscriber_number:
         return (None, False)
+
+    subscriber_number = str(subscriber_number)
 
     if ";" in subscriber_number:
         # Regra de negócio: alguns fornecedores de CDR enviam múltiplos números
@@ -231,7 +232,7 @@ def normalize_number(subscriber_number, national_destination_code=""):
         subscriber_number = subscriber_number.split(";")[0]
     # Remove o caractere de preenchimento 'f' utilizado por certos sistemas
     # legados para completar campos numéricos de tamanho fixo.
-    subscriber_number = subscriber_number.replace("f", "")
+    subscriber_number = subscriber_number.lower().replace("f", "")
 
     clean_subscriber_number = _clean_numbers(subscriber_number)
     # Remove prefixo de chamada a cobrar, internacional (00) ou nacional (0)
