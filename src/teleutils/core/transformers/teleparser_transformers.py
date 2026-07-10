@@ -98,7 +98,7 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
             *[F.lit(x) for x in chain(*NOKIA_RECORD_TYPE_MAPPING.items())]
         )
         df = df.withColumn(
-            "tipo_chamada", record_type_mapping_expr.getItem(F.col("_tipo_chamada"))
+            "tipo_chamada", record_type_mapping_expr[F.col("_tipo_chamada")]
         )
 
         # CDRs Nokia possuem um campo de duração específico para cada tipo, apenas um com valor não nulo por registro.
