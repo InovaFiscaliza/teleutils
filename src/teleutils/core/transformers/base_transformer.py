@@ -53,10 +53,16 @@ class CDRBaseTransformer:
                 F.nullif(F.concat_ws(" ", F.col("_data"), F.col("_hora")), F.lit("")),
             )
 
-        return df.withColumn(
-            "duracao",
-            F.coalesce(F.col("duracao").cast(T.IntegerType()), F.lit(0)),
-        ).withColumn("data_hora", F.to_timestamp(F.col("data_hora"), date_time_fmt))
+        return df.withColumns(
+            {
+                # Tratamento da duração (convertendo nulos para 0)
+                "duracao": F.coalesce(F.col("duracao").cast(T.IntegerType()), F.lit(0)),
+                # try_timestamp substitui o to_timestamp e anula strings inválidas com segurança
+                "_data_hora": F.try_to_timestamp(
+                    F.col("data_hora"), F.lit(date_time_fmt)
+                ),
+            }
+        )
 
     def _format_numbers(self, df):
         """Normaliza números de origem/destino e adiciona indicadores de validade.

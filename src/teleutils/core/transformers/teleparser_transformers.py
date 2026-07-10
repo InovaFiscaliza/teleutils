@@ -116,9 +116,9 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         )
         df = df.withColumn(
             "data_hora",
-            F.when(
-                coalesce_date_time_expression == "00/00/0000 00:00:00", None
-            ).otherwise(coalesce_date_time_expression),
+            F.when(coalesce_date_time_expression.startswith("00"), None).otherwise(
+                coalesce_date_time_expression
+            ),
         )
 
         # CDRs do tipo FORW não possuem os campos calling_number e called_number
