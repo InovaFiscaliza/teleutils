@@ -92,11 +92,6 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
     def transform_cdr_nokia(self, source_file: str, target_file: str):
         date_time_fmt = "dd/MM/yyyy HH:mm:ss"
         df = self.spark.read.parquet(source_file)
-        duration_columns = [col for col in df.columns if col.startswith("_duracao")]
-        coalesce_duration_expression = [F.col(c) for c in duration_columns]
-        coalesce_duration_expression.append(F.lit("0"))
-        coalesce_duration_expression = F.coalesce(*coalesce_duration_expression)
-        df = df.withColumn("duracao", coalesce_duration_expression)
 
         # Teleparser Nokia traz a descrição do campo record_type, o mapeamento a seguir converte para sigla.
         record_type_mapping_expr = F.create_map(
@@ -108,11 +103,22 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
 
         # CDRs Nokia possuem um campo de duração específico para cada tipo, apenas um com valor não nulo por registro.
         # A expressão a seguir garante apenas uma coluna com duracao final preenchida com o valor correto, independentemente do tipo de CDR.
+        duration_columns = [col for col in df.columns if col.startswith("_duracao")]
+        coalesce_duration_expression = [F.col(c) for c in duration_columns]
+        coalesce_duration_expression.append(F.lit("0"))
+        coalesce_duration_expression = F.coalesce(*coalesce_duration_expression)
+        df = df.withColumn("duracao", coalesce_duration_expression)
+
+        # Alguns CDRs não contém valor em data_hora_alocacao_canal, mas possuem data_hora_referencia preenchida.
+        # A expressão a seguir garante que a coluna data_hora final seja preenchida, ainda que por nulo, independentemente do tipo de CDR.
+        coalesce_date_time_expression = F.coalesce(
+            F.col("data_hora_alocacao_canal"), F.col("data_hora_referencia")
+        )
         df = df.withColumn(
             "data_hora",
-            F.coalesce(
-                F.col("data_hora_alocacao_canal"), F.col("data_hora_referencia")
-            ),
+            F.when(
+                coalesce_date_time_expression == "00/00/0000 00:00:00", None
+            ).otherwise(coalesce_date_time_expression),
         )
 
         # CDRs do tipo FORW não possuem os campos calling_number e called_number
