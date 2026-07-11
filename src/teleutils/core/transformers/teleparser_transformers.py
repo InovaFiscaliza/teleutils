@@ -111,13 +111,10 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
 
         # Alguns CDRs não contém valor em data_hora_alocacao_canal, mas possuem data_hora_referencia preenchida.
         # A expressão a seguir garante que a coluna data_hora final seja preenchida, ainda que por nulo, independentemente do tipo de CDR.
-        coalesce_date_time_expression = F.coalesce(
-            F.col("data_hora_alocacao_canal"), F.col("data_hora_referencia")
-        )
         df = df.withColumn(
             "data_hora",
-            F.when(coalesce_date_time_expression.startswith("00"), None).otherwise(
-                coalesce_date_time_expression
+            F.coalesce(
+                F.col("data_hora_alocacao_canal"), F.col("data_hora_referencia")
             ),
         )
 
