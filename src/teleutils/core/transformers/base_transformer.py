@@ -58,7 +58,7 @@ class CDRBaseTransformer:
                 # Tratamento da duração (convertendo nulos para 0)
                 "duracao": F.coalesce(F.col("duracao").cast(T.IntegerType()), F.lit(0)),
                 # try_timestamp substitui o to_timestamp e anula strings inválidas com segurança
-                "_data_hora": F.try_to_timestamp(
+                "data_hora": F.try_to_timestamp(
                     F.col("data_hora"), F.lit(date_time_fmt)
                 ),
             }
