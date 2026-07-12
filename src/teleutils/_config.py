@@ -30,6 +30,8 @@ Notes:
         processamento.
 """
 
+from pyspark.sql import functions as F
+
 # Marcador textual utilizado pelo classificador de robocalls para identificar
 # chamadas que passaram pelo processo de autenticação da operadora.
 AUTENTICATED_CALL_FLAG = "TN-Validation-Passed"
@@ -44,3 +46,6 @@ MAX_RECORDS_PER_FILE = 1000000
 # Regra de negócio padrão para classificar chamadas muito curtas, utilizada nas
 # rotinas analíticas de detecção de padrões potencialmente abusivos.
 SHORT_CALL_THRESHOLD = 6
+
+# Define a data limite como um literal do Spark para o Catalyst otimizar a comparação
+MIN_SAFE_DATE = F.lit("1900-01-01 00:00:00")

@@ -6,6 +6,7 @@ from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
 from pyspark.sql import types as T
 
+from teleutils._config import MIN_SAFE_DATE
 from teleutils.preprocessing import spark_normalize_number
 
 logger = logging.getLogger(__name__)
@@ -57,9 +58,14 @@ class CDRBaseTransformer:
             {
                 # Tratamento da duração (convertendo nulos para 0)
                 "duracao": F.coalesce(F.col("duracao").cast(T.IntegerType()), F.lit(0)),
-                # try_timestamp substitui o to_timestamp e anula strings inválidas com segurança
-                "data_hora": F.try_to_timestamp(
-                    F.col("data_hora"), F.lit(date_time_fmt)
+                # 1. Faz o parse da string normalmente na CPU
+                # 2. Se o resultado for uma data antiga (como ano 0000), força para NULL
+                "data_hora": F.when(
+                    F.try_to_timestamp(F.col("data_hora"), F.lit(date_time_fmt))
+                    < MIN_SAFE_DATE,
+                    None,
+                ).otherwise(
+                    F.try_to_timestamp(F.col("data_hora"), F.lit(date_time_fmt))
                 ),
             }
         )

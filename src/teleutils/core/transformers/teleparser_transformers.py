@@ -2,7 +2,6 @@ from itertools import chain
 
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
-from pyspark.sql.types import IntegerType
 
 from teleutils._logging import log_operation
 from teleutils.core.transformers._nokia import NOKIA_RECORD_TYPE_MAPPING
