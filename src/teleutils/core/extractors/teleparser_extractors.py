@@ -47,6 +47,7 @@ class CDRTeleparserExtractor:
                 ("CallModule", "tipo_chamada"),
                 ("calledPartyNumber.digits", "numero_destino"),
                 ("chargeableDuration", "duracao"),
+                ("incomingRoute", "rota_entrada"),
             ],
             job_description="Extraindo CDR Parquet: Ericsson",
         ),

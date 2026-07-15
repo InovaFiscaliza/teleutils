@@ -223,6 +223,7 @@ class CDRBaseTransformer:
                 F.col("duracao").alias("qt_duracao_segundos"),
                 F.col("tipo_chamada").alias("no_tipo_chamada"),
                 F.col("autenticacao").alias("no_autenticacao"),
+                F.col("rota_entrada").alias("no_rota_entrada"),
                 F.col("prestadora").alias("no_prestadora"),
                 F.col("tipo_cdr").alias("no_tipo_cdr"),
                 F.col("arquivo_origem").alias("no_arquivo_origem"),

@@ -204,7 +204,7 @@ class CDRTextExtractor:
             schema=None,
             has_header=True,
             column_to_filter=None,
-            column_indices=[0, 1, 2, 3, 4, 9, 11],
+            column_indices=[0, 1, 2, 3, 4, 9, 11, 19],
             column_names=[
                 "referencia",
                 "numero_origem",
@@ -213,6 +213,7 @@ class CDRTextExtractor:
                 "_tipo_chamada",
                 "numero_destino",
                 "duracao",
+                "rota_entrada",
             ],
             job_description="Extraindo CDR: Ericsson",
         ),
