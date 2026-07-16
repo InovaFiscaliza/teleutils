@@ -119,6 +119,31 @@ class CDRTextTransformer(CDRBaseTransformer):
             ),
         )
 
+        # Adiciona colunas de informação de rota de entrada e saída, derivadas do campo _rota.
+        # Regras para rota_saida
+        # - Se "PTC" ou "FOR": recebe o valor direto de _rota
+        # - Se "UCA": faz o split por "&&" e pega o último elemento (índice -1)
+        # - Caso contrário: NULL
+        outgoing_route_rules = (
+            F.when(F.col("TipodeCDR").isin("PTC", "FOR"), F.col("_rota"))
+            .when(
+                F.col("TipodeCDR") == "UCA",
+                F.element_at(F.split(F.col("_rota"), "&&"), -1),
+            )
+            .otherwise(F.lit(None))
+        )
+
+        # Regras para a rota_entrada
+        # - Se "POC": recebe o valor direto de Routing_Category
+        # - Caso contrário: NULL
+        regra_rota_entrada = F.when(
+            F.col("TipodeCDR") == "POC", F.col("_rota")
+        ).otherwise(F.lit(None))
+
+        df = df.withColumn("rota_saida", outgoing_route_rules).withColumn(
+            "rota_entrada", regra_rota_entrada
+        )
+
         self._write_parquet(df, target_file)
         return self.spark.read.parquet(target_file)
 
