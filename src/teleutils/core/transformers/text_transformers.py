@@ -74,8 +74,8 @@ class CDRTextTransformer(CDRBaseTransformer):
         return self.spark.read.parquet(target_file)
 
     @log_operation
-    def transform_cdr_claro_nokia(self, source_file: str, target_file: str):
-        """Transforma CDR Claro Nokia extraído para o schema final padronizado.
+    def transform_cdr_nokia(self, source_file: str, target_file: str):
+        """Transforma CDR Nokia extraído para o schema final padronizado.
 
         Args:
             source_file: Caminho do parquet intermediário de entrada.
@@ -85,7 +85,7 @@ class CDRTextTransformer(CDRBaseTransformer):
             DataFrame: DataFrame relido do parquet transformado em ``target_file``.
 
         Notes:
-            O formato Claro Nokia utiliza máscara ``yyyy-MM-dd HH:mm:ss`` para
+            O formato Nokia utiliza máscara ``yyyy-MM-dd HH:mm:ss`` para
             parsing de data/hora.
         """
 

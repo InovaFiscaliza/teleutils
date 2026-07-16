@@ -468,15 +468,15 @@ class CDRTextExtractor:
         return self._extract_cdr(source_file, target_file, self._SCHEMAS["vivo_fcdr"])
 
     @log_operation
-    def extract_cdr_claro_nokia(self, source_file: str, target_file: str) -> DataFrame:
-        """Extrai registros CDR no layout Claro Nokia.
+    def extract_cdr_nokia(self, source_file: str, target_file: str) -> DataFrame:
+        """Extrai registros CDR no layout Nokia.
 
         Args:
-            source_file: Caminho do arquivo de entrada no formato Claro Nokia.
+            source_file: Caminho do arquivo de entrada no formato Nokia.
             target_file: Diretório de saída em parquet padronizado.
 
         Returns:
-            DataFrame: Registros extraídos e normalizados do formato Claro Nokia.
+            DataFrame: Registros extraídos e normalizados do formato Nokia.
 
         Raises:
             ValueError: Se o arquivo não obedecer o layout esperado pelo schema.
@@ -484,9 +484,9 @@ class CDRTextExtractor:
 
         Example:
             >>> extrator = CDRTextExtractor(spark)
-            >>> df = extrator.extract_cdr_claro_nokia(
-            ...     source_file="dados/claro_nokia.csv",
-            ...     target_file="parquet/claro_nokia_extracted"
+            >>> df = extrator.extract_cdr_nokia(
+            ...     source_file="dados/nokia.csv",
+            ...     target_file="parquet/nokia_extracted"
             ... )
         """
         df = self._extract_cdr(source_file, target_file, self._SCHEMAS["claro_nokia"])
