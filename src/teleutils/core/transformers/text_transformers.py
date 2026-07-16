@@ -125,9 +125,9 @@ class CDRTextTransformer(CDRBaseTransformer):
         # - Se "UCA": faz o split por "&&" e pega o último elemento (índice -1)
         # - Caso contrário: NULL
         outgoing_route_rules = (
-            F.when(F.col("TipodeCDR").isin("PTC", "FOR"), F.col("_rota"))
+            F.when(F.col("_tipo_chamada").isin("PTC", "FOR"), F.col("_rota"))
             .when(
-                F.col("TipodeCDR") == "UCA",
+                F.col("_tipo_chamada") == "UCA",
                 F.element_at(F.split(F.col("_rota"), "&&"), -1),
             )
             .otherwise(F.lit(None))
@@ -137,7 +137,7 @@ class CDRTextTransformer(CDRBaseTransformer):
         # - Se "POC": recebe o valor direto de Routing_Category
         # - Caso contrário: NULL
         regra_rota_entrada = F.when(
-            F.col("TipodeCDR") == "POC", F.col("_rota")
+            F.col("_tipo_chamada") == "POC", F.col("_rota")
         ).otherwise(F.lit(None))
 
         df = df.withColumn("rota_saida", outgoing_route_rules).withColumn(
