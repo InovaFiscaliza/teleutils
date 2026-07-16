@@ -82,7 +82,7 @@ class CDRTeleparserExtractor:
         "nokia": CDRTeleparserSchema(
             name="Nokia",
             column_mapping=[
-                ("record_type", "_tipo_chamada"),
+                ("record_type", "tipo_chamada"),
                 ("call_reference", "referencia"),
                 ("call_reference_time", "data_hora_referencia"),
                 ("in_channel_allocated_time", "data_hora_alocacao_canal"),

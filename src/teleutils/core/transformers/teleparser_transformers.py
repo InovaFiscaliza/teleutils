@@ -1,10 +1,7 @@
-from itertools import chain
-
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 
 from teleutils._logging import log_operation
-from teleutils.core.transformers._nokia import NOKIA_RECORD_TYPE_MAPPING
 from teleutils.core.transformers.base_transformer import CDRBaseTransformer
 
 
@@ -91,14 +88,6 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
     def transform_cdr_nokia(self, source_file: str, target_file: str):
         date_time_fmt = "dd/MM/yyyy HH:mm:ss"
         df = self.spark.read.parquet(source_file)
-
-        # Teleparser Nokia traz a descrição do campo record_type, o mapeamento a seguir converte para sigla.
-        record_type_mapping_expr = F.create_map(
-            *[F.lit(x) for x in chain(*NOKIA_RECORD_TYPE_MAPPING.items())]
-        )
-        df = df.withColumn(
-            "tipo_chamada", record_type_mapping_expr[F.col("_tipo_chamada")]
-        )
 
         # CDRs Nokia possuem um campo de duração específico para cada tipo, apenas um com valor não nulo por registro.
         # A expressão a seguir garante apenas uma coluna com duracao final preenchida com o valor correto, independentemente do tipo de CDR.
