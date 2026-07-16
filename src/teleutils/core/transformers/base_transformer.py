@@ -209,27 +209,25 @@ class CDRBaseTransformer:
             - Anotação de manutenção: qualquer alteração de contrato de saída
               deve ocorrer neste método para preservar consistência.
         """
-        return (
-            df.withColumn("tipo_chamada", F.col("tipo_chamada").cast(T.StringType()))
-            .select(
-                F.col("referencia").alias("nu_referencia"),
-                F.col("numero_origem").alias("nu_origem_original"),
-                F.col("numero_destino").alias("nu_destino_original"),
-                F.col("numero_origem_formatado").alias("nu_origem"),
-                F.col("numero_origem_valido").alias("ic_origem_valido"),
-                F.col("numero_destino_formatado").alias("nu_destino"),
-                F.col("numero_destino_valido").alias("ic_destino_valido"),
-                F.col("data_hora").alias("dh_chamada"),
-                F.col("duracao").alias("qt_duracao_segundos"),
-                F.col("tipo_chamada").alias("no_tipo_chamada"),
-                F.col("autenticacao").alias("no_autenticacao"),
-                F.col("rota_entrada").alias("no_rota_entrada"),
-                F.col("prestadora").alias("no_prestadora"),
-                F.col("tipo_cdr").alias("no_tipo_cdr"),
-                F.col("arquivo_origem").alias("no_arquivo_origem"),
-            )
-            .distinct()
-        )  # Remove duplicatas causadas por múltiplas linhas de CDR para o mesmo evento
+        return df.withColumn(
+            "tipo_chamada", F.col("tipo_chamada").cast(T.StringType())
+        ).select(
+            F.col("referencia").alias("nu_referencia"),
+            F.col("numero_origem").alias("nu_origem_original"),
+            F.col("numero_destino").alias("nu_destino_original"),
+            F.col("numero_origem_formatado").alias("nu_origem"),
+            F.col("numero_origem_valido").alias("ic_origem_valido"),
+            F.col("numero_destino_formatado").alias("nu_destino"),
+            F.col("numero_destino_valido").alias("ic_destino_valido"),
+            F.col("data_hora").alias("dh_chamada"),
+            F.col("duracao").alias("qt_duracao_segundos"),
+            F.col("tipo_chamada").alias("no_tipo_chamada"),
+            F.col("autenticacao").alias("no_autenticacao"),
+            F.col("rota_entrada").alias("no_rota_entrada"),
+            F.col("prestadora").alias("no_prestadora"),
+            F.col("tipo_cdr").alias("no_tipo_cdr"),
+            F.col("arquivo_origem").alias("no_arquivo_origem"),
+        )
 
     def _write_parquet(self, df: DataFrame, target_file: str) -> None:
         """Persiste o DataFrame transformado em parquet no destino informado.
