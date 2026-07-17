@@ -245,7 +245,7 @@ class CDRTextExtractor:
             schema=None,
             has_header=False,
             column_to_filter=None,
-            column_indices=[0, 2, 5, 12, 13, 31, 45],
+            column_indices=[0, 2, 5, 12, 13, 31, 45, 65, 66],
             column_names=[
                 "_tipo_chamada",
                 "_numero_origem",
@@ -254,6 +254,8 @@ class CDRTextExtractor:
                 "_data",
                 "_hora",
                 "referencia",
+                "rota_entrada",
+                "rota_saida",
             ],
             job_description="Extraindo CDR: Vivo FCDR",
         ),

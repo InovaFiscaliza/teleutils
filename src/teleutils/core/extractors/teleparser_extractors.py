@@ -76,6 +76,8 @@ class CDRTeleparserExtractor:
                 ("dateForStartOfCharge", "_data"),
                 ("timeForStartOfCharge", "_hora"),
                 ("networkCallReference", "referencia"),
+                ("incomingRoute", "rota_entrada"),
+                ("outgoingRoute", "rota_saida"),
             ],
             job_description="Extraindo CDR Parquet: Vivo FCDR",
         ),
