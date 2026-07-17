@@ -120,16 +120,17 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         # | forwarded_to_number     | numero_destino_encaminhamento |
         # +------------------------+-------------------------------+
         #
-        # O script legado utiliza as colunas numero_origem_original e numero_origem_encaminhamento para derivar os campos numero_origem e numero_destino.
-        # Os campos utilizados por esse script (numero_origem_original e numero_destino_original) mostraram o mesmo resultados e estão mais aderentes à documentação Nokia, portanto foram mantidos.
-        # A execução com F.coalesce() garante que o mapeamento seja feito de maneira mais performática do que com F.when().otherwise().
+        # O script legado utiliza as colunas `orig_calling_number` e `forwarding_number` para derivar os campos numero_origem e numero_destino.
+        # Os campos utilizados por esse script (numero_origem_original e numero_destino_original) mostraram o mesmo resultados e estão mais aderentes à documentação Nokia, com erro muito pequeno em relação ao parser legado.
+        # Validar se quando a chamada é encaminhada para a caixa postal ocorre que o número de destino encaminhar para si mesmo a chamada.
+        # Em exemplo analisado onde cause_for_forwarding = `SCP initiated`, forwarding_number = `8885561993363275` e forwared_to_number = `C145561993363275`, o que pode indicar que a chamada foi encaminhada para a caixa postal do próprio número de destino.
         df = df.withColumn(
             "numero_origem",
             F.coalesce(F.col("numero_origem"), F.col("numero_origem_original")),
         ).withColumn(
             "numero_destino",
             F.when(
-                F.col("tipo_chamada") == "FORW", F.col("numero_destino_original")
+                F.col("tipo_chamada") == "FORW", F.col("numero_origem_encaminhamento")
             ).otherwise(
                 F.col("numero_destino"),
             ),
