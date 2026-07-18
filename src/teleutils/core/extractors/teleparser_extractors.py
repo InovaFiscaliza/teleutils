@@ -63,6 +63,8 @@ class CDRTeleparserExtractor:
                 ("called-Party-Address_tEL-URI", "numero_destino"),
                 ("duration", "duracao"),
                 ("recordType", "_tipo_cdr"),
+                ("specifiedTreatmentField_incoming-Route", "rota_entrada"),
+                ("specifiedTreatmentField_outgoing-Route", "rota_saida"),
             ],
             job_description="Extraindo CDR Parquet: TIM Huawei",
         ),
