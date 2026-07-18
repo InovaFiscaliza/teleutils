@@ -175,11 +175,11 @@ class CDRTextTransformer(CDRBaseTransformer):
             )
             .withColumn(
                 "rota_entrada",
-                F.lit(None),  # type: ignore
+                F.lit(None).cast("string"),  # type: ignore
             )
             .withColumn(
                 "rota_saida",
-                F.lit(None),  # type: ignore
+                F.lit(None).cast("string"),  # type: ignore
             )
         )  # Colunas ausentes no layout TIM Huawei
 
