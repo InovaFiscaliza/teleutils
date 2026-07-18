@@ -12,7 +12,7 @@ lógica de leitura, validação de índices de coluna e escrita particionada. No
 formatos podem ser adicionados declarando um novo `CDRSchema` no dicionário de
 classe `_SCHEMAS`, sem necessidade de duplicar código.
 
-Nota:
+Notes:
     Os arquivos extraídos são salvos como parquet particionado por tipo_de_chamada.
     Os índices de coluna são baseados em zero e devem corresponder ao layout do
     arquivo CSV de entrada após aplicação do delimitador configurado.
@@ -42,45 +42,46 @@ class CDRSchema:
     possui um esquema distinto que especifica o delimitador, presença de cabeçalho,
     quais colunas do arquivo original devem ser selecionadas e seus nomes finais.
 
-    Atributos:
-        name (str): Nome descritivo do formato CDR (ex: "Ericsson", "TIM VoLTE").
-        delimiter (str): Caractere delimitador usado no arquivo CSV
-            (ex: ";" ou "|").
-        schema (T.StructType | None): Schema opcional usado na leitura do CSV.
-            Útil para arquivos sem cabeçalho ou com cabeçalho inconsistente,
-            garantindo nomes e quantidade de colunas previsíveis.
-        has_header (bool): Indica se o arquivo contém uma linha de cabeçalho.
-        column_to_filter (tuple[str, str] | None): Filtro opcional aplicado após a
-            seleção e renomeação das colunas. Deve referenciar um nome presente em
-            `column_names`.
-        column_indices (list[int]): Índices das colunas do arquivo original a serem
-            selecionadas, em ordem zero-indexada. Exemplo: [0, 1, 2, 3, 4, 9, 11].
-        column_names (list[str]): Nomes das colunas no DataFrame de saída,
-            na mesma ordem dos índices selecionados.
-            Exemplo: ["referencia", "numero_de_a", "_data", "_hora", ...].
-        job_description (str): Descrição do job para monitoramento no Spark UI.
+    Attributes:
+        name: Nome descritivo do formato CDR (ex.: "Ericsson", "TIM VoLTE").
+        delimiter: Caractere delimitador usado no arquivo CSV (ex.: ";" ou "|").
+        schema: Schema opcional usado na leitura do CSV. Útil para arquivos sem
+            cabeçalho ou com cabeçalho inconsistente, garantindo nomes e
+            quantidade de colunas previsíveis.
+        has_header: Indica se o arquivo contém uma linha de cabeçalho.
+        column_to_filter: Filtro opcional aplicado após a seleção e renomeação
+            das colunas, no formato ``(nome_coluna, valor)``. Deve referenciar
+            um nome presente em ``column_names``.
+        column_indices: Índices das colunas do arquivo original a serem
+            selecionadas, em ordem zero-indexada. Ex.: [0, 1, 2, 3, 4, 9, 11].
+        column_names: Nomes das colunas no DataFrame de saída, na mesma ordem
+            dos índices selecionados.
+            Ex.: ["referencia", "numero_de_a", "_data", "_hora", ...].
+        job_description: Descrição do job para monitoramento no Spark UI.
 
-    Nota:
-        A dataclass é congelada (frozen=True), garantindo imutabilidade.
-        O método `__post_init__` valida automaticamente que:
-                - `schema`, quando informado, é um `StructType`
-        - `column_indices` e `column_names` têm o mesmo tamanho
-        - `column_indices` não está vazio
-        - Nenhum índice é negativo
-                - `schema`, quando informado, contém colunas suficientes para os índices
-                    declarados
+    Notes:
+        A dataclass é congelada (``frozen=True``), garantindo imutabilidade.
+        O método ``__post_init__`` valida automaticamente que:
+            - ``schema``, quando informado, é um ``StructType``.
+            - ``column_indices`` e ``column_names`` têm o mesmo tamanho.
+            - ``column_indices`` não está vazio.
+            - Nenhum índice é negativo.
+            - ``schema``, quando informado, contém colunas suficientes para os
+              índices declarados.
 
-    Exemplo:
+    Example:
         >>> schema = CDRSchema(
         ...     name="Ericsson",
         ...     delimiter=";",
-                ...     schema=None,
+        ...     schema=None,
         ...     has_header=True,
-                ...     column_to_filter=None,
+        ...     column_to_filter=None,
         ...     column_indices=[0, 1, 2, 3, 4, 9, 11],
-        ...     column_names=["referencia", "numero_de_a", "_data", "_hora",
-        ...                   "tipo_de_chamada", "numero_de_b", "duracao_da_chamada"],
-        ...     job_description="Extraindo CDR: Ericsson"
+        ...     column_names=[
+        ...         "referencia", "numero_de_a", "_data", "_hora",
+        ...         "tipo_de_chamada", "numero_de_b", "duracao_da_chamada",
+        ...     ],
+        ...     job_description="Extraindo CDR: Ericsson",
         ... )
     """
 
@@ -98,6 +99,27 @@ class CDRSchema:
     job_description: str  # Descrição do job para monitoramento no Spark UI
 
     def __post_init__(self) -> None:
+        """Valida consistência interna da configuração após inicialização.
+
+        Este método impede que configurações inválidas avancem para a etapa de
+        extração, onde erros seriam mais caros de diagnosticar.
+
+        Raises:
+            ValueError: Quando ``schema`` não é ``StructType``/``None``.
+            ValueError: Quando ``column_to_filter`` não segue ``(str, str)``.
+            ValueError: Quando a coluna em ``column_to_filter`` não existe em
+                ``column_names``.
+            ValueError: Quando ``column_indices`` e ``column_names`` têm tamanhos
+                diferentes.
+            ValueError: Quando ``column_indices`` está vazio ou contém índice
+                negativo.
+            ValueError: Quando algum índice requerido excede a quantidade de
+                colunas declaradas no ``schema`` informado.
+
+        Notes:
+            As validações aqui são parte da estratégia de "falhar cedo",
+            simplificando manutenção e reduzindo falhas em pipelines longos.
+        """
         if self.schema is not None and not isinstance(self.schema, T.StructType):
             raise ValueError(
                 f"Schema '{self.name}': schema deve ser None ou um StructType. "
@@ -154,8 +176,8 @@ class RoboCallsExtractor:
     separação entre lógica e configuração (padrão de design Strategy) facilita a
     manutenção e a adição de novos formatos.
 
-    Atributos:
-        spark (SparkSession): Sessão Spark usada para leitura e escrita de dados.
+    Attributes:
+        spark: Sessão Spark usada para leitura e escrita de dados.
     """
 
     # Schemas declarados como atributo de classe: são constantes e não dependem
@@ -242,8 +264,8 @@ class RoboCallsExtractor:
     def __init__(self, spark: SparkSession) -> None:
         """Inicializa o extrator com uma sessão Spark.
 
-        Parâmetros:
-            spark (SparkSession): Sessão Spark ativa para operações de I/O.
+        Args:
+            spark: Sessão Spark ativa para operações de I/O.
         """
         self.spark = spark
         # SparkContext armazenado uma única vez, evitando chamadas repetidas
@@ -262,21 +284,21 @@ class RoboCallsExtractor:
         4. Seleciona e renomeia as colunas conforme o esquema
         5. Grava o resultado como parquet, particionado por tipo_de_chamada
 
-        Parâmetros:
-            source_file (str): Caminho para o arquivo CSV de entrada.
-            target_file (str): Caminho para o diretório parquet de saída.
-            schema (CDRSchema): Esquema que define o mapeamento de colunas.
+        Args:
+            source_file: Caminho para o arquivo CSV de entrada.
+            target_file: Caminho para o diretório parquet de saída.
+            schema: Esquema que define o mapeamento de colunas.
 
-        Retorna:
+        Returns:
             DataFrame: DataFrame do Spark contendo os registros extraídos e renomeados.
 
-        Lança:
+        Raises:
             ValueError: Se algum índice em schema.column_indices exceder o número de
                 colunas do arquivo CSV, ou se o delimitador não estiver correto.
             FileNotFoundError: Se o arquivo de entrada não existir.
             Exception: Qualquer erro lançado pelo Spark ao ler ou gravar parquet.
 
-        Nota:
+        Notes:
             O particionamento por tipo_de_chamada no arquivo de saída melhora a velocidade
             de leitura em operações subsequentes que filtrem por esse campo.
             Falhas de validação são capturadas cedo com mensagens descritivas,
@@ -342,14 +364,14 @@ class RoboCallsExtractor:
     def extract_cdr_ericsson(self, source_file: str, target_file: str) -> DataFrame:
         """Extrai CDR no formato Ericsson.
 
-        Parâmetros:
-            source_file (str): Caminho para o arquivo CSV Ericsson de entrada.
-            target_file (str): Caminho para o diretório parquet de saída.
+        Args:
+            source_file: Caminho para o arquivo CSV Ericsson de entrada.
+            target_file: Caminho para o diretório parquet de saída.
 
-        Retorna:
+        Returns:
             DataFrame: DataFrame contendo os registros Ericsson extraídos.
 
-        Exemplo:
+        Example:
             >>> extrator = RoboCallsExtractor(spark)
             >>> df = extrator.extract_cdr_ericsson(
             ...     source_file="dados/ericsson.csv",
@@ -362,14 +384,14 @@ class RoboCallsExtractor:
     def extract_cdr_tim_volte(self, source_file: str, target_file: str) -> DataFrame:
         """Extrai CDR no formato TIM VoLTE.
 
-        Parâmetros:
-            source_file (str): Caminho para o arquivo CSV TIM VoLTE de entrada.
-            target_file (str): Caminho para o diretório parquet de saída.
+        Args:
+            source_file: Caminho para o arquivo CSV TIM VoLTE de entrada.
+            target_file: Caminho para o diretório parquet de saída.
 
-        Retorna:
+        Returns:
             DataFrame: DataFrame contendo os registros TIM VoLTE extraídos.
 
-        Exemplo:
+        Example:
             >>> extrator = RoboCallsExtractor(spark)
             >>> df = extrator.extract_cdr_tim_volte(
             ...     source_file="dados/tim_volte.csv",
@@ -382,14 +404,14 @@ class RoboCallsExtractor:
     def extract_cdr_vivo_volte(self, source_file: str, target_file: str) -> DataFrame:
         """Extrai CDR no formato Vivo VoLTE.
 
-        Parâmetros:
-            source_file (str): Caminho para o arquivo CSV Vivo VoLTE de entrada.
-            target_file (str): Caminho para o diretório parquet de saída.
+        Args:
+            source_file: Caminho para o arquivo CSV Vivo VoLTE de entrada.
+            target_file: Caminho para o diretório parquet de saída.
 
-        Retorna:
+        Returns:
             DataFrame: DataFrame contendo os registros Vivo VoLTE extraídos.
 
-        Exemplo:
+        Example:
             >>> extrator = RoboCallsExtractor(spark)
             >>> df = extrator.extract_cdr_vivo_volte(
             ...     source_file="dados/vivo_volte.csv",
@@ -402,14 +424,14 @@ class RoboCallsExtractor:
     def extract_cdr_claro_nokia(self, source_file: str, target_file: str) -> DataFrame:
         """Extrai CDR no formato Claro Nokia.
 
-        Parâmetros:
-            source_file (str): Caminho para o arquivo CSV Claro Nokia de entrada.
-            target_file (str): Caminho para o diretório parquet de saída.
+        Args:
+            source_file: Caminho para o arquivo CSV Claro Nokia de entrada.
+            target_file: Caminho para o diretório parquet de saída.
 
-        Retorna:
+        Returns:
             DataFrame: DataFrame contendo os registros Claro Nokia extraídos.
 
-        Exemplo:
+        Example:
             >>> extrator = RoboCallsExtractor(spark)
             >>> df = extrator.extract_cdr_claro_nokia(
             ...     source_file="dados/claro_nokia.csv",

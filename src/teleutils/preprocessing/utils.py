@@ -21,7 +21,7 @@ Dependências relevantes:
     - pyspark.sql.functions.pandas_udf
     - pyspark.sql.types (StructType, StructField, BooleanType)
 
-Exemplo:
+Example:
     >>> validar_cnpj("11222333000181")
     True
 """

@@ -23,7 +23,7 @@ O resultado da transformação é um DataFrame com as seguintes colunas:
 - chamada_autenticada: Flag (-1=falhou, 0=não verificada, 1=válida)
 - chamada_caixa_postal: Flag (0 ou 1) indicando encaminhamento ao correio de voz
 
-Nota:
+Notes:
     Este módulo depende de `teleutils.preprocessing.normalize_number` para padronizar
     números telefônicos. Os transformadores aplicam operações Apache Spark e usam
     pandas_udf para vetorização eficiente de funções Python.
@@ -65,16 +65,16 @@ def _spark_normalize_number(number_series: pd.Series) -> pd.DataFrame:
     pois permite processamento vetorizado em Python sem overhead de serialização
     por linha.
 
-    Parâmetros:
-        number_series (pd.Series): Série pandas contendo números telefônicos como strings.
+    Args:
+        number_series: Série pandas contendo números telefônicos como strings.
 
-    Retorna:
+    Returns:
         pd.DataFrame: DataFrame com colunas 'numero_formatado' (str) e 'numero_valido' (bool).
             - numero_formatado: Número padronizado conforme plano de numeração ou como
               informado pela prestadora
             - numero_valido: True se o número está aderente ao plano de numeração
 
-    Exemplo:
+    Example:
         >>> # Uso dentro de transformação Spark:
         >>> df = spark.createDataFrame(
         ...     [("11987654321",), ("1234",)], ["numero_de_a"]
@@ -107,9 +107,9 @@ class RoboCallsTransformer:
     específicos (ex: valores de autenticação) e um limiar configurável para detectar
     "chamadas curtas" (indicador de possível chamada abusiva automática).
 
-    Atributos:
-        spark (SparkSession): Sessão Spark para operações de I/O.
-        limiar_chamada_ofensora (int): Duração máxima em segundos para classificar
+    Attributes:
+        spark: Sessão Spark para operações de I/O.
+        limiar_chamada_ofensora: Duração máxima em segundos para classificar
             uma chamada como "curta". Padrão: 6 segundos.
             Uma chamada com duracao_da_chamada <= limiar_chamada_ofensora terá
             chamada_curta = 1.
@@ -151,12 +151,12 @@ class RoboCallsTransformer:
     ):
         """Inicializa o transformador com sessão Spark e limiar de chamada curta.
 
-        Parâmetros:
-            spark (SparkSession): Sessão Spark ativa para operações de I/O.
-            limiar_chamada_ofensora (int, opcional): Duração máxima em segundos para
+        Args:
+            spark: Sessão Spark ativa para operações de I/O.
+            limiar_chamada_ofensora: Duração máxima em segundos para
                 considerar uma chamada como "curta". Padrão: 6 segundos.
 
-        Exemplo:
+        Example:
             >>> transformer = RoboCallsTransformer(spark, limiar_chamada_ofensora=5)
         """
         self.spark = spark
@@ -169,18 +169,18 @@ class RoboCallsTransformer:
         concateção de data e hora, parsing para timestamp, e extração da hora cheia
         em formato YYYYMMDDHH.
 
-        Parâmetros:
-            df (DataFrame): DataFrame com colunas _data, _hora e duracao_da_chamada.
-            date_time_fmt (str, opcional): Formato de data/hora do arquivo. Padrão:
+        Args:
+            df: DataFrame com colunas _data, _hora e duracao_da_chamada.
+            date_time_fmt: Formato de data/hora do arquivo. Padrão:
                 "yyyy-MM-dd HH-mm-ss". Exemplos: "yyyy-MM-dd HH:mm:ss", "yyyyMMdd HHmmss".
 
-        Retorna:
+        Returns:
             DataFrame: DataFrame com colunas adicionadas/modificadas:
                 - duracao_da_chamada (int): Duração em segundos; 0 se null
                 - data_hora (timestamp): Timestamp da chamada
                 - hora_da_chamada (str): Hora cheia em formato YYYYMMDDHH
 
-        Exemplo:
+        Example:
             >>> df_raw = spark.createDataFrame(
             ...     [("2026-01-21", "14:00:00", "120")],
             ...     ["_data", "_hora", "duracao_da_chamada"]
@@ -212,17 +212,17 @@ class RoboCallsTransformer:
         Aplica a função vetorizada `_spark_normalize_number` aos campos numero_de_a
         e numero_de_b, extraindo o campo "numero_formatado" de cada resultado.
 
-        Parâmetros:
-            df (DataFrame): DataFrame contendo colunas numero_de_a e numero_de_b.
+        Args:
+            df: DataFrame contendo colunas numero_de_a e numero_de_b.
 
-        Retorna:
+        Returns:
             DataFrame: DataFrame com colunas adicionadas:
                 - numero_de_a_formatado (str): Número originador padronizado
                   (formato CN+PREFIXO+MCDU ou como informado pela prestadora)
                 - numero_de_b_formatado (str): Número destinatário padronizado
                   (formato CN+PREFIXO+MCDU ou como informado pela prestadora)
 
-        Exemplo:
+        Example:
             >>> df_raw = spark.createDataFrame(
             ...     [("11987654321", "1140001234")],
             ...     ["numero_de_a", "numero_de_b"]
@@ -247,14 +247,14 @@ class RoboCallsTransformer:
         chamada automática, etc.), pois a maioria das chamadas legítimas tem duração
         maior que o limiar.
 
-        Parâmetros:
-            df (DataFrame): DataFrame contendo coluna duracao_da_chamada (int).
+        Args:
+            df: DataFrame contendo coluna duracao_da_chamada (int).
 
-        Retorna:
+        Returns:
             DataFrame: DataFrame com coluna adicionada:
                 - chamada_curta (int): 1 se duração <= limiar; 0 caso contrário
 
-        Exemplo:
+        Example:
             >>> df = spark.createDataFrame(
             ...     [(3,), (10,), (6,)],
             ...     ["duracao_da_chamada"]
@@ -279,20 +279,20 @@ class RoboCallsTransformer:
         - 1: Autenticação bem-sucedida (contém string "TN-Validation-Pa")
         - -1: Autenticação falhou (qualquer outro valor não nulo)
 
-        Parâmetros:
-            df (DataFrame): DataFrame contendo coluna autenticacao (str ou null).
+        Args:
+            df: DataFrame contendo coluna autenticacao (str ou null).
 
-        Retorna:
+        Returns:
             DataFrame: DataFrame com coluna adicionada:
                 - chamada_autenticada (int): -1 (falhou), 0 (não verificada) ou
                   1 (bem-sucedida)
 
-        Nota:
+        Notes:
             Este método é relevante principalmente para CDRs do tipo STIR/SHAKEN
             (ex: TIM VoLTE, Vivo VoLTE). Outros formatos podem ter essa coluna como
             null em todos os registros.
 
-        Exemplo:
+        Example:
             >>> df = spark.createDataFrame(
             ...     [(None,), ("TN-Validation-Pass",), ("invalid",)],
             ...     ["autenticacao"]
@@ -318,17 +318,17 @@ class RoboCallsTransformer:
         2. Normalização de números telefônicos
         3. Detecção de chamadas curtas
 
-        Parâmetros:
-            df (DataFrame): DataFrame extraído contendo colunas intermediárias (_data,
+        Args:
+            df: DataFrame extraído contendo colunas intermediárias (_data,
                 _hora, numero_de_a, numero_de_b, duracao_da_chamada).
-            date_time_fmt (str, opcional): Formato de data/hora. Padrão:
+            date_time_fmt: Formato de data/hora. Padrão:
                 "yyyy-MM-dd HH-mm-ss".
 
-        Retorna:
+        Returns:
             DataFrame: DataFrame com transformações aplicadas (mas sem seleção final
                 de colunas).
 
-        Exemplo:
+        Example:
             >>> df_extracted = spark.read.parquet("cdr_ericsson_extracted/")
             >>> df_transformed = transformer._apply_standard_pipeline(
             ...     df_extracted, "yyyy-MM-dd HH:mm:ss"
@@ -347,14 +347,14 @@ class RoboCallsTransformer:
         agrupam por numero_de_a_formatado + hora_da_chamada, não por tipo_de_chamada.
         O particionamento por tipo_de_chamada não traria pruning real nessa etapa.
 
-        Parâmetros:
-            df (DataFrame): DataFrame com colunas transformadas.
-            target_file (str): Caminho para o diretório parquet de saída.
+        Args:
+            df: DataFrame com colunas transformadas.
+            target_file: Caminho para o diretório parquet de saída.
 
-        Retorna:
+        Returns:
             None
 
-        Nota:
+        Notes:
             A coluna tipo_de_chamada é convertida explicitamente para StringType
             antes da escrita, garantindo consistência de tipo quando o DataFrame foi
             criado com tipos inferenciais.
@@ -372,14 +372,14 @@ class RoboCallsTransformer:
         pois Ericsson não fornece esses dados). Filtra apenas chamadas tipo "TER"
         (terminadas).
 
-        Parâmetros:
-            source_file (str): Caminho para o diretório parquet Ericsson extraído.
-            target_file (str): Caminho para o diretório parquet transformado de saída.
+        Args:
+            source_file: Caminho para o diretório parquet Ericsson extraído.
+            target_file: Caminho para o diretório parquet transformado de saída.
 
-        Retorna:
+        Returns:
             DataFrame: DataFrame com colunas definidas em _TRANSFORMED_COLUMNS.
 
-        Exemplo:
+        Example:
             >>> transformer = RoboCallsTransformer(spark)
             >>> df = transformer.transform_cdr_ericsson(
             ...     source_file="parquet/ericsson_extracted",
@@ -411,15 +411,15 @@ class RoboCallsTransformer:
 
         Aplica pipeline padrão de transformação e inicializa autenticacao como 0.
 
-        Parâmetros:
-            source_file (str): Caminho para o diretório parquet TIM VoLTE extraído,
+        Args:
+            source_file: Caminho para o diretório parquet TIM VoLTE extraído,
                 particionado por tipo_de_chamada (ex: tipo_de_chamada=FORv/).
-            target_file (str): Caminho para o diretório parquet transformado de saída.
+            target_file: Caminho para o diretório parquet transformado de saída.
 
-        Retorna:
+        Returns:
             DataFrame: DataFrame com colunas definidas em _TRANSFORMED_COLUMNS.
 
-        Nota:
+        Notes:
             - A detecção de caixa postal usa heurística: tipo 'FORv' + numero_de_b
               com padrão "5505" e 6 dígitos totais.
             - Source_file deve estar particionado por tipo_de_chamada para que
@@ -430,7 +430,7 @@ class RoboCallsTransformer:
               final, com flag chamada_caixa_postal preenchido baseado na existência
               de referencia análoga no tipo FORv.
 
-        Exemplo:
+        Example:
             >>> transformer = RoboCallsTransformer(spark)
             >>> df = transformer.transform_cdr_tim_volte(
             ...     source_file="parquet/tim_volte_extracted",
@@ -479,15 +479,15 @@ class RoboCallsTransformer:
 
         Aplica pipeline padrão e processa autenticação.
 
-        Parâmetros:
-            source_file (str): Caminho para o diretório parquet Vivo VoLTE extraído,
+        Args:
+            source_file: Caminho para o diretório parquet Vivo VoLTE extraído,
                 particionado por tipo_de_chamada (ex: tipo_de_chamada=3/).
-            target_file (str): Caminho para o diretório parquet transformado de saída.
+            target_file: Caminho para o diretório parquet transformado de saída.
 
-        Retorna:
+        Returns:
             DataFrame: DataFrame com colunas definidas em _TRANSFORMED_COLUMNS.
 
-        Nota:
+        Notes:
             - Detecção de caixa postal usa heurística: tipo '3' + comparação de
               últimos 11 dígitos de numero_de_a_formatado com numero_de_b_formatado
               (chamadas para si mesmo são consideradas correio de voz).
@@ -498,7 +498,7 @@ class RoboCallsTransformer:
             - Join usa três colunas (referencia, data_hora, numero_de_b_formatado)
               para relacionar registro tipo '3' ao tipo '4', garantindo precisão.
 
-        Exemplo:
+        Example:
             >>> transformer = RoboCallsTransformer(spark)
             >>> df = transformer.transform_cdr_vivo_volte(
             ...     source_file="parquet/vivo_volte_extracted",
@@ -556,14 +556,14 @@ class RoboCallsTransformer:
         específicos do formato Claro Nokia (autenticação como 0,
         pois Claro Nokia não fornece esses dados).
 
-        Parâmetros:
-            source_file (str): Caminho para o diretório parquet Claro Nokia extraído.
-            target_file (str): Caminho para o diretório parquet transformado de saída.
+        Args:
+            source_file: Caminho para o diretório parquet Claro Nokia extraído.
+            target_file: Caminho para o diretório parquet transformado de saída.
 
-        Retorna:
+        Returns:
             DataFrame: DataFrame com colunas definidas em _TRANSFORMED_COLUMNS.
 
-        Exemplo:
+        Example:
             >>> transformer = RoboCallsTransformer(spark)
             >>> df = transformer.transform_cdr_claro_nokia(
             ...     source_file="parquet/claro_nokia_extracted",

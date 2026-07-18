@@ -1,3 +1,32 @@
+"""Módulo de transformações de CDRs extraídos via Teleparser.
+
+Este módulo implementa transformadores específicos por fornecedor/layout de CDR
+que reutilizam o pipeline comum definido no transformador base. O foco é
+normalizar diferenças de schema e codificações de cada origem para produzir um
+dataset analítico consistente.
+
+Responsabilidades principais:
+    - Ler CDRs intermediários em formato parquet.
+    - Aplicar pré-processamentos por fornecedor quando necessário.
+    - Acionar pipeline padrão de normalização temporal e telefônica.
+    - Persistir resultado no contrato final de dados.
+
+Principais funcionalidades:
+    - Transformação para Ericsson.
+    - Transformação para TIM/Huawei.
+    - Transformação para Vivo/FCDR.
+    - Transformação para Nokia.
+
+Dependências relevantes:
+    - pyspark.sql (SparkSession e funções colunares)
+    - teleutils._logging.log_operation
+    - teleutils.core.transformers.base_transformer.CDRBaseTransformer
+
+Example:
+    >>> transformer = CDRTeleparserTransformer(spark)
+    >>> df = transformer.transform_cdr_nokia("/tmp/in", "/tmp/out")
+"""
+
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 
@@ -6,6 +35,27 @@ from teleutils.core.transformers.base_transformer import CDRBaseTransformer
 
 
 class CDRTeleparserTransformer(CDRBaseTransformer):
+    """Transformador de CDRs Teleparser com regras por fornecedor.
+
+    A classe especializa o transformador base para lidar com peculiaridades de
+    layouts de entrada processados pelo Teleparser. Cada método de
+    transformação encapsula ajustes de campos que antecedem a execução do
+    pipeline padrão.
+
+    Contexto de uso:
+        - Etapa de transformação após extração/parsing bruto dos CDRs.
+        - Invocada por rotinas de ingestão para geração do dataset curado.
+
+    Attributes:
+        spark:
+            Sessão Spark utilizada para leitura, transformação e escrita.
+
+    Notes:
+        Novos fornecedores devem ser adicionados como métodos dedicados,
+        preservando o padrão de: leitura -> pré-processamento específico ->
+        pipeline comum -> persistência.
+    """
+
     def __init__(
         self,
         spark: SparkSession,
@@ -20,10 +70,31 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
 
     @log_operation
     def transform_cdr_ericsson(self, source_file: str, target_file: str):
+        """Transforma CDR Ericsson para o contrato padronizado do domínio.
+
+        Objetivo da operação:
+            Converter a duração no formato ``HH:mm:ss`` para segundos inteiros
+            e aplicar o pipeline padrão de normalização.
+
+        Args:
+            source_file: Caminho parquet com CDRs Ericsson de entrada.
+            target_file: Caminho parquet de saída transformada.
+
+        Returns:
+            DataFrame: DataFrame lido do destino após escrita, já no padrão
+            final utilizado no projeto.
+
+        Notes:
+            - Regra de negócio: duração ausente resulta em ``0``.
+            - Efeito colateral: grava o resultado em ``target_file``.
+            - Anotação de manutenção: se o formato de duração mudar na origem,
+              este cálculo deve ser revisado antes do pipeline comum.
+        """
         date_time_fmt = "yy-MM-dd HH:mm:ss"
         df = self.spark.read.parquet(source_file)
 
         col = F.col("duracao")
+        # Decompõe HH:mm:ss em segundos totais para unificar a métrica de duração.
         hours = F.substring(col, 1, 2).cast("int") * 3600
         minutes = F.substring(col, 4, 2).cast("int") * 60
         seconds = F.substring(col, 7, 2).cast("int")
@@ -38,6 +109,27 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
 
     @log_operation
     def transform_cdr_tim_huawei(self, source_file: str, target_file: str):
+        """Transforma CDR TIM/Huawei para o contrato padronizado do domínio.
+
+        Objetivo da operação:
+            Aplicar filtros de qualidade mínima, extrair autenticação de campo
+            genérico e remover prefixos não discáveis dos números antes da
+            normalização central.
+
+        Args:
+            source_file: Caminho parquet com CDRs TIM/Huawei de entrada.
+            target_file: Caminho parquet de saída transformada.
+
+        Returns:
+            DataFrame: DataFrame lido do destino após escrita, no schema final.
+
+        Notes:
+            - Regra de negócio: registros sem ``referencia`` são descartados por
+              não atenderem aos critérios mínimos analíticos.
+            - Efeito colateral: grava o resultado em ``target_file``.
+            - Anotação de manutenção: a regra de remoção de prefixo pressupõe
+              metadados fixos de 2 caracteres no início do número.
+        """
         date_time_fmt = "yyyy-MM-dd HH:mm:ssxxx"
         df = self.spark.read.parquet(source_file)
 
@@ -76,6 +168,24 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
 
     @log_operation
     def transform_cdr_vivo_fcdr(self, source_file: str, target_file: str):
+        """Transforma CDR Vivo/FCDR para o contrato padronizado do domínio.
+
+        Objetivo da operação:
+            Executar o pré-processamento específico da Vivo/FCDR para separar
+            metadados embutidos e, em seguida, aplicar a normalização padrão.
+
+        Args:
+            source_file: Caminho parquet com CDRs Vivo/FCDR de entrada.
+            target_file: Caminho parquet de saída transformada.
+
+        Returns:
+            DataFrame: DataFrame lido do destino após escrita, no schema final.
+
+        Notes:
+            - Integração relevante: utiliza método especializado herdado do
+              transformador base para preparar campos da Vivo.
+            - Efeito colateral: grava o resultado em ``target_file``.
+        """
         date_time_fmt = "yyyyMMdd HHmmss"
         df = self.spark.read.parquet(source_file)
         df = self._preprocess_cdr_vivo_fcdr(df)
@@ -86,6 +196,28 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
 
     @log_operation
     def transform_cdr_nokia(self, source_file: str, target_file: str):
+        """Transforma CDR Nokia para o contrato padronizado do domínio.
+
+        Objetivo da operação:
+            Consolidar campos variantes de duração/data e ajustar números para
+            cenários de encaminhamento antes do pipeline padrão.
+
+        Args:
+            source_file: Caminho parquet com CDRs Nokia de entrada.
+            target_file: Caminho parquet de saída transformada.
+
+        Returns:
+            DataFrame: DataFrame lido do destino após escrita, no schema final.
+
+        Notes:
+            - Regra de negócio: múltiplos campos ``_duracao*`` são reduzidos a
+              uma única duração por registro via ``coalesce``.
+            - Regra de negócio: para chamadas ``FORW``, o destino é derivado do
+              campo de encaminhamento para melhor aderência semântica.
+            - Efeito colateral: grava o resultado em ``target_file``.
+            - Anotação de manutenção: divergências residuais com parser legado
+              devem ser monitoradas em homologações futuras.
+        """
         date_time_fmt = "dd/MM/yyyy HH:mm:ss"
         df = self.spark.read.parquet(source_file)
 

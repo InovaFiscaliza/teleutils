@@ -1,3 +1,32 @@
+"""Módulo base de transformação de CDR para o domínio padronizado.
+
+Este módulo concentra operações compartilhadas de transformação de registros
+de chamadas (CDR), independentemente da origem do layout bruto. O objetivo é
+garantir consistência de schema, normalização de campos críticos e preparação
+dos dados para consumo analítico.
+
+Responsabilidades principais:
+    - Padronizar data/hora e duração das chamadas.
+    - Normalizar números de origem e destino com validação associada.
+    - Derivar status de autenticação a partir de metadados de sinalização.
+    - Consolidar o schema final e persistir o resultado em parquet.
+    - Fornecer pré-processamentos específicos de layout quando necessário.
+
+Principais funcionalidades:
+    - Pipeline comum de transformação reutilizável.
+    - Conversão defensiva de tipos para reduzir inconsistências entre fontes.
+    - Seleção e renomeação para contrato final de dados do projeto.
+
+Dependências relevantes:
+    - pyspark.sql (DataFrame, funções e tipos)
+    - teleutils._config.MIN_SAFE_DATE
+    - teleutils.preprocessing.spark_normalize_number
+
+Example:
+    >>> transformer = CDRBaseTransformer(spark)
+    >>> df_saida = transformer._apply_standard_pipeline(df_entrada)
+"""
+
 from __future__ import annotations
 
 import logging
@@ -13,6 +42,26 @@ logger = logging.getLogger(__name__)
 
 
 class CDRBaseTransformer:
+    """Transformador base para normalização e padronização de CDRs.
+
+    A classe encapsula regras comuns do domínio de telefonia que são aplicadas
+    a diferentes layouts de entrada. Ela atua como camada de padronização antes
+    da persistência dos dados em formato analítico.
+
+    Contexto de uso:
+        - Utilizada por transformadores específicos por prestadora/tipo de CDR.
+        - Reaproveitada para evitar divergência de regra entre pipelines.
+
+    Attributes:
+        spark:
+            Sessão Spark ativa utilizada para executar transformações
+            distribuídas sobre DataFrames.
+
+    Notes:
+        Pontos de extensão devem priorizar métodos de pré-processamento por
+        layout e manter o pipeline padrão centralizado neste componente.
+    """
+
     def __init__(
         self,
         spark: SparkSession,
@@ -249,6 +298,29 @@ class CDRBaseTransformer:
         df.write.mode("overwrite").partitionBy("no_tipo_chamada").parquet(target_file)
 
     def _preprocess_cdr_vivo_fcdr(self, df: DataFrame) -> DataFrame:
+        """Aplica pré-processamento específico para layout FCDR da Vivo.
+
+        Objetivo da operação:
+            Extrair o token de autenticação embutido em ``_numero_origem`` e
+            mapear códigos de ``_tipo_chamada`` para rótulos funcionais
+            utilizados no restante do pipeline.
+
+        Args:
+            df: DataFrame bruto no layout FCDR da Vivo.
+
+        Returns:
+            DataFrame: DataFrame com ``numero_origem`` e ``_autenticacao``
+            separados, além de ``tipo_chamada`` normalizado.
+
+        Notes:
+            - Regra de negócio: ``_numero_origem`` pode carregar metadados em
+              formato "numero;autenticacao" e precisa ser decomposto.
+            - O mapeamento de ``_tipo_chamada`` preserva valores não previstos,
+              reduzindo risco de descarte de novas categorias enviadas pela
+              origem.
+            - Anotação de manutenção: novos códigos de ``_tipo_chamada`` devem
+              ser adicionados na cadeia de ``when`` abaixo.
+        """
         # Extrair autenticação e prefixos adicionais dos números.
         # A autenticação está contida na coluna _numero_origem,
         # por exemplo: 551136128860;verstat=TN-Validation-Passe

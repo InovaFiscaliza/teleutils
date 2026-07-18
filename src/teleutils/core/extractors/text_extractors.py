@@ -8,7 +8,7 @@ Principais responsabilidades:
     - Definir contratos de mapeamento por formato de CDR via ``CDRSchema``.
     - Centralizar a leitura e validação de colunas em Spark.
     - Uniformizar nomes de colunas em uma estrutura comum para etapas seguintes.
-    - Persistir o resultado em parquet particionado por ``tipo_chamada``.
+    - Persistir o resultado em parquet para consumo das próximas etapas.
 
 Principais funcionalidades:
     - Extração parametrizada por esquema (delimitador, índices, nomes, filtro).
@@ -187,7 +187,6 @@ class CDRTextExtractor:
 
     Attributes:
         spark: Sessão Spark utilizada para leitura e escrita de dados.
-        _sc: Referência ao SparkContext para definição de descrições de job.
 
     Notes:
         Ponto de extensão principal: adição de novos formatos no dicionário
@@ -287,8 +286,8 @@ class CDRTextExtractor:
             spark: Sessão Spark a ser reutilizada nas operações de extração.
 
         Notes:
-            A referência de ``spark.sparkContext`` é armazenada para evitar acesso
-            repetitivo e para permitir instrumentação de jobs no Spark UI.
+            O construtor mantém apenas a sessão Spark necessária para executar
+            leitura, seleção de colunas e escrita da saída intermediária.
         """
         self.spark = spark
         # SparkContext armazenado uma única vez, evitando chamadas repetidas
@@ -300,13 +299,12 @@ class CDRTextExtractor:
         """Executa o pipeline de extração/normalização para um esquema CDR.
 
         Fluxo de processamento:
-            1. Define descrição do job para observabilidade no Spark UI.
-            2. Lê o CSV conforme delimitador/cabeçalho/schema informados.
-            3. Valida existência dos índices solicitados no dataset lido.
-            4. Seleciona e renomeia colunas para o contrato padronizado.
-            5. Adiciona metadados de linhagem (prestadora, tipo_cdr, arquivo_origem).
-            6. Aplica filtro opcional definido no schema.
-            7. Persiste parquet particionado por ``tipo_chamada``.
+            1. Lê o CSV conforme delimitador/cabeçalho/schema informados.
+            2. Valida existência dos índices solicitados no dataset lido.
+            3. Seleciona e renomeia colunas para o contrato padronizado.
+            4. Adiciona metadados de linhagem (prestadora, tipo_cdr, arquivo_origem).
+            5. Aplica filtro opcional definido no schema.
+            6. Persiste parquet de saída e relê o resultado.
 
         Args:
             source_file: Caminho do arquivo CSV de entrada.

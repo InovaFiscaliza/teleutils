@@ -1,3 +1,33 @@
+"""Módulo de extração e padronização inicial de CDRs do Teleparser.
+
+Este módulo consolida a lógica de extração de CDRs em parquet para diferentes
+fornecedores e layouts produzidos pelo Teleparser. O processo aplica mapeamento
+de colunas para um schema intermediário comum, enriquece metadados de origem e
+persiste o resultado para a etapa de transformação.
+
+Responsabilidades principais:
+    - Definir contratos de mapeamento por fornecedor.
+    - Validar consistência de schemas configurados.
+    - Ler arquivos parquet de entrada e projetar colunas padronizadas.
+    - Adicionar metadados de proveniência (prestadora, tipo e arquivo).
+    - Escrever parquet intermediário para consumo pelos transformadores.
+
+Principais funcionalidades:
+    - Extração para Ericsson.
+    - Extração para TIM Huawei.
+    - Extração para Vivo FCDR.
+    - Extração para Nokia com tolerância a colunas ausentes.
+
+Dependências relevantes:
+    - pyspark.sql (DataFrame, SparkSession e funções colunares)
+    - dataclasses (configuração imutável de schemas)
+    - teleutils._logging.log_operation
+
+Example:
+    >>> extractor = CDRTeleparserExtractor(spark)
+    >>> df = extractor.extract_cdr_ericsson("/tmp/origem", "/tmp/destino")
+"""
+
 from __future__ import annotations
 
 import logging
@@ -13,11 +43,45 @@ logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class CDRTeleparserSchema:
+    """Representa o contrato de extração para um layout específico de CDR.
+
+    A estrutura define quais colunas da origem devem ser selecionadas e como
+    elas serão renomeadas no dataset intermediário. A ideia é separar configuração
+    de execução: a classe ``CDRTeleparserExtractor`` apenas aplica esse contrato,
+    enquanto cada instância de ``CDRTeleparserSchema`` define as regras.
+    A configuração é imutável para evitar alteração acidental de regras em tempo de execução.
+
+    Attributes:
+        name:
+            Nome amigável do schema (fornecedor/layout).
+        column_mapping:
+            Lista de pares ``(origem, destino)`` contendo o mapeamento de
+            colunas da entrada para o nome padronizado intermediário.
+        job_description:
+            Descrição textual da operação, útil para observabilidade e logs.
+    """
+
     name: str
     column_mapping: list[tuple[str, str]]
     job_description: str
 
     def __post_init__(self) -> None:
+        """Valida a estrutura do mapeamento após a criação do dataclass.
+
+        Objetivo da operação:
+            Garantir que o schema contenha ao menos uma coluna e que cada item
+            de ``column_mapping`` siga o formato ``(origem, destino)`` com
+            valores textuais.
+
+        Raises:
+            ValueError:
+                Quando ``column_mapping`` está vazio ou possui itens inválidos.
+
+        Notes:
+            - Regra de integridade: cada item deve ser uma tupla de 2 strings.
+            - Anotação de manutenção: manter essa validação rígida evita falhas
+              silenciosas durante o ``select`` em Spark.
+        """
         if not self.column_mapping:
             raise ValueError(
                 f"Schema '{self.name}': column_mapping nao pode ser vazio."
@@ -36,6 +100,23 @@ class CDRTeleparserSchema:
 
 
 class CDRTeleparserExtractor:
+    """Executa extração de CDR parquet com mapeamento por fornecedor.
+
+    A classe centraliza a leitura de dados do Teleparser, aplica projeção de
+    colunas de acordo com um schema declarado e grava uma saída intermediária
+    padronizada para o pipeline de transformação.
+
+    Attributes:
+        spark:
+            Sessão Spark utilizada para leitura, projeção e escrita dos dados.
+
+    Notes:
+        - O dicionário ``_SCHEMAS`` concentra contratos por layout, facilitando
+          manutenção e inclusão de novas integrações.
+        - Métodos públicos são wrappers sem lógica adicional significativa,
+          mantendo o fluxo principal em ``_extract_cdr``.
+    """
+
     _SCHEMAS: dict[str, CDRTeleparserSchema] = {
         "ericsson": CDRTeleparserSchema(
             name="Ericsson",
@@ -113,6 +194,15 @@ class CDRTeleparserExtractor:
     }
 
     def __init__(self, spark: SparkSession) -> None:
+        """Inicializa o extrator com sessão Spark ativa.
+
+        Args:
+            spark: Sessão Spark compartilhada pelo pipeline de extração.
+
+        Notes:
+            O uso de uma única sessão favorece consistência operacional e
+            reaproveitamento de contexto em jobs encadeados.
+        """
         self.spark = spark
         # self._sc = spark.sparkContext
 
@@ -124,6 +214,41 @@ class CDRTeleparserExtractor:
         ignore_missing_columns: bool = False,
         unique: bool = False,
     ) -> DataFrame:
+        """Executa extração genérica conforme schema de mapeamento informado.
+
+        Fluxo de processamento:
+            1. Lê parquet de entrada.
+            2. Valida presença de colunas requeridas (ou ignora, conforme flag).
+            3. Aplica seleção e renomeação com base no schema.
+            4. Enriquece metadados de origem a partir do caminho do arquivo.
+            5. Remove duplicatas opcionalmente.
+            6. Persiste parquet intermediário e relê resultado final.
+
+        Args:
+            source_file: Caminho do parquet de entrada.
+            target_file: Caminho do parquet de saída intermediária.
+            schema: Contrato de mapeamento a ser aplicado.
+            ignore_missing_columns: Define se colunas ausentes devem ser
+                toleradas (selecionando apenas as presentes).
+            unique: Define se duplicatas devem ser removidas no resultado.
+
+        Returns:
+            DataFrame: DataFrame relido de ``target_file`` após escrita.
+
+        Raises:
+            ValueError:
+                Quando colunas obrigatórias do schema estão ausentes e
+                ``ignore_missing_columns`` é ``False``.
+            AnalysisException:
+                Propagada pelo Spark em erros de leitura/escrita parquet.
+
+        Notes:
+            - Regra de negócio: metadados ``prestadora``, ``tipo_cdr`` e
+              ``arquivo_origem`` são derivados da hierarquia do path de entrada.
+            - Efeito colateral: grava dados em ``target_file`` com overwrite.
+            - Anotação de manutenção: qualquer mudança no padrão de diretórios
+              de origem impacta a extração de metadados via ``input_file_name``.
+        """
         # self._sc.setJobDescription(schema.job_description)
 
         logger.info("Lendo arquivo parquet: %s", source_file)
@@ -164,6 +289,8 @@ class CDRTeleparserExtractor:
             else schema.column_mapping
         )
 
+        # Colunas com ponto representam caminhos de campo (nested) e exigem
+        # escaping com crases para evitar interpretação incorreta pelo Spark SQL.
         select_expr = [
             F.col(f"`{source_col}`").alias(target_col)
             if "." in source_col
@@ -198,10 +325,37 @@ class CDRTeleparserExtractor:
 
     @log_operation
     def extract_cdr_ericsson(self, source_file: str, target_file: str) -> DataFrame:
+        """Extrai CDR Ericsson para parquet intermediário.
+
+        Args:
+            source_file: Caminho do parquet de entrada Ericsson.
+            target_file: Caminho do parquet intermediário de saída.
+
+        Returns:
+            DataFrame: Resultado da extração relido de ``target_file``.
+
+        Notes:
+            Delega integralmente para ``_extract_cdr`` com schema Ericsson.
+        """
         return self._extract_cdr(source_file, target_file, self._SCHEMAS["ericsson"])
 
     @log_operation
     def extract_cdr_tim_huawei(self, source_file: str, target_file: str) -> DataFrame:
+        """Extrai CDR TIM Huawei com remoção de duplicatas.
+
+        Args:
+            source_file: Caminho do parquet de entrada TIM Huawei.
+            target_file: Caminho do parquet intermediário de saída.
+
+        Returns:
+            DataFrame: Resultado da extração relido de ``target_file``.
+
+        Notes:
+            - Regra de negócio: ``unique=True`` para reduzir duplicidade de
+              registros observada neste layout.
+            - Ponto de manutenção: validar periodicamente o impacto dessa
+              deduplicação em cenários de retentativa de ingestão.
+        """
         df = self._extract_cdr(
             source_file, target_file, self._SCHEMAS["tim_huawei"], unique=True
         )
@@ -209,11 +363,39 @@ class CDRTeleparserExtractor:
 
     @log_operation
     def extract_cdr_vivo_fcdr(self, source_file: str, target_file: str) -> DataFrame:
+        """Extrai CDR Vivo FCDR para parquet intermediário.
+
+        Args:
+            source_file: Caminho do parquet de entrada Vivo FCDR.
+            target_file: Caminho do parquet intermediário de saída.
+
+        Returns:
+            DataFrame: Resultado da extração relido de ``target_file``.
+
+        Notes:
+            Delega para ``_extract_cdr`` com schema Vivo FCDR sem ajustes
+            adicionais de tolerância ou deduplicação.
+        """
         df = self._extract_cdr(source_file, target_file, self._SCHEMAS["vivo_fcdr"])
         return df
 
     @log_operation
     def extract_cdr_nokia(self, source_file: str, target_file: str) -> DataFrame:
+        """Extrai CDR Nokia com tolerância a colunas ausentes.
+
+        Args:
+            source_file: Caminho do parquet de entrada Nokia.
+            target_file: Caminho do parquet intermediário de saída.
+
+        Returns:
+            DataFrame: Resultado da extração relido de ``target_file``.
+
+        Notes:
+            - Regra de negócio: ``ignore_missing_columns=True`` para acomodar
+              variações de disponibilidade entre tipos de CDR Nokia.
+            - Anotação de manutenção: sempre revisar logs de colunas ausentes
+              para identificar mudanças de layout na origem.
+        """
         df = self._extract_cdr(
             source_file,
             target_file,
