@@ -41,33 +41,33 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         date_time_fmt = "yyyy-MM-dd HH:mm:ssxxx"
         df = self.spark.read.parquet(source_file)
 
-        # Extrair autenticação e prefixos adicionais dos números.
-        # A autenticação está contida na coluna _numero_origem_generico,
-        # por exemplo: verstat=TN-Validation-Passed
-
-        # As colunas numero_origem e numero_destino contêm os números dos terminais
-        # precedidos de prefixos adicionais (11 ou 14) que devem ser removidos:
-        #
-        # +-----------------|---------------+
-        # | Antes           | Depois        |
-        # |-----------------|---------------|
-        # | 1440042704      | 40042704      |
-        # | 115595981241366 | 5595981241366 |
-        # | 1408000910091   | 08000910091   |
-        # +-----------------|---------------+
-        #
-        # O resultado final foi limitado a 15 caracteres, tamanho máximo de um número
-        # de telefone estabelecido no padrão internacional ITU-T E.164
-
         df = (
-            df.withColumn(
+            # Excluir registros com referência nula, pois não são válidos para análise.
+            df.filter(F.col("referencia").isNotNull())
+            # Extrair autenticação e prefixos adicionais dos números.
+            # A autenticação está contida na coluna _numero_origem_generico,
+            # por exemplo: verstat=TN-Validation-Passed
+            .withColumn(
                 "_autenticacao",
                 F.regexp_extract(
                     "_numero_origem_generico", r"(verstat=[a-zA-Z\-]+)", 0
                 ),
             )
-            .withColumn("numero_origem", F.col("numero_origem").substr(3, 15))
-            .withColumn("numero_destino", F.col("numero_destino").substr(3, 15))
+            # Remover caracteres adicionais dos números de telefone, mantendo apenas os 20  caracteres.
+            # As colunas numero_origem e numero_destino contêm os números dos terminais
+            # precedidos de prefixos adicionais (11 ou 14) que devem ser removidos:
+            #
+            # +-----------------|---------------+
+            # | Antes           | Depois        |
+            # |-----------------|---------------|
+            # | 1440042704      | 40042704      |
+            # | 115595981241366 | 5595981241366 |
+            # | 1408000910091   | 08000910091   |
+            # +-----------------|---------------+
+            .withColumn(
+                "numero_origem", F.col("numero_origem").substr(3, 9999)
+            )  # spark exige o terceiro argumento para substr, mesmo que seja maior que o tamanho da string
+            .withColumn("numero_destino", F.col("numero_destino").substr(3, 9999))
         )
         df = self._apply_standard_pipeline(df, date_time_fmt)
 
