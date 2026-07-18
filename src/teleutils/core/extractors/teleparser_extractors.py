@@ -5,10 +5,13 @@ fornecedores e layouts produzidos pelo Teleparser. O processo aplica mapeamento
 de colunas para um schema intermediário comum, enriquece metadados de origem e
 persiste o resultado para a etapa de transformação.
 
+As definições de schema (dataclass ``CDRTeleparserSchema`` e os contratos
+padrão por fornecedor) residem no módulo ``teleutils.core.extractors.schemas``,
+mantendo aqui apenas a lógica de execução da extração.
+
 Responsabilidades principais:
-    - Definir contratos de mapeamento por fornecedor.
-    - Validar consistência de schemas configurados.
-    - Ler arquivos parquet de entrada e projetar colunas padronizadas.
+    - Ler arquivos parquet de entrada e projetar colunas padronizadas conforme
+      um schema informado.
     - Adicionar metadados de proveniência (prestadora, tipo e arquivo).
     - Escrever parquet intermediário para consumo pelos transformadores.
 
@@ -20,7 +23,7 @@ Principais funcionalidades:
 
 Dependências relevantes:
     - pyspark.sql (DataFrame, SparkSession e funções colunares)
-    - dataclasses (configuração imutável de schemas)
+    - teleutils.core.extractors.schemas (contratos de mapeamento por fornecedor)
     - teleutils._logging.log_operation
 
 Example:
@@ -31,72 +34,17 @@ Example:
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
 
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
 
 from teleutils._logging import log_operation
+from teleutils.core.extractors.schemas import (
+    TELEPARSER_DEFAULT_SCHEMAS,
+    CDRTeleparserSchema,
+)
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True)
-class CDRTeleparserSchema:
-    """Representa o contrato de extração para um layout específico de CDR.
-
-    A estrutura define quais colunas da origem devem ser selecionadas e como
-    elas serão renomeadas no dataset intermediário. A ideia é separar configuração
-    de execução: a classe ``CDRTeleparserExtractor`` apenas aplica esse contrato,
-    enquanto cada instância de ``CDRTeleparserSchema`` define as regras.
-    A configuração é imutável para evitar alteração acidental de regras em tempo de execução.
-
-    Attributes:
-        name:
-            Nome amigável do schema (fornecedor/layout).
-        column_mapping:
-            Lista de pares ``(origem, destino)`` contendo o mapeamento de
-            colunas da entrada para o nome padronizado intermediário.
-        job_description:
-            Descrição textual da operação, útil para observabilidade e logs.
-    """
-
-    name: str
-    column_mapping: list[tuple[str, str]]
-    job_description: str
-
-    def __post_init__(self) -> None:
-        """Valida a estrutura do mapeamento após a criação do dataclass.
-
-        Objetivo da operação:
-            Garantir que o schema contenha ao menos uma coluna e que cada item
-            de ``column_mapping`` siga o formato ``(origem, destino)`` com
-            valores textuais.
-
-        Raises:
-            ValueError:
-                Quando ``column_mapping`` está vazio ou possui itens inválidos.
-
-        Notes:
-            - Regra de integridade: cada item deve ser uma tupla de 2 strings.
-            - Anotação de manutenção: manter essa validação rígida evita falhas
-              silenciosas durante o ``select`` em Spark.
-        """
-        if not self.column_mapping:
-            raise ValueError(
-                f"Schema '{self.name}': column_mapping nao pode ser vazio."
-            )
-        for item in self.column_mapping:
-            if (
-                not isinstance(item, tuple)
-                or len(item) != 2
-                or not isinstance(item[0], str)
-                or not isinstance(item[1], str)
-            ):
-                raise ValueError(
-                    f"Schema '{self.name}': cada item de column_mapping deve ser "
-                    f"uma tupla (origem, destino) de strings. Recebido: {item!r}"
-                )
 
 
 class CDRTeleparserExtractor:
@@ -109,101 +57,41 @@ class CDRTeleparserExtractor:
     Attributes:
         spark:
             Sessão Spark utilizada para leitura, projeção e escrita dos dados.
+        schemas:
+            Dicionário de contratos ``CDRTeleparserSchema`` disponíveis para
+            extração, indexados por chave de fornecedor/layout.
 
     Notes:
-        - O dicionário ``_SCHEMAS`` concentra contratos por layout, facilitando
-          manutenção e inclusão de novas integrações.
+        - Os schemas são injetados via construtor (``schemas``), permitindo
+          substituir ou estender os contratos padrão sem alterar esta classe.
+        - Quando nenhum schema é informado, ``TELEPARSER_DEFAULT_SCHEMAS`` (do
+          módulo ``teleutils.core.extractors.schemas``) é utilizado.
         - Métodos públicos são wrappers sem lógica adicional significativa,
           mantendo o fluxo principal em ``_extract_cdr``.
     """
 
-    _SCHEMAS: dict[str, CDRTeleparserSchema] = {
-        "ericsson": CDRTeleparserSchema(
-            name="Ericsson",
-            column_mapping=[
-                ("networkCallReference", "referencia"),
-                ("callingPartyNumber.digits", "numero_origem"),
-                ("dateForStartOfCharge", "_data"),
-                ("timeForStartOfCharge", "_hora"),
-                ("CallModule", "tipo_chamada"),
-                ("calledPartyNumber.digits", "numero_destino"),
-                ("chargeableDuration", "duracao"),
-                ("incomingRoute", "rota_entrada"),
-                ("outgoingRoute", "rota_saida"),
-            ],
-            job_description="Extraindo CDR Parquet: Ericsson",
-        ),
-        "tim_huawei": CDRTeleparserSchema(
-            name="TIM Huawei",
-            column_mapping=[
-                ("network-Call-Reference", "referencia"),
-                ("calling-Party-Address-Generic", "_numero_origem_generico"),
-                ("list-Of-Calling-Party-Address_tEL-URI", "numero_origem"),
-                ("recordOpeningTime", "data_hora"),
-                ("role-of-Node", "tipo_chamada"),
-                ("called-Party-Address_tEL-URI", "numero_destino"),
-                ("duration", "duracao"),
-                ("recordType", "_tipo_cdr"),
-                ("specifiedTreatmentField_incoming-Route", "rota_entrada"),
-                ("specifiedTreatmentField_outgoing-Route", "rota_saida"),
-            ],
-            job_description="Extraindo CDR Parquet: TIM Huawei",
-        ),
-        "vivo_fcdr": CDRTeleparserSchema(
-            name="Vivo FCDR",
-            column_mapping=[
-                ("callModule", "_tipo_chamada"),
-                ("callingPartyNumber", "_numero_origem"),
-                ("calledPartyNumber", "numero_destino"),
-                ("chargeableDurat", "duracao"),
-                ("dateForStartOfCharge", "_data"),
-                ("timeForStartOfCharge", "_hora"),
-                ("networkCallReference", "referencia"),
-                ("incomingRoute", "rota_entrada"),
-                ("outgoingRoute", "rota_saida"),
-            ],
-            job_description="Extraindo CDR Parquet: Vivo FCDR",
-        ),
-        "nokia": CDRTeleparserSchema(
-            name="Nokia",
-            column_mapping=[
-                ("record_type", "tipo_chamada"),
-                ("call_reference", "referencia"),
-                ("call_reference_time", "data_hora_referencia"),
-                ("in_channel_allocated_time", "data_hora_alocacao_canal"),
-                ("calling_number", "numero_origem"),
-                ("orig_calling_number", "numero_origem_original"),
-                ("called_number", "numero_destino"),
-                ("orig_called_number", "numero_destino_original"),
-                ("connected_to_number", "numero_conectado"),
-                ("forwarding_number", "numero_origem_encaminhamento"),
-                ("forwarded_to_number", "numero_destino_encaminhamento"),
-                ("orig_mcz_duration", "_duracao_orig_mcz"),
-                ("term_mcz_duration", "_duracao_term_mcz"),
-                ("forw_mcz_duration", "_duracao_forw_mcz"),
-                ("roam_mcz_duration", "_duracao_roam_mcz"),
-                ("iaz_duration", "_duracao_iaz"),
-                ("oaz_duration", "_duracao_oaz"),
-                ("chargeable_duration", "_duracao_tarifavel"),
-                ("char_band_duration", "_duracao_banda_tarifavel"),
-                ("in_circuit_group", "rota_entrada"),
-                ("out_circuit_group", "rota_saida"),
-            ],
-            job_description="Extraindo CDR Parquet: Nokia",
-        ),
-    }
-
-    def __init__(self, spark: SparkSession) -> None:
-        """Inicializa o extrator com sessão Spark ativa.
+    def __init__(
+        self,
+        spark: SparkSession,
+        schemas: dict[str, CDRTeleparserSchema] | None = None,
+    ) -> None:
+        """Inicializa o extrator com sessão Spark ativa e schemas de mapeamento.
 
         Args:
             spark: Sessão Spark compartilhada pelo pipeline de extração.
+            schemas: Dicionário de contratos ``CDRTeleparserSchema`` a utilizar.
+                Quando omitido, os contratos padrão definidos em
+                ``TELEPARSER_DEFAULT_SCHEMAS`` são adotados.
 
         Notes:
-            O uso de uma única sessão favorece consistência operacional e
-            reaproveitamento de contexto em jobs encadeados.
+            - O uso de uma única sessão favorece consistência operacional e
+              reaproveitamento de contexto em jobs encadeados.
+            - A injeção de dependência de ``schemas`` permite testar a classe
+              com contratos customizados e adicionar novos fornecedores sem
+              modificar esta classe.
         """
         self.spark = spark
+        self.schemas = schemas if schemas is not None else TELEPARSER_DEFAULT_SCHEMAS
         # self._sc = spark.sparkContext
 
     def _extract_cdr(
@@ -337,7 +225,7 @@ class CDRTeleparserExtractor:
         Notes:
             Delega integralmente para ``_extract_cdr`` com schema Ericsson.
         """
-        return self._extract_cdr(source_file, target_file, self._SCHEMAS["ericsson"])
+        return self._extract_cdr(source_file, target_file, self.schemas["ericsson"])
 
     @log_operation
     def extract_cdr_tim_huawei(self, source_file: str, target_file: str) -> DataFrame:
@@ -357,7 +245,7 @@ class CDRTeleparserExtractor:
               deduplicação em cenários de retentativa de ingestão.
         """
         df = self._extract_cdr(
-            source_file, target_file, self._SCHEMAS["tim_huawei"], unique=True
+            source_file, target_file, self.schemas["tim_huawei"], unique=True
         )
         return df
 
@@ -376,7 +264,7 @@ class CDRTeleparserExtractor:
             Delega para ``_extract_cdr`` com schema Vivo FCDR sem ajustes
             adicionais de tolerância ou deduplicação.
         """
-        df = self._extract_cdr(source_file, target_file, self._SCHEMAS["vivo_fcdr"])
+        df = self._extract_cdr(source_file, target_file, self.schemas["vivo_fcdr"])
         return df
 
     @log_operation
@@ -399,7 +287,7 @@ class CDRTeleparserExtractor:
         df = self._extract_cdr(
             source_file,
             target_file,
-            self._SCHEMAS["nokia"],
+            self.schemas["nokia"],
             ignore_missing_columns=True,
         )
         return df
