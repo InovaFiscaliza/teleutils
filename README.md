@@ -134,48 +134,50 @@ flowchart LR
 ## Estrutura do Projeto
 
 ```text
-README.md
-pyproject.toml
-.pre-commit-config.yaml
-docs/
-  How_to_Use_This_Template.md
-src/
-  teleutils/
-    __init__.py
-    _config.py
-    _logging.py
-    core/
-      __init__.py
-      extractors/
-        __init__.py
-        schemas.py
-        teleparser_extractors.py
-        text_extractors.py
-      transformers/
-        __init__.py
-        base_transformer.py
-        teleparser_transformers.py
-        text_transformers.py
-    preprocessing/
-      __init__.py
-      number_format.py
-      utils.py
-    robocalls/
-      __init__.py
-      analyzers.py
-      extractors.py
-      transformers.py
-tests/
-  assets/
-    sample_numbers.parquet
-  debug_normalize_numbers.py
-  notebooks/
-    desenvolvimento_chamadas_abusivas.ipynb
-    desenvolvimento_extrator_universal.ipynb
-    preprocessing_analysis.ipynb
-  test_example.py
-  test_normalize_number.py
-  tests.py
+.
+├── LICENSE
+├── README.md
+├── docs
+│   └── How_to_Use_This_Template.md
+├── pyproject.toml
+├── src
+│   └── teleutils
+│       ├── __init__.py
+│       ├── _config.py
+│       ├── _logging.py
+│       ├── core
+│       │   ├── __init__.py
+│       │   ├── extractors
+│       │   │   ├── __init__.py
+│       │   │   ├── schemas.py
+│       │   │   ├── teleparser_extractors.py
+│       │   │   └── text_extractors.py
+│       │   └── transformers
+│       │       ├── __init__.py
+│       │       ├── base_transformer.py
+│       │       ├── teleparser_transformers.py
+│       │       └── text_transformers.py
+│       ├── preprocessing
+│       │   ├── __init__.py
+│       │   ├── number_format.py
+│       │   └── utils.py
+│       └── robocalls
+│           ├── __init__.py
+│           ├── analyzers.py
+│           ├── extractors.py
+│           └── transformers.py
+├── tests
+│   ├── assets
+│   │   └── sample_numbers.parquet
+│   ├── debug_normalize_numbers.py
+│   ├── notebooks
+│   │   ├── desenvolvimento_chamadas_abusivas.ipynb
+│   │   ├── desenvolvimento_extrator_universal.ipynb
+│   │   └── preprocessing_analysis.ipynb
+│   ├── test_example.py
+│   ├── test_normalize_number.py
+│   └── tests.py
+└── uv.lock
 ```
 
 ### Finalidade dos diretórios relevantes
@@ -387,6 +389,7 @@ Extrator para layouts textuais. Escreve o resultado em Parquet e preserva metada
 
 Métodos públicos:
 
+- `extract_cdr(source_file, target_file, schema)`
 - `extract_cdr_ericsson(source_file, target_file)`
 - `extract_cdr_tim_huawei(source_file, target_file)`
 - `extract_cdr_vivo_fcdr(source_file, target_file)`
@@ -428,6 +431,7 @@ Construtor:
 
 Métodos públicos:
 
+- `extract_cdr(source_file, target_file, schema, ignore_missing_columns, unique)`
 - `extract_cdr_ericsson(source_file, target_file)`
 - `extract_cdr_tim_huawei(source_file, target_file)`
 - `extract_cdr_vivo_fcdr(source_file, target_file)`
@@ -471,6 +475,27 @@ Responsabilidades principais:
 - selecionar e renomear as colunas finais do contrato padronizado;
 - gravar o resultado final em Parquet.
 
+Saída principal:
+
+| Coluna | Descrição |
+|---|---|
+| `nu_referencia` | Identificador único atribuído à chamada na plataforma da prestadora |
+| `nu_origem_original` | Número de origem registrado no CDR antes da aplicação de pré-processamento |
+| `nu_destino_original` | Número de destino registrado no CDR antes da aplicação de pré-processamento |
+| `nu_origem` | Número de origem da comunicação, correspondente ao terminal que iniciou a chamada |
+| `ic_origem_valido` | Indicador de que o formato do número de origem foi reconhecido e validado na aplicação do pré-processamento |
+| `nu_destino` | Número de destino da comunicação, correspondente ao terminal que recebeu a chamada |
+| `ic_destino_valido` | Indicador de que o formato do número de destino foi reconhecido e validado na aplicação do pré-processamento |
+| `dh_chamada` | Data e hora em que a rede iniciou o registro do segmento da chamada |
+| `qt_duracao_segundos` | Duração do registro do segmento da chamada em segundos |
+| `no_tipo_chamada` | Tipo de CDR representado pelo registro, indicando se corresponde ao CDR de chamadas originadas, terminadas, trânsito, etc.  |
+| `no_autenticacao` | Indicador da autenticação da chamada |
+| `no_rota_entrada` | Identifica por qual rota ou tronco a chamada ingressou na rede analisada |
+| `no_rota_saida` | Identifica por qual rota ou tronco a chamada deixou a rede analisada |
+| `no_prestadora` | Nome da prestadora responsável pelo registro e fornecimento do CDR |
+| `no_tipo_cdr` | Tipo, tecnologia ou fabricante do CDR, permitindo diferenciar, por exemplo, Ericsson, Nokia, VoLTE, etc. |
+| `no_arquivo_origem` | Nome do arquivo bruto recebido da prestadora |
+
 ### `teleutils.core.transformers.text_transformers`
 
 Módulo de transformação para CDRs extraídos por texto ou CSV.
@@ -487,25 +512,6 @@ Métodos públicos:
 - `transform_cdr_nokia(source_file, target_file)`
 - `transform_cdr_tim_huawei(source_file, target_file)`
 - `transform_cdr_vivo_fcdr(source_file, target_file)`
-
-Saída principal:
-
-- `nu_referencia`
-- `nu_origem_original`
-- `nu_destino_original`
-- `nu_origem`
-- `ic_origem_valido`
-- `nu_destino`
-- `ic_destino_valido`
-- `dh_chamada`
-- `qt_duracao_segundos`
-- `no_tipo_chamada`
-- `no_autenticacao`
-- `no_rota_entrada`
-- `no_rota_saida`
-- `no_prestadora`
-- `no_tipo_cdr`
-- `no_arquivo_origem`
 
 Notas relevantes:
 
@@ -843,7 +849,7 @@ df.select(
 +-----------+----------------+-------------+
 |     numero|numero_formatado|numero_valido|
 +-----------+----------------+-------------+
-|11999999999|   11999999999|         true|
+|11999999999|     11999999999|         true|
 |       1234|            1234|        false|
 +-----------+----------------+-------------+
 ```
