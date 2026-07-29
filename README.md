@@ -10,92 +10,104 @@ TeleUtils é uma biblioteca Python para extrair, transformar, normalizar e anali
 
 ## Sumário
 
-- [Visão Geral](#visão-geral)
-- <details>
-    <summary><a href="#início-rápido">Início Rápido</a></summary>
+[Visão Geral](#visão-geral)
 
-    - [Pré-requisitos](#pré-requisitos)
-    - [Instalação](#instalação)
-    - [Verificação da Instalação](#verificação-da-instalação)
-    </details>
-- <details>
-    <summary><a href="#arquitetura">Arquitetura</a></summary>
+<details>
+<summary><a href="#início-rápido">Início Rápido</a></summary>
 
-    - [Componentes principais](#componentes-principais)
-    - [Fluxo de execução](#fluxo-de-execução)
-    </details>
-- <details>
-    <summary><a href="#estrutura-do-projeto">Estrutura do Projeto</a></summary>
+- [Pré-requisitos](#pré-requisitos)
+- [Instalação](#instalação)
+- [Verificação da Instalação](#verificação-da-instalação)
+</details>
 
-    - [Finalidade dos diretórios relevantes](#finalidade-dos-diretórios-relevantes)
-    </details>
-- <details>
-    <summary><a href="#referência-da-api">Referência da API</a></summary>
+<details>
+<summary><a href="#arquitetura">Arquitetura</a></summary>
 
-    - [`teleutils.preprocessing`](#teleutilspreprocessing)
-    - [`teleutils.core.extractors.schemas`](#teleutilscoreextractorsschemas)
-    - [`teleutils.core.extractors.text_extractors`](#teleutilscoreextractorstext_extractors)
-    - [`teleutils.core.extractors.teleparser_extractors`](#teleutilscoreextractorsteleparser_extractors)
-    - [`teleutils.core.transformers.base_transformer`](#teleutilscoretransformersbase_transformer)
-    - [`teleutils.core.transformers.text_transformers`](#teleutilscoretransformerstext_transformers)
-    - [`teleutils.core.transformers.teleparser_transformers`](#teleutilscoretransformersteleparser_transformers)
-    - [`teleutils.robocalls`](#teleutilsrobocalls)
-    </details>
-- <details>
-    <summary><a href="#guias-de-uso">Guias de Uso</a></summary>
+- [Componentes principais](#componentes-principais)
+- [Fluxo de execução](#fluxo-de-execução)
+</details>
 
-    - [Uso Básico](#uso-básico)
-    - [Uso Avançado em Spark](#uso-avançado-em-spark)
-    - [Pipeline Completo de Robocalls](#pipeline-completo-de-robocalls)
-    - [Pipeline Completo com o Pacote `core`](#pipeline-completo-com-o-pacote-core)
-    </details>
-- <details>
-    <summary><a href="#configuração">Configuração</a></summary>
+<details>
+<summary><a href="#estrutura-do-projeto">Estrutura do Projeto</a></summary>
 
-    - [Variáveis de Ambiente](#variáveis-de-ambiente)
-    - [Arquivos de Configuração](#arquivos-de-configuração)
-    - [Valores e Parâmetros Relevantes](#valores-e-parâmetros-relevantes)
-    - [Formatos Aceitos](#formatos-aceitos)
-    - [Recomendações de Execução](#recomendações-de-execução)
-    </details>
-- <details>
-    <summary><a href="#exemplos-práticos">Exemplos Práticos</a></summary>
+- [Finalidade dos diretórios relevantes](#finalidade-dos-diretórios-relevantes)
+</details>
 
-    - [1. Validar números telefônicos e CNPJ](#1-validar-números-telefônicos-e-cnpj)
-    - [2. Normalizar um lote em Spark](#2-normalizar-um-lote-em-spark)
-    - [3. Executar o fluxo de robocalls](#3-executar-o-fluxo-de-robocalls)
-    - [4. Executar um fluxo textual com Ericsson](#4-executar-um-fluxo-textual-com-ericsson)
-    </details>
-- <details>
-    <summary><a href="#solução-de-problemas">Solução de Problemas</a></summary>
+<details>
+<summary><a href="#referência-da-api">Referência da API</a></summary>
 
-    - [Erros Comuns](#erros-comuns)
-    - [Como Diagnosticar](#como-diagnosticar)
-    - [Como Corrigir](#como-corrigir)
-    </details>
-- <details>
-    <summary><a href="#compatibilidade">Compatibilidade</a></summary>
+- [`teleutils.preprocessing`](#teleutilspreprocessing)
+- [`teleutils.core.extractors.schemas`](#teleutilscoreextractorsschemas)
+- [`teleutils.core.extractors.text_extractors`](#teleutilscoreextractorstext_extractors)
+- [`teleutils.core.extractors.teleparser_extractors`](#teleutilscoreextractorsteleparser_extractors)
+- [`teleutils.core.transformers.base_transformer`](#teleutilscoretransformersbase_transformer)
+- [`teleutils.core.transformers.text_transformers`](#teleutilscoretransformerstext_transformers)
+- [`teleutils.core.transformers.teleparser_transformers`](#teleutilscoretransformersteleparser_transformers)
+- [`teleutils.robocalls`](#teleutilsrobocalls)
+</details>
 
-    - [Versões Suportadas](#versões-suportadas)
-    - [Sistemas Operacionais](#sistemas-operacionais)
-    - [Dependências Obrigatórias](#dependências-obrigatórias)
-    - [Limitações Conhecidas](#limitações-conhecidas)
-    </details>
-- <details>
-    <summary><a href="#desenvolvimento">Desenvolvimento</a></summary>
+<details>
+<summary><a href="#guias-de-uso">Guias de Uso</a></summary>
 
-    - [Ambiente de Desenvolvimento](#ambiente-de-desenvolvimento)
-    - [Testes](#testes)
-    - [Qualidade de Código](#qualidade-de-código)
-    - [Cobertura](#cobertura)
-    - [Notebooks](#notebooks)
-    </details>
-- <details>
-    <summary><a href="#alterações-recentes">Alterações Recentes</a></summary>
+- [Uso Básico](#uso-básico)
+- [Uso Avançado em Spark](#uso-avançado-em-spark)
+- [Pipeline Completo de Robocalls](#pipeline-completo-de-robocalls)
+- [Pipeline Completo com o Pacote `core`](#pipeline-completo-com-o-pacote-core)
+</details>
 
-    - [Alterações recentes integradas na branch principal](#alterações-recentes-integradas-na-branch-principal)
-    </details>
-- [Referências](#referências)
+<details>
+<summary><a href="#configuração">Configuração</a></summary>
+
+- [Variáveis de Ambiente](#variáveis-de-ambiente)
+- [Arquivos de Configuração](#arquivos-de-configuração)
+- [Valores e Parâmetros Relevantes](#valores-e-parâmetros-relevantes)
+- [Formatos Aceitos](#formatos-aceitos)
+- [Recomendações de Execução](#recomendações-de-execução)
+</details>
+
+<details>
+<summary><a href="#exemplos-práticos">Exemplos Práticos</a></summary>
+
+- [1. Validar números telefônicos e CNPJ](#1-validar-números-telefônicos-e-cnpj)
+- [2. Normalizar um lote em Spark](#2-normalizar-um-lote-em-spark)
+- [3. Executar o fluxo de robocalls](#3-executar-o-fluxo-de-robocalls)
+- [4. Executar um fluxo textual com Ericsson](#4-executar-um-fluxo-textual-com-ericsson)
+</details>
+
+<details>
+<summary><a href="#solução-de-problemas">Solução de Problemas</a></summary>
+
+- [Erros Comuns](#erros-comuns)
+- [Como Diagnosticar](#como-diagnosticar)
+- [Como Corrigir](#como-corrigir)
+</details>
+
+<details>
+<summary><a href="#compatibilidade">Compatibilidade</a></summary>
+
+- [Versões Suportadas](#versões-suportadas)
+- [Sistemas Operacionais](#sistemas-operacionais)
+- [Dependências Obrigatórias](#dependências-obrigatórias)
+- [Limitações Conhecidas](#limitações-conhecidas)
+</details>
+
+<details>
+<summary><a href="#desenvolvimento">Desenvolvimento</a></summary>
+
+- [Ambiente de Desenvolvimento](#ambiente-de-desenvolvimento)
+- [Testes](#testes)
+- [Qualidade de Código](#qualidade-de-código)
+- [Cobertura](#cobertura)
+- [Notebooks](#notebooks)
+</details>
+
+<details>
+<summary><a href="#alterações-recentes">Alterações Recentes</a></summary>
+
+- [Alterações recentes integradas na branch principal](#alterações-recentes-integradas-na-branch-principal)
+</details>
+
+[Referências](#referências)
 
 [Voltar ao topo](#teleutils)
 
