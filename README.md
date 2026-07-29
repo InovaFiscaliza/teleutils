@@ -6,6 +6,8 @@ TeleUtils é uma biblioteca Python para extrair, transformar, normalizar e anali
 
 > Documentação complementar publicada no DeepWiki: [InovaFiscaliza/teleutils](https://deepwiki.com/InovaFiscaliza/teleutils). Use este README como guia principal para instalação, API pública e exemplos executáveis; consulte o DeepWiki para uma visão arquitetural mais ampla e páginas temáticas detalhadas.
 
+[Voltar ao topo](#teleutils)
+
 ## Sumário
 
 - [Visão Geral](#visão-geral)
@@ -95,6 +97,8 @@ TeleUtils é uma biblioteca Python para extrair, transformar, normalizar e anali
     </details>
 - [Referências](#referências)
 
+[Voltar ao topo](#teleutils)
+
 ## Visão Geral
 
 O projeto resolve o problema de lidar com CDRs heterogêneos, com layouts diferentes por operadora e fornecedor, e converte esses dados em um formato consistente para análise.
@@ -114,7 +118,11 @@ O pacote está organizado em duas famílias principais:
 - `teleutils.core`, que concentra extratores e transformadores genéricos por layout;
 - `teleutils.robocalls`, que implementa o fluxo voltado à detecção de chamadas abusivas.
 
+[Voltar ao topo](#teleutils)
+
 ## Início Rápido
+
+[Voltar ao topo](#teleutils)
 
 ### Pré-requisitos
 
@@ -122,6 +130,8 @@ O pacote está organizado em duas famílias principais:
 - Java/JDK compatível com Apache Spark 3.5.5;
 - Apache Spark disponível no ambiente quando você for executar pipelines locais ou conectados a cluster;
 - acesso aos arquivos de CDR em um dos formatos suportados.
+
+[Voltar ao topo](#teleutils)
 
 ### Instalação
 
@@ -140,6 +150,8 @@ Se você também for desenvolver no projeto, instale as dependências de apoio e
 python -m pip install pytest pre-commit jupyter matplotlib
 pre-commit install
 ```
+
+[Voltar ao topo](#teleutils)
 
 ### Verificação da Instalação
 
@@ -174,6 +186,8 @@ spark.stop()
 PY
 ```
 
+[Voltar ao topo](#teleutils)
+
 ## Arquitetura
 
 A arquitetura atual segue um fluxo em camadas. Os módulos de `preprocessing` são reutilizados pelas duas linhas de processamento, enquanto `core` e `robocalls` implementam contratos e regras de negócio distintos.
@@ -205,6 +219,8 @@ flowchart LR
     Log --> Analyzer
 ```
 
+[Voltar ao topo](#teleutils)
+
 ### Componentes principais
 
 - `teleutils.preprocessing` concentra normalização de números e validação de CNPJ.
@@ -214,11 +230,15 @@ flowchart LR
 - `teleutils.robocalls.transformers` aplica heurísticas de chamada curta, autenticação e caixa postal.
 - `teleutils.robocalls.analyzers` agrega os dados transformados por número e hora.
 
+[Voltar ao topo](#teleutils)
+
 ### Fluxo de execução
 
 1. A extração lê o arquivo de origem e seleciona apenas as colunas relevantes.
 2. A transformação padroniza números, datas, durações e indicadores operacionais.
 3. A análise agrupa o resultado final e calcula métricas de volume e suspeição.
+
+[Voltar ao topo](#teleutils)
 
 ## Estrutura do Projeto
 
@@ -269,6 +289,8 @@ flowchart LR
 └── uv.lock
 ```
 
+[Voltar ao topo](#teleutils)
+
 ### Finalidade dos diretórios relevantes
 
 - `src/teleutils`: implementação principal da biblioteca.
@@ -278,7 +300,11 @@ flowchart LR
 - `tests`: testes automatizados, scripts de apoio e notebooks experimentais de desenvolvimento.
 - `docs`: documentação de apoio ao uso do template do repositório.
 
+[Voltar ao topo](#teleutils)
+
 ## Referência da API
+
+[Voltar ao topo](#teleutils)
 
 ### `teleutils.preprocessing`
 
@@ -415,6 +441,8 @@ df = df.withColumn("validacao", spark_validar_cnpj("cnpj"))
 df.select("cnpj", "validacao.cnpj_valido").show()
 ```
 
+[Voltar ao topo](#teleutils)
+
 ### `teleutils.core.extractors.schemas`
 
 Módulo de configuração dos esquemas do Teleparser.
@@ -450,6 +478,8 @@ print(schema.name)
 ##### `TELEPARSER_DEFAULT_SCHEMAS`
 
 Dicionário com os esquemas padrão dos layouts `ericsson`, `tim_huawei`, `vivo_fcdr` e `nokia`.
+
+[Voltar ao topo](#teleutils)
 
 ### `teleutils.core.extractors.text_extractors`
 
@@ -503,6 +533,8 @@ df = extractor.extract_cdr_ericsson("dados/ericsson.csv", "saida/ericsson_extrac
 df.show(5)
 ```
 
+[Voltar ao topo](#teleutils)
+
 ### `teleutils.core.extractors.teleparser_extractors`
 
 Módulo de extração de CDRs em Parquet produzidos pelo Teleparser.
@@ -543,6 +575,8 @@ extractor = CDRTeleparserExtractor(spark)
 df = extractor.extract_cdr_nokia("dados/nokia_parquet", "saida/nokia_extracted")
 df.show(5)
 ```
+
+[Voltar ao topo](#teleutils)
 
 ### `teleutils.core.transformers.base_transformer`
 
@@ -585,6 +619,8 @@ Saída principal:
 | `no_tipo_cdr` | Tipo, tecnologia ou fabricante do CDR, permitindo diferenciar, por exemplo, Ericsson, Nokia, VoLTE, etc. |
 | `no_arquivo_origem` | Nome do arquivo bruto recebido da prestadora |
 
+[Voltar ao topo](#teleutils)
+
 ### `teleutils.core.transformers.text_transformers`
 
 Módulo de transformação para CDRs extraídos por texto ou CSV.
@@ -620,6 +656,8 @@ df = transformer.transform_cdr_ericsson("saida/ericsson_extracted", "saida/erics
 df.show(5)
 ```
 
+[Voltar ao topo](#teleutils)
+
 ### `teleutils.core.transformers.teleparser_transformers`
 
 Módulo de transformação para CDRs vindos do Teleparser.
@@ -642,6 +680,8 @@ Detalhes úteis:
 - TIM Huawei e Vivo FCDR aplicam regras específicas de tipo de chamada e autenticação;
 - Nokia consolida durações, data/hora e rotas com base em colunas variantes do layout;
 - a persistência final continua sendo Parquet.
+
+[Voltar ao topo](#teleutils)
 
 ### `teleutils.robocalls`
 
@@ -766,7 +806,11 @@ df = analyzer.analyze("saida/tim_volte_transformed", "saida/tim_volte_analyzed")
 df.orderBy("total_chamadas_curtas", ascending=False).show(10)
 ```
 
+[Voltar ao topo](#teleutils)
+
 ## Guias de Uso
+
+[Voltar ao topo](#teleutils)
 
 ### Uso Básico
 
@@ -778,6 +822,8 @@ from teleutils.preprocessing import normalize_number, validar_cnpj
 print(normalize_number("0800-123-4567"))
 print(validar_cnpj("11222333000181"))
 ```
+
+[Voltar ao topo](#teleutils)
 
 ### Uso Avançado em Spark
 
@@ -804,6 +850,8 @@ df.select(
     F.col("cnpj_norm.cnpj_valido").alias("cnpj_valido"),
 ).show()
 ```
+
+[Voltar ao topo](#teleutils)
 
 ### Pipeline Completo de Robocalls
 
@@ -836,6 +884,8 @@ df = analyzer.analyze(
 df.show(10)
 ```
 
+[Voltar ao topo](#teleutils)
+
 ### Pipeline Completo com o Pacote `core`
 
 Quando a origem já estiver em CSV textual ou em Parquet do Teleparser, use `teleutils.core`:
@@ -856,17 +906,25 @@ df = transformer.transform_cdr_ericsson("saida/ericsson_extracted", "saida/erics
 df.show(5)
 ```
 
+[Voltar ao topo](#teleutils)
+
 ## Configuração
+
+[Voltar ao topo](#teleutils)
 
 ### Variáveis de Ambiente
 
 Não há variáveis de ambiente obrigatórias no código atual.
+
+[Voltar ao topo](#teleutils)
 
 ### Arquivos de Configuração
 
 - `pyproject.toml`: dependências, metadados do pacote e configuração de build;
 - `.pre-commit-config.yaml`: hooks de qualidade para `ruff`, `mypy`, `nbstripout` e verificações básicas;
 - `src/teleutils/_config.py`: constantes internas compartilhadas pelo pacote.
+
+[Voltar ao topo](#teleutils)
 
 ### Valores e Parâmetros Relevantes
 
@@ -875,11 +933,15 @@ Não há variáveis de ambiente obrigatórias no código atual.
 - `MIN_SAFE_DATE`: valor mínimo usado para descartar timestamps inválidos;
 - `AUTENTICATED_CALL_FLAG = "TN-Validation-Passed"`: marcador textual usado em regras de autenticação.
 
+[Voltar ao topo](#teleutils)
+
 ### Formatos Aceitos
 
 - entrada CSV com delimitador `;` ou `|`, dependendo do layout;
 - entrada Parquet quando a etapa anterior já realizou a extração;
 - saída Parquet em todas as etapas de extração, transformação e análise.
+
+[Voltar ao topo](#teleutils)
 
 ### Recomendações de Execução
 
@@ -888,7 +950,11 @@ Não há variáveis de ambiente obrigatórias no código atual.
 - trate os Parquets de saída como artefatos substituíveis, porque o projeto grava com `overwrite`;
 - mantenha os layouts de entrada alinhados com os schemas declarados nos módulos.
 
+[Voltar ao topo](#teleutils)
+
 ## Exemplos Práticos
+
+[Voltar ao topo](#teleutils)
 
 ### 1. Validar números telefônicos e CNPJ
 
@@ -907,6 +973,8 @@ print(validar_cnpj("11222333000181"))
 ('11999999999', True)
 True
 ```
+
+[Voltar ao topo](#teleutils)
 
 ### 2. Normalizar um lote em Spark
 
@@ -943,6 +1011,8 @@ df.select(
 +-----------+----------------+-------------+
 ```
 
+[Voltar ao topo](#teleutils)
+
 ### 3. Executar o fluxo de robocalls
 
 **Entrada**:
@@ -974,6 +1044,8 @@ df.orderBy("total_chamadas_curtas", ascending=False).show(10)
 
 - um Parquet final com as métricas agregadas por `numero_de_a_formatado` e `hora_da_chamada`.
 
+[Voltar ao topo](#teleutils)
+
 ### 4. Executar um fluxo textual com Ericsson
 
 **Entrada**:
@@ -1002,7 +1074,11 @@ df.show(5)
 
 - um Parquet padronizado com colunas como `nu_referencia`, `nu_origem`, `nu_destino`, `dh_chamada` e `no_tipo_chamada`.
 
+[Voltar ao topo](#teleutils)
+
 ## Solução de Problemas
+
+[Voltar ao topo](#teleutils)
 
 ### Erros Comuns
 
@@ -1011,6 +1087,8 @@ df.show(5)
 - `JAVA_HOME` ausente ou Spark não inicia: o ambiente Java não está configurado corretamente.
 - saída vazia após a transformação: o filtro do formato pode ter removido todos os registros do lote.
 - o comando `teleutils` não funciona: o pacote é usado principalmente como biblioteca Python e o fluxo documentado aqui é a API pública.
+
+[Voltar ao topo](#teleutils)
 
 ### Como Diagnosticar
 
@@ -1021,6 +1099,8 @@ python -m pytest -q
 pre-commit run --all-files
 ```
 
+[Voltar ao topo](#teleutils)
+
 ### Como Corrigir
 
 - confirme o delimitador do arquivo de entrada (`;` ou `|`);
@@ -1029,7 +1109,11 @@ pre-commit run --all-files
 - use caminhos absolutos ou relativos válidos no seu sistema;
 - se o Spark falhar ao iniciar, ajuste `JAVA_HOME` e valide a instalação do Java.
 
+[Voltar ao topo](#teleutils)
+
 ## Compatibilidade
+
+[Voltar ao topo](#teleutils)
 
 ### Versões Suportadas
 
@@ -1038,10 +1122,14 @@ pre-commit run --all-files
 - Pandas: `>=2.3.3`;
 - PyArrow: `==21.0.0`.
 
+[Voltar ao topo](#teleutils)
+
 ### Sistemas Operacionais
 
 - Linux é o ambiente mais alinhado ao estado atual do repositório;
 - outros sistemas podem funcionar se tiverem Java e Spark compatíveis, mas não há validação formal no repositório para eles.
+
+[Voltar ao topo](#teleutils)
 
 ### Dependências Obrigatórias
 
@@ -1049,13 +1137,19 @@ pre-commit run --all-files
 - `pandas`;
 - `pyarrow`.
 
+[Voltar ao topo](#teleutils)
+
 ### Limitações Conhecidas
 
 - o pacote é consumido via API Python; não há um CLI documentado e validado no código-fonte atual;
 - as saídas são gravadas em Parquet com sobrescrita do diretório informado;
 - a qualidade do processamento depende fortemente da aderência do arquivo de entrada ao layout esperado.
 
+[Voltar ao topo](#teleutils)
+
 ## Desenvolvimento
+
+[Voltar ao topo](#teleutils)
 
 ### Ambiente de Desenvolvimento
 
@@ -1068,11 +1162,15 @@ python -m pip install pytest pre-commit jupyter matplotlib
 pre-commit install
 ```
 
+[Voltar ao topo](#teleutils)
+
 ### Testes
 
 ```bash
 python -m pytest
 ```
+
+[Voltar ao topo](#teleutils)
 
 ### Qualidade de Código
 
@@ -1081,15 +1179,23 @@ python -m pytest
 - verificação estática com `mypy`;
 - limpeza de notebooks com `nbstripout`.
 
+[Voltar ao topo](#teleutils)
+
 ### Cobertura
 
 Não há ferramenta de cobertura configurada no repositório no estado atual.
+
+[Voltar ao topo](#teleutils)
 
 ### Notebooks
 
 Os notebooks em `tests/notebooks` foram mantidos como apoio ao desenvolvimento e exploração dos fluxos.
 
+[Voltar ao topo](#teleutils)
+
 ## Alterações Recentes
+
+[Voltar ao topo](#teleutils)
 
 ### Alterações recentes integradas na branch principal
 
@@ -1101,6 +1207,8 @@ Os notebooks em `tests/notebooks` foram mantidos como apoio ao desenvolvimento e
 - revisadas heurísticas de autenticação, caixa postal e números telefônicos no pipeline de `robocalls`;
 - consolidado suporte a Ericsson, TIM Huawei, Vivo FCDR, Nokia, TIM VoLTE, Vivo VoLTE e Claro Nokia nas camadas apropriadas;
 - reorganizados módulos, docstrings e contratos de saída para melhorar legibilidade e manutenção.
+
+[Voltar ao topo](#teleutils)
 
 ## Referências
 
