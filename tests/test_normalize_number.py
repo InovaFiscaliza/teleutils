@@ -3,7 +3,6 @@ Tests for the normalize_number function in teleutils.preprocessing.number_format
 """
 
 import pytest
-
 from teleutils.preprocessing.number_format import normalize_number
 
 # ---------------------------------------------------------------------------

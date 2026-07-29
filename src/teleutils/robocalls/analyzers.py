@@ -20,7 +20,7 @@ facilitando a identificação de padrões suspeitos: números que realizam muita
 chamadas curtas em curto espaço de tempo costumam ser indicadores de
 comportamento abusivo automatizado.
 
-Nota:
+Notes:
     A análise trabalha sobre dados já transformados pela camada de transformação.
     Presume que estão disponíveis os campos definidos em RoboCallsTransformer.
     Os resultados são salvos como parquet sem particionamento.
@@ -52,10 +52,10 @@ class RoboCallsAnalyzer:
     Os resultados são ordenados por quantidade de chamadas curtas (descendente),
     permitindo priorizar a investigação dos originadores mais suspeitos.
 
-    Atributos:
-        spark (SparkSession): Sessão Spark para operações de I/O e agregação.
+    Attributes:
+        spark: Sessão Spark para operações de I/O e agregação.
 
-    Exemplo:
+    Example:
         >>> analyzer = RoboCallsAnalyzer(spark)
         >>> df_analise = analyzer.analyze(
         ...     source_file="parquet/ericsson_transformed",
@@ -68,8 +68,8 @@ class RoboCallsAnalyzer:
     def __init__(self, spark: SparkSession):
         """Inicializa o analisador com uma sessão Spark.
 
-        Parâmetros:
-            spark (SparkSession): Sessão Spark ativa para operações de agregação e I/O.
+        Args:
+            spark: Sessão Spark ativa para operações de agregação e I/O.
         """
         self.spark = spark
 
@@ -96,14 +96,14 @@ class RoboCallsAnalyzer:
         O resultado é ordenado em ordem decrescente de total_chamadas_curtas,
         colocando os padrões mais suspeitos no topo.
 
-        Parâmetros:
-            source_file (str): Caminho para o diretório que contém o parquet CDR transformado.
+        Args:
+            source_file: Caminho para o diretório que contém o parquet CDR transformado.
                 Deve conter as colunas: numero_de_a_formatado, hora_da_chamada,
                 referencia, chamada_curta, chamada_caixa_postal e chamada_autenticada.
-            target_file (str): Caminho para o diretório que conterá o parquet de saída com os
+            target_file: Caminho para o diretório que conterá o parquet de saída com os
                 resultados agregados.
 
-        Retorna:
+        Returns:
             DataFrame: DataFrame contendo:
                 - numero_de_a_formatado (str): Número originador formatado.
                 - hora_da_chamada (str): Hora cheia no formato YYYYMMDDHH.
@@ -123,11 +123,11 @@ class RoboCallsAnalyzer:
 
             Ordenado por total_chamadas_curtas em ordem descendente.
 
-        Lança:
+        Raises:
             FileNotFoundError: Se source_file não existir.
             Exception: Qualquer erro lançado pelo Spark ao ler ou gravar parquet.
 
-        Nota:
+        Notes:
             - O agrupamento por (numero_de_a_formatado, hora_da_chamada) permite
               análise da concentração de chamadas por hora, identificando padrões
               temporais de abuso.
@@ -138,7 +138,7 @@ class RoboCallsAnalyzer:
             - Os resultados são salvos como parquet plano (sem particionamento)
               para acesso rápido em consultas analíticas subsequentes.
 
-        Exemplo:
+        Example:
             >>> from pyspark.sql import SparkSession
             >>> spark = SparkSession.builder.appName("Analise").getOrCreate()
             >>> analyzer = RoboCallsAnalyzer(spark)

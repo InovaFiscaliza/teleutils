@@ -1,51 +1,50 @@
-"""
-Brazilian Phone Number Normalization Module.
+"""Módulo de normalização e validação de números telefônicos brasileiros.
 
-This module provides functionality for normalizing and validating Brazilian phone numbers
-according to ANATEL (Brazilian National Telecommunications Agency) numbering plans and
-ITU-T E.164 international standard.
+Este módulo implementa funções para padronizar e validar números telefônicos
+brasileiros conforme o Plano de Numeração da ANATEL (Agência Nacional de
+Telecomunicações) e o padrão internacional ITU-T E.164.
 
-The module handles various Brazilian number formats including:
-- SMP (Serviço Móvel Pessoal) - Mobile services
-- STFC (Serviço Telefônico Fixo Comutado) - Fixed-line services
-- SME (Serviço Móvel Especializado) - Specialized mobile services
-- SUP (Serviço de Utilidade Pública) - Public utility services
-- CNG (Código Nacional de Gratuidade) - National free-call codes
+O módulo suporta os seguintes tipos de serviço:
+    - SMP (Serviço Móvel Pessoal) — Telefonia móvel.
+    - STFC (Serviço Telefônico Fixo Comutado) — Telefonia fixa.
+    - SME (Serviço Móvel Especializado) — Serviço especializado de dados móveis.
+    - SUP (Serviço de Utilidade Pública) — Serviços de emergência e utilidade.
+    - CNG (Código Não Geográfico) — números não geográficos (0800, 0300 etc.).
 
-Functions:
-    normalize_number: Normalizes a single Brazilian phone number.
-    normalize_number_pair: Normalizes a pair of related phone numbers with context.
+Principais funcionalidades:
+    - Normalização de número único com limpeza de prefixos e validação por regex.
+    - Normalização de par de números com inferência de código de área a partir
+      do número de origem.
+    - UDF pandas vetorizada para integração com pipelines Apache Spark.
 
-Private Functions:
-    _clean_numbers: Removes letters and punctuation from number strings.
+Dependências relevantes:
+    - re (biblioteca padrão Python)
+    - string (biblioteca padrão Python)
+    - pandas
+    - pyspark.sql.functions.pandas_udf
+    - pyspark.sql.types
 
-Constants:
-    E164_FULL_NUMBERS: Regex pattern for numbers with length >= 10 digits.
-    SMALL_NUMBERS: Regex pattern for numbers with length <= 9 digits.
-    PREFFIX: Regex pattern for removing call prefixes.
+Referências:
+    - Plano de Numeração da ANATEL: https://www.anatel.gov.br/
+    - Padrão ITU-T E.164: https://handle.itu.int/11.1002/1000/10688
 
 Example:
     >>> normalize_number("(11) 99999-9999")
-    ['11999999999', True]
+    ('11999999999', True)
     >>> normalize_number("0800-123-4567")
-    ['08001234567', True]
-
-References:
-    - ANATEL Numbering Plan: https://www.anatel.gov.br/
-    - ITU-T E.164 Standard: https://handle.itu.int/11.1002/1000/10688
-
+    ('08001234567', True)
 """
 
 import re
 import string
 
 import pandas as pd
-from pyspark.sql.functions import pandas_udf
+from pyspark.sql.functions import pandas_udf  # type: ignore
 from pyspark.sql.types import BooleanType, StringType, StructField, StructType
 
-#: Regex pattern for matching Brazilian phone numbers with length >= 10 digits.
-#: Covers full E.164 format numbers including country code (55), area codes,
-#: and various service types (SMP, STFC, CNG, SME) with their specific patterns.
+#: Padrão regex para números telefônicos brasileiros com 10 ou mais dígitos.
+#: Cobre o formato E.164 completo incluindo código do país (55), código de área
+#: e os diferentes tipos de serviço: SMP, STFC, CNG e SME com seus padrões específicos.
 E164_FULL_NUMBERS = re.compile(
     r"""# (BRAZIL COUNTRY CODE) (CSP) (optional)
         (?:55)?(?:1[2-8]|2[12469]|3[16789]|4[1235679]|5[3568]|6[1235]|7[12456]|8[157]|9[18])?(
@@ -87,9 +86,9 @@ E164_FULL_NUMBERS = re.compile(
     re.VERBOSE,
 )
 
-#: Regex pattern for matching Brazilian phone numbers with length <= 9 digits.
-#: Covers local numbers without area codes including mobile (SMP), fixed-line (STFC),
-#: specialized mobile (SME), and public utility services (SUP) patterns.
+#: Padrão regex para números telefônicos brasileiros com até 9 dígitos.
+#: Cobre números locais sem código de área, incluindo SMP, STFC, SME
+#: e serviços de utilidade pública (SUP) com seus padrões específicos.
 SMALL_NUMBERS = re.compile(
     r"""# (BRAZIL COUNTRY CODE) (CN) (optional)
         (?:55)?(?:1[1-9]|2[12478]|3[1-578]|4[1-9]|5[1345]|6[1-9]|7[134579]|8[1-9]|9[1-9])?(
@@ -137,9 +136,9 @@ SMALL_NUMBERS = re.compile(
     re.VERBOSE,
 )
 
-#: Regex pattern for removing call prefixes from Brazilian phone numbers.
-#: Removes collect call prefixes (90, 9090), international prefix (00),
-#: and national long-distance prefix (0) to normalize numbers.
+#: Padrão regex para remoção de prefixos de discagem de números telefônicos.
+#: Remove prefixos de chamada a cobrar (90, 9090), discagem internacional (00)
+#: e discagem nacional (0), normalizando o número para o formato sem prefixo.
 PREFFIX = re.compile(
     r"""(
         ^90(?:90)?| # collect call preffix
@@ -149,8 +148,9 @@ PREFFIX = re.compile(
     re.VERBOSE,
 )
 
-# Schema definition for Spark UDF return type (numero_formatado, numero_valido)
-SPARK_NORMALIZE_NUMBER_RETURN_SCHEMA = StructType(
+# Schema Spark para o tipo de retorno da UDF pandas: (numero_formatado, numero_valido).
+# Mantido como constante de módulo para permitir reuso e evitar recriação por chamada.
+_RETURN_SCHEMA = StructType(
     [
         StructField("numero_formatado", StringType(), True),
         StructField("numero_valido", BooleanType(), True),
@@ -159,17 +159,17 @@ SPARK_NORMALIZE_NUMBER_RETURN_SCHEMA = StructType(
 
 
 def _clean_numbers(text):
-    """
-    Remove letters and punctuation from a text string, keeping only digits.
+    """Remove letras e pontuação de um texto, mantendo apenas dígitos numéricos.
 
-    This private function uses string translation to efficiently remove all
-    ASCII letters and punctuation characters, leaving only numeric digits.
+    Utiliza tradução de string (``str.maketrans``) para remover eficientemente
+    todos os caracteres ASCII alfabéticos, de pontuação e espaços em branco,
+    preservando apenas os dígitos numéricos.
 
     Args:
-        text (str): Input string that may contain letters, punctuation, and digits.
+        text: Texto de entrada que pode conter letras, pontuação e dígitos.
 
     Returns:
-        str: String containing only numeric digits.
+        str: String contendo apenas dígitos numéricos.
 
     Example:
         >>> _clean_numbers("(11) 99999-9999")
@@ -184,51 +184,59 @@ def _clean_numbers(text):
 
 
 def normalize_number(subscriber_number, national_destination_code=""):
-    """
-    Normalize a Brazilian phone number according to ANATEL standards.
+    """Normaliza um número telefônico brasileiro conforme os padrões da ANATEL.
 
-    This function processes various formats of Brazilian phone numbers, removes
-    prefixes, validates against official numbering patterns, and returns a
-    normalized format suitable for database storage and analysis.
+    Processa diferentes formatos de entrada, remove prefixos de discagem,
+    valida contra os padrões oficiais de numeração e retorna o número em
+    formato padronizado para armazenamento e análise em CDRs.
 
     Args:
-        subscriber_number (str or int): The phone number to normalize. Can contain
-            letters, punctuation, and various prefixes.
-        national_destination_code (str, optional): Two-digit area code to prepend
-            to 8-9 digit local numbers. Defaults to "".
+        subscriber_number: Número de telefone a normalizar. Pode conter letras,
+            pontuação e diferentes tipos de prefixos de discagem.
+        national_destination_code: Código de área de dois dígitos a ser
+            prefixado em números locais de 8 ou 9 dígitos. Padrão: ``""``.
 
     Returns:
-        tuple: A two-element tuple containing:
-            - str: The normalized phone number (or original if invalid)
-            - bool: True if number was successfully normalized, False otherwise
+        tuple[str, bool]:
+            - str: Número normalizado, ou o valor original caso inválido.
+            - bool: ``True`` se o número foi normalizado com sucesso,
+              ``False`` caso contrário.
 
-    Processing Steps:
-        1. Handles semicolon-separated numbers (takes first part)
-        2. Removes filler characters ('f')
-        3. Removes letters and punctuation
-        4. Strips call prefixes (collect call, international, national)
-        5. Validates against Brazilian numbering patterns
-        6. Adds area code to local numbers when provided
+    Etapas de processamento:
+        1. Trata números separados por ponto-e-vírgula (retém o primeiro).
+        2. Remove caracteres de preenchimento (``'f'``).
+        3. Remove letras e pontuação via ``_clean_numbers``.
+        4. Elimina prefixos de discagem via regex ``PREFFIX``.
+        5. Valida contra padrões de numeração brasileira (E164 ou local).
+        6. Acrescenta código de área a números locais quando fornecido.
 
-    Examples:
+    Example:
         >>> normalize_number("(11) 99999-9999")
         ('11999999999', True)
         >>> normalize_number("0800-123-4567")
         ('08001234567', True)
         >>> normalize_number("99999999", "11")
         ('1199999999', True)
-        >>> normalize_number("invalid")
-        ('invalid', False)
-
+        >>> normalize_number("invalido")
+        ('invalido', False)
     """
+
+    if not subscriber_number:
+        return (None, False)
+
     subscriber_number = str(subscriber_number)
+
     if ";" in subscriber_number:
+        # Regra de negócio: alguns fornecedores de CDR enviam múltiplos números
+        # separados por ponto-e-vírgula no mesmo campo; utiliza-se apenas o primeiro.
         subscriber_number = subscriber_number.split(";")[0]
-    # remove filler
-    subscriber_number = subscriber_number.replace("f", "")
+    # Remove o caractere de preenchimento 'f' utilizado por certos sistemas
+    # legados para completar campos numéricos de tamanho fixo.
+    subscriber_number = subscriber_number.lower().replace("f", "")
 
     clean_subscriber_number = _clean_numbers(subscriber_number)
-    # remove collect call indicator or the international/national prefix
+    # Remove prefixo de chamada a cobrar, internacional (00) ou nacional (0)
+    # para isolar apenas os dígitos significativos do número.
     clean_subscriber_number = PREFFIX.sub("", clean_subscriber_number)
 
     if len(clean_subscriber_number) >= 10:
@@ -238,7 +246,8 @@ def normalize_number(subscriber_number, national_destination_code=""):
     else:
         normalized_subscriber_number = SMALL_NUMBERS.findall(clean_subscriber_number)
 
-    # if not exactly one match
+    # Um único match indica número válido e não ambíguo; zero matches indicam
+    # formato desconhecido e múltiplos matches indicam ambiguidade no padrão.
     if len(normalized_subscriber_number) == 1:
         normalized_subscriber_number = normalized_subscriber_number[0]
         if len(normalized_subscriber_number) in (8, 9) and national_destination_code:
@@ -251,49 +260,52 @@ def normalize_number(subscriber_number, national_destination_code=""):
 
 
 def normalize_number_pair(number_a, number_b, national_destination_code=""):
-    """
-    Normalize a pair of related Brazilian phone numbers with contextual area code inference.
+    """Normaliza um par de números telefônicos com inferência de código de área.
 
-    This function normalizes two phone numbers where the first number (typically
-    the calling number) can provide area code context for the second number
-    (typically the called number) if it lacks an area code.
+    Normaliza dois números telefônicos onde o primeiro (tipicamente o originante
+    da chamada) pode fornecer contexto de código de área para o segundo
+    (tipicamente o destino), caso este não possua código de área completo.
 
     Args:
-        number_a (str or int): First phone number, often the calling/originating number.
-        number_b (str or int): Second phone number, often the called/destination number.
-        national_destination_code (str, optional): Two-digit area code to prepend
-            to 8-9 digit local numbers. Defaults to "".
+        number_a: Primeiro número, geralmente o originante da chamada.
+        number_b: Segundo número, geralmente o destino da chamada.
+        national_destination_code: Código de área de dois dígitos a ser usado
+            como contexto inicial para ambos os números. Padrão: ``""``.
 
     Returns:
-        tuple: A four-element tuple containing:
-            - str: Normalized number_a (or original if invalid)
-            - bool: True if number_a was successfully normalized
-            - str: Normalized number_b (or original if invalid)
-            - bool: True if number_b was successfully normalized
+        tuple[str, bool, str, bool]:
+            - str: ``number_a`` normalizado, ou original caso inválido.
+            - bool: ``True`` se ``number_a`` foi normalizado com sucesso.
+            - str: ``number_b`` normalizado, ou original caso inválido.
+            - bool: ``True`` se ``number_b`` foi normalizado com sucesso.
 
-    Logic:
-        1. Normalizes number_a first
-        2. If number_a is valid and 10-11 digits, extracts area code (first 2 digits)
-        3. Uses extracted area code as context for normalizing number_b
-        4. Returns normalization results for both numbers
+    Lógica:
+        1. Normaliza ``number_a`` primeiro.
+        2. Se ``number_a`` for válido e possuir 10 ou 11 dígitos, extrai o
+           código de área (2 primeiros dígitos) para uso contextual.
+        3. Usa o código de área inferido para normalizar ``number_b``.
+        4. Retorna os resultados de normalização para ambos os números.
 
-    Examples:
+    Example:
         >>> normalize_number_pair("11999999999", "88888888")
         ('11999999999', True, '1188888888', True)
-        >>> normalize_number_pair("invalid", "11999999999")
-        ('invalid', False, '11999999999', True)
+        >>> normalize_number_pair("invalido", "11999999999")
+        ('invalido', False, '11999999999', True)
         >>> normalize_number_pair("1133334444", "22225555")
         ('1133334444', True, '1122225555', True)
 
-    Use Case:
-        Particularly useful for Call Detail Records (CDRs) where the originating
-        number can provide geographic context for local destination numbers.
+    Notes:
+        Particularmente útil em CDRs onde o número originante pode fornecer
+        contexto geográfico para números locais (sem DDD) de destino.
     """
     normalized_number_a, is_number_a_valid = normalize_number(number_a)
 
-    if is_number_a_valid and len(normalized_number_a) in (10, 11):
+    # Regra de negócio: se o número de origem for válido e completo (10 ou 11
+    # dígitos), seus dois primeiros dígitos representam o DDD e podem ser
+    # utilizados como contexto para normalizar o número de destino local.
+    if is_number_a_valid and len(normalized_number_a) in (10, 11):  # type: ignore
         if not national_destination_code:
-            national_destination_code = normalized_number_a[:2]
+            national_destination_code = normalized_number_a[:2]  # type: ignore
     else:
         national_destination_code = ""
 
@@ -309,12 +321,37 @@ def normalize_number_pair(number_a, number_b, national_destination_code=""):
     )
 
 
-@pandas_udf(SPARK_NORMALIZE_NUMBER_RETURN_SCHEMA)
-def spark_normalize_number(number_a_series: pd.Series) -> pd.DataFrame:
+@pandas_udf(_RETURN_SCHEMA)  # type: ignore
+def spark_normalize_number(number_series: pd.Series) -> pd.DataFrame:
+    """Normaliza números telefônicos em lote para uso em pipelines Spark.
+
+    UDF pandas vetorizada que recebe uma série de números telefônicos brutos,
+    aplica ``normalize_number`` sobre cada elemento e retorna uma estrutura
+    tabular com o número formatado e o indicador de validade.
+
+    Args:
+        number_series: Série pandas contendo números telefônicos em formato bruto,
+            possivelmente com letras, pontuação e prefixos variados.
+
+    Returns:
+        pd.DataFrame: DataFrame com as seguintes colunas:
+            - ``numero_formatado`` (str | None): Número normalizado ou original.
+            - ``numero_valido`` (bool | None): Indicador de sucesso da normalização.
+
+    Notes:
+        A pandas UDF processa os dados por lote (batch), reduzindo o overhead de
+        serialização em comparação com UDFs linha a linha, o que melhora
+        significativamente o desempenho em grandes volumes de CDR.
+
+        Anotação de manutenção: alterações no contrato de retorno (nomes ou
+        tipos de coluna) exigem atualização coordenada de
+        ``_RETURN_SCHEMA`` e de todos os acessos às
+        colunas estruturadas nos transformadores que consomem esta UDF.
+    """
     # Processar em batch (vetorizado)
     results = []
-    for number_a in number_a_series:
-        results.append(normalize_number(number_a))
+    for number in number_series:
+        results.append(normalize_number(number))
 
     return pd.DataFrame(
         results,
