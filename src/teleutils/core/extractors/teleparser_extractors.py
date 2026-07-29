@@ -67,7 +67,7 @@ class CDRTeleparserExtractor:
         - Quando nenhum schema é informado, ``TELEPARSER_DEFAULT_SCHEMAS`` (do
           módulo ``teleutils.core.extractors.schemas``) é utilizado.
         - Métodos públicos são wrappers sem lógica adicional significativa,
-          mantendo o fluxo principal em ``_extract_cdr``.
+          mantendo o fluxo principal em ``extract_cdr``.
     """
 
     def __init__(
@@ -94,7 +94,7 @@ class CDRTeleparserExtractor:
         self.schemas = schemas if schemas is not None else TELEPARSER_DEFAULT_SCHEMAS
         # self._sc = spark.sparkContext
 
-    def _extract_cdr(
+    def extract_cdr(
         self,
         source_file: str,
         target_file: str,
@@ -223,9 +223,9 @@ class CDRTeleparserExtractor:
             DataFrame: Resultado da extração relido de ``target_file``.
 
         Notes:
-            Delega integralmente para ``_extract_cdr`` com schema Ericsson.
+            Delega integralmente para ``extract_cdr`` com schema Ericsson.
         """
-        return self._extract_cdr(source_file, target_file, self.schemas["ericsson"])
+        return self.extract_cdr(source_file, target_file, self.schemas["ericsson"])
 
     @log_operation
     def extract_cdr_tim_huawei(self, source_file: str, target_file: str) -> DataFrame:
@@ -244,7 +244,7 @@ class CDRTeleparserExtractor:
             - Ponto de manutenção: validar periodicamente o impacto dessa
               deduplicação em cenários de retentativa de ingestão.
         """
-        df = self._extract_cdr(
+        df = self.extract_cdr(
             source_file, target_file, self.schemas["tim_huawei"], unique=True
         )
         return df
@@ -261,10 +261,10 @@ class CDRTeleparserExtractor:
             DataFrame: Resultado da extração relido de ``target_file``.
 
         Notes:
-            Delega para ``_extract_cdr`` com schema Vivo FCDR sem ajustes
+            Delega para ``extract_cdr`` com schema Vivo FCDR sem ajustes
             adicionais de tolerância ou deduplicação.
         """
-        df = self._extract_cdr(source_file, target_file, self.schemas["vivo_fcdr"])
+        df = self.extract_cdr(source_file, target_file, self.schemas["vivo_fcdr"])
         return df
 
     @log_operation
@@ -284,7 +284,7 @@ class CDRTeleparserExtractor:
             - Anotação de manutenção: sempre revisar logs de colunas ausentes
               para identificar mudanças de layout na origem.
         """
-        df = self._extract_cdr(
+        df = self.extract_cdr(
             source_file,
             target_file,
             self.schemas["nokia"],

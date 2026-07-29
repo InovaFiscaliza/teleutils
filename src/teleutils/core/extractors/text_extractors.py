@@ -180,7 +180,7 @@ class CDRTextExtractor:
 
     Esta classe funciona como ponto de entrada para extração por tecnologia/
     fornecedor. Cada método público seleciona um esquema pré-definido e delega a
-    execução para ``_extract_cdr``, onde está o fluxo comum de processamento.
+    execução para ``extract_cdr``, onde está o fluxo comum de processamento.
 
     O desenho separa lógica (implementação da extração) de configuração
     (mapeamentos em ``_SCHEMAS``), facilitando evolução e manutenção incremental.
@@ -190,7 +190,7 @@ class CDRTextExtractor:
 
     Notes:
         Ponto de extensão principal: adição de novos formatos no dicionário
-        ``_SCHEMAS`` e criação de um método público delegando para ``_extract_cdr``.
+        ``_SCHEMAS`` e criação de um método público delegando para ``extract_cdr``.
     """
 
     # Schemas declarados como atributo de classe: são constantes e não dependem
@@ -293,7 +293,7 @@ class CDRTextExtractor:
         # SparkContext armazenado uma única vez, evitando chamadas repetidas
         # self._sc = spark.sparkContext
 
-    def _extract_cdr(
+    def extract_cdr(
         self, source_file: str, target_file: str, schema: CDRSchema
     ) -> DataFrame:
         """Executa o pipeline de extração/normalização para um esquema CDR.
@@ -417,7 +417,7 @@ class CDRTextExtractor:
             ...     target_file="parquet/ericsson_extracted"
             ... )
         """
-        return self._extract_cdr(source_file, target_file, self._SCHEMAS["ericsson"])
+        return self.extract_cdr(source_file, target_file, self._SCHEMAS["ericsson"])
 
     @log_operation
     def extract_cdr_tim_huawei(self, source_file: str, target_file: str) -> DataFrame:
@@ -441,7 +441,7 @@ class CDRTextExtractor:
             ...     target_file="parquet/tim_huawei_extracted"
             ... )
         """
-        return self._extract_cdr(source_file, target_file, self._SCHEMAS["tim_huawei"])
+        return self.extract_cdr(source_file, target_file, self._SCHEMAS["tim_huawei"])
 
     @log_operation
     def extract_cdr_vivo_fcdr(self, source_file: str, target_file: str) -> DataFrame:
@@ -465,7 +465,7 @@ class CDRTextExtractor:
             ...     target_file="parquet/vivo_fcdr_extracted"
             ... )
         """
-        return self._extract_cdr(source_file, target_file, self._SCHEMAS["vivo_fcdr"])
+        return self.extract_cdr(source_file, target_file, self._SCHEMAS["vivo_fcdr"])
 
     @log_operation
     def extract_cdr_nokia(self, source_file: str, target_file: str) -> DataFrame:
@@ -489,6 +489,6 @@ class CDRTextExtractor:
             ...     target_file="parquet/nokia_extracted"
             ... )
         """
-        df = self._extract_cdr(source_file, target_file, self._SCHEMAS["claro_nokia"])
+        df = self.extract_cdr(source_file, target_file, self._SCHEMAS["claro_nokia"])
 
         return df
