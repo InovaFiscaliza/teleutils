@@ -9,16 +9,27 @@ TeleUtils é uma biblioteca Python para extrair, transformar, normalizar e anali
 ## Sumário
 
 - [Visão Geral](#visão-geral)
-- [Início Rápido](#início-rápido)
+- <details>
+    <summary><a href="#início-rápido">Início Rápido</a></summary>
+
     - [Pré-requisitos](#pré-requisitos)
     - [Instalação](#instalação)
     - [Verificação da Instalação](#verificação-da-instalação)
-- [Arquitetura](#arquitetura)
+    </details>
+- <details>
+    <summary><a href="#arquitetura">Arquitetura</a></summary>
+
     - [Componentes principais](#componentes-principais)
     - [Fluxo de execução](#fluxo-de-execução)
-- [Estrutura do Projeto](#estrutura-do-projeto)
+    </details>
+- <details>
+    <summary><a href="#estrutura-do-projeto">Estrutura do Projeto</a></summary>
+
     - [Finalidade dos diretórios relevantes](#finalidade-dos-diretórios-relevantes)
-- [Referência da API](#referência-da-api)
+    </details>
+- <details>
+    <summary><a href="#referência-da-api">Referência da API</a></summary>
+
     - [`teleutils.preprocessing`](#teleutilspreprocessing)
     - [`teleutils.core.extractors.schemas`](#teleutilscoreextractorsschemas)
     - [`teleutils.core.extractors.text_extractors`](#teleutilscoreextractorstext_extractors)
@@ -27,39 +38,61 @@ TeleUtils é uma biblioteca Python para extrair, transformar, normalizar e anali
     - [`teleutils.core.transformers.text_transformers`](#teleutilscoretransformerstext_transformers)
     - [`teleutils.core.transformers.teleparser_transformers`](#teleutilscoretransformersteleparser_transformers)
     - [`teleutils.robocalls`](#teleutilsrobocalls)
-- [Guias de Uso](#guias-de-uso)
+    </details>
+- <details>
+    <summary><a href="#guias-de-uso">Guias de Uso</a></summary>
+
     - [Uso Básico](#uso-básico)
     - [Uso Avançado em Spark](#uso-avançado-em-spark)
     - [Pipeline Completo de Robocalls](#pipeline-completo-de-robocalls)
     - [Pipeline Completo com o Pacote `core`](#pipeline-completo-com-o-pacote-core)
-- [Configuração](#configuração)
+    </details>
+- <details>
+    <summary><a href="#configuração">Configuração</a></summary>
+
     - [Variáveis de Ambiente](#variáveis-de-ambiente)
     - [Arquivos de Configuração](#arquivos-de-configuração)
     - [Valores e Parâmetros Relevantes](#valores-e-parâmetros-relevantes)
     - [Formatos Aceitos](#formatos-aceitos)
     - [Recomendações de Execução](#recomendações-de-execução)
-- [Exemplos Práticos](#exemplos-práticos)
+    </details>
+- <details>
+    <summary><a href="#exemplos-práticos">Exemplos Práticos</a></summary>
+
     - [1. Validar números telefônicos e CNPJ](#1-validar-números-telefônicos-e-cnpj)
     - [2. Normalizar um lote em Spark](#2-normalizar-um-lote-em-spark)
     - [3. Executar o fluxo de robocalls](#3-executar-o-fluxo-de-robocalls)
     - [4. Executar um fluxo textual com Ericsson](#4-executar-um-fluxo-textual-com-ericsson)
-- [Solução de Problemas](#solução-de-problemas)
+    </details>
+- <details>
+    <summary><a href="#solução-de-problemas">Solução de Problemas</a></summary>
+
     - [Erros Comuns](#erros-comuns)
     - [Como Diagnosticar](#como-diagnosticar)
     - [Como Corrigir](#como-corrigir)
-- [Compatibilidade](#compatibilidade)
+    </details>
+- <details>
+    <summary><a href="#compatibilidade">Compatibilidade</a></summary>
+
     - [Versões Suportadas](#versões-suportadas)
     - [Sistemas Operacionais](#sistemas-operacionais)
     - [Dependências Obrigatórias](#dependências-obrigatórias)
     - [Limitações Conhecidas](#limitações-conhecidas)
-- [Desenvolvimento](#desenvolvimento)
+    </details>
+- <details>
+    <summary><a href="#desenvolvimento">Desenvolvimento</a></summary>
+
     - [Ambiente de Desenvolvimento](#ambiente-de-desenvolvimento)
     - [Testes](#testes)
     - [Qualidade de Código](#qualidade-de-código)
     - [Cobertura](#cobertura)
     - [Notebooks](#notebooks)
-- [Alterações Recentes](#alterações-recentes)
+    </details>
+- <details>
+    <summary><a href="#alterações-recentes">Alterações Recentes</a></summary>
+
     - [Alterações recentes integradas na branch principal](#alterações-recentes-integradas-na-branch-principal)
+    </details>
 - [Referências](#referências)
 
 ## Visão Geral
