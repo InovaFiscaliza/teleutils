@@ -13,8 +13,6 @@ dependencies = [
     "pyspark>=3.5.5",
 ]
 
-[project.scripts]
-teleutils = "teleutils:main"
 
 [build-system]
 requires = ["uv_build>=0.9.2,<0.10.0"]
