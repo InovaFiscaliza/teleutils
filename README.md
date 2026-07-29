@@ -6,8 +6,6 @@ TeleUtils é uma biblioteca Python para extrair, transformar, normalizar e anali
 
 > Documentação complementar publicada no DeepWiki: [InovaFiscaliza/teleutils](https://deepwiki.com/InovaFiscaliza/teleutils). Use este README como guia principal para instalação, API pública e exemplos executáveis; consulte o DeepWiki para uma visão arquitetural mais ampla e páginas temáticas detalhadas.
 
-[Voltar ao topo](#teleutils)
-
 ## Sumário
 
 [Visão Geral](#visão-geral)
