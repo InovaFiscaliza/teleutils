@@ -29,6 +29,7 @@ Example:
 
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
+from pyspark.sql import types as T
 
 from teleutils._logging import log_operation
 from teleutils.core.transformers.base_transformer import CDRBaseTransformer
@@ -146,14 +147,15 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         )
 
         # Colunas inexistentes nos CDR Ericsson, mas exigidas pelo contrato final, são preenchidas com nulo.
-        missing_columns = [
-            "data_hora_referencia",
-            "codigo_resposta_sip",
-            "ip_origem",
-            "ip_destino",
-            "agente_usuario"
-        ]
-        df = df.withColumns({col: F.lit(None) for col in missing_columns})
+        missing_ts_columns = ["data_hora_referencia"]
+        missing_string_columns = ["ip_origem", "ip_destino", "agente_usuario"]
+        missing_int_columns = ["codigo_resposta_sip"]
+        missing_columns = {
+            **{col: F.lit(None).cast(T.TimestampType()) for col in missing_ts_columns},
+            **{col: F.lit(None).cast(T.StringType()) for col in missing_string_columns},
+            **{col: F.lit(None).cast(T.IntegerType()) for col in missing_int_columns},
+        }
+        df = df.withColumns(missing_columns)
 
         self._write_parquet(df, target_file)
         return self.spark.read.parquet(target_file)
