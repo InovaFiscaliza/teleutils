@@ -35,6 +35,21 @@ from teleutils._logging import log_operation
 from teleutils.core.transformers.base_transformer import CDRBaseTransformer
 
 
+def _null_if_blank(column_name: str):
+    column = F.col(column_name)
+    return F.when(
+        F.trim(column.cast("string")) == "",
+        F.lit(None),
+    ).otherwise(column)
+
+
+def _concat_or_null(separator: str, *columns):
+    return F.nullif(
+        F.concat_ws(separator, *columns),
+        F.lit(""),
+    )
+
+
 class CDRTeleparserTransformer(CDRBaseTransformer):
     """Transformador de CDRs Teleparser com regras por fornecedor.
 
@@ -107,41 +122,49 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
 
         df = df.withColumns(
             {
-                "celula_origem": F.concat_ws(
+                "celula_origem": _concat_or_null(
                     "-",
-                    "celula_origem_mcc",
-                    "celula_origem_mnc",
-                    "celula_origem_lac",
-                    F.lpad("celula_origem_ci_sac", 5, "0"),
+                    _null_if_blank("celula_origem_mcc"),
+                    _null_if_blank("celula_origem_mnc"),
+                    _null_if_blank("celula_origem_lac"),
+                    F.lpad(
+                        _null_if_blank("celula_origem_ci_sac"),
+                        5,
+                        "0",
+                    ),
                 ),
-                "celula_destino": F.concat_ws(
+                "celula_destino": _concat_or_null(
                     "-",
-                    "celula_destino_mcc",
-                    "celula_destino_mnc",
-                    "celula_destino_lac",
-                    F.lpad("celula_destino_ci_sac", 5, "0"),
+                    _null_if_blank("celula_destino_mcc"),
+                    _null_if_blank("celula_destino_mnc"),
+                    _null_if_blank("celula_destino_lac"),
+                    F.lpad(
+                        _null_if_blank("celula_destino_ci_sac"),
+                        5,
+                        "0",
+                    ),
                 ),
-                "imsi_origem": F.concat_ws(
+                "imsi_origem": _concat_or_null(
                     "",
-                    "imsi_origem_mcc",
-                    "imsi_origem_mnc",
-                    "imsi_origem_msin",
+                    _null_if_blank("imsi_origem_mcc"),
+                    _null_if_blank("imsi_origem_mnc"),
+                    _null_if_blank("imsi_origem_msin"),
                 ),
-                "imsi_destino": F.concat_ws(
+                "imsi_destino": _concat_or_null(
                     "",
-                    "imsi_destino_mcc",
-                    "imsi_destino_mnc",
-                    "imsi_destino_msin",
+                    _null_if_blank("imsi_destino_mcc"),
+                    _null_if_blank("imsi_destino_mnc"),
+                    _null_if_blank("imsi_destino_msin"),
                 ),
-                "imei_origem": F.concat_ws(
+                "imei_origem": _concat_or_null(
                     "",
-                    "imei_origem_tac",
-                    "imei_origem_sn",
+                    _null_if_blank("imei_origem_tac"),
+                    _null_if_blank("imei_origem_sn"),
                 ),
-                "imei_destino": F.concat_ws(
+                "imei_destino": _concat_or_null(
                     "",
-                    "imei_destino_tac",
-                    "imei_destino_sn",
+                    _null_if_blank("imei_destino_tac"),
+                    _null_if_blank("imei_destino_sn"),
                 ),
             }
         )
