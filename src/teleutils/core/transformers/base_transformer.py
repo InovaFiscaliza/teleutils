@@ -106,7 +106,9 @@ class CDRBaseTransformer:
         if "data_hora_fim" not in df.columns:
             df = df.withColumn(
                 "data_hora_fim",
-                F.nullif(F.concat_ws(" ", F.col("_data"), F.col("_hora_fim")), F.lit("")),
+                F.nullif(
+                    F.concat_ws(" ", F.col("_data"), F.col("_hora_fim")), F.lit("")
+                ),
             )
 
         return df.withColumns(
@@ -285,15 +287,17 @@ class CDRBaseTransformer:
             F.col("data_hora_fim").alias("dh_fim_chamada"),
             F.col("duracao").alias("qt_duracao_segundos"),
             F.col("tipo_chamada").alias("no_tipo_chamada"),
-            F.col("status_chamada").alias("no_resultado_chamada"),        
+            F.col("status_chamada").alias("no_resultado_chamada"),
             F.col("autenticacao").alias("no_autenticacao"),
             F.col("rota_entrada").alias("no_rota_entrada"),
             F.col("rota_saida").alias("no_rota_saida"),
             F.col("bilhetador").alias("no_bilhetador"),
             F.col("celula_origem").alias("nu_cgi_origem"),
-            F.col("celula_destino").alias("nu_cgi_destino"),
             F.col("imei_origem").alias("nu_imei_origem"),
             F.col("imsi_origem").alias("nu_imsi_origem"),
+            F.col("celula_destino").alias("nu_cgi_destino"),
+            F.col("imei_destino").alias("nu_imei_destino"),
+            F.col("imsi_destino").alias("nu_imsi_destino"),
             F.col("prestadora").alias("no_prestadora"),
             F.col("tipo_cdr").alias("no_tipo_cdr"),
             F.col("arquivo_origem").alias("no_arquivo_origem"),
