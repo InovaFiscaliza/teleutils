@@ -104,6 +104,47 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         )
         df = self._apply_standard_pipeline(df, date_time_fmt)
 
+        df = df.withColumns(
+            {
+                "celula_origem": F.concat_ws(
+                    "-",
+                    "`firstCallingLocationInformation.mcc`",
+                    "`firstCallingLocationInformation.mnc`",
+                    "`firstCallingLocationInformation.lac`",
+                    F.lpad("`firstCallingLocationInformation.ci_sac`", 5, "0"),
+                ),
+                "celula_destino": F.concat_ws(
+                    "-",
+                    "`firstCalledLocationInformation.mcc`",
+                    "`firstCalledLocationInformation.mnc`",
+                    "`firstCalledLocationInformation.lac`",
+                    F.lpad("`firstCalledLocationInformation.ci_sac`", 5, "0"),
+                ),
+                "imsi_origem": F.concat_ws(
+                    "",
+                    "`callingSubscriberIMSI.mcc`",
+                    "`callingSubscriberIMSI.mnc`",
+                    "`callingSubscriberIMSI.msin`",
+                ),
+                "imsi_destino": F.concat_ws(
+                    "",
+                    "`calledSubscriberIMSI.mcc`",
+                    "`calledSubscriberIMSI.mnc`",
+                    "`calledSubscriberIMSI.msin`",
+                ),
+                "imei_origem": F.concat_ws(
+                    "",
+                    "`callingSubscriberIMEI.type_allocation_code`",
+                    "`callingSubscriberIMEI.serial_number`",
+                ),
+                "imei_destino": F.concat_ws(
+                    "",
+                    "`calledSubscriberIMEI.type_allocation_code`",
+                    "`calledSubscriberIMEI.serial_number`",
+                ),
+            }
+        )
+
         self._write_parquet(df, target_file)
         return self.spark.read.parquet(target_file)
 

@@ -115,7 +115,7 @@ TELEPARSER_DEFAULT_SCHEMAS: dict[str, CDRTeleparserSchema] = {
             ("callingSubscriberIMEI.serial_number", "imei_origem_sn"),
             ("calledSubscriberIMEI.type_allocation_code", "imei_destino_tac"),
             ("calledSubscriberIMEI.serial_number", "imei_destino_sn"),
-            ("callPosition", "posicao_chamada"),
+            ("callPosition", "status_chamada"),
         ],
         job_description="Extraindo CDR Parquet: Ericsson",
     ),
