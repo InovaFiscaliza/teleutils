@@ -276,36 +276,42 @@ class CDRBaseTransformer:
         return df.withColumn(
             "tipo_chamada", F.col("tipo_chamada").cast(T.StringType())
         ).select(
+            # 1. Identificação Geral & Tempo (Quando e qual o contexto da carga)    
             F.col("referencia").alias("nu_referencia"),
             F.col("data_hora_referencia").alias("dh_referencia"),
-            F.col("numero_origem").alias("nu_origem_original"),
-            F.col("numero_destino").alias("nu_destino_original"),
-            F.col("numero_origem_formatado").alias("nu_origem"),
-            F.col("numero_origem_valido").alias("ic_origem_valido"),
-            F.col("numero_destino_formatado").alias("nu_destino"),
-            F.col("numero_destino_valido").alias("ic_destino_valido"),
             F.col("data_hora").alias("dh_chamada"),
             F.col("data_hora_fim").alias("dh_fim_chamada"),
             F.col("duracao").alias("qt_duracao_segundos"),
-            F.col("tipo_chamada").alias("no_tipo_chamada"),
+            # 2. Partes Envolvidas (Quem ligou para quem)
+            F.col("numero_origem_formatado").alias("nu_origem"),
+            F.col("numero_origem_valido").alias("ic_origem_valido"),
+            F.col("numero_origem").alias("nu_origem_original"),
+            F.col("numero_destino_formatado").alias("nu_destino"),
+            F.col("numero_destino_valido").alias("ic_destino_valido"),  
+            F.col("numero_destino").alias("nu_destino_original"),
+            # 3. Status & Resultado da Chamada (O que aconteceu com a ligação)
             F.col("status_chamada").alias("no_resultado_chamada"),
+            F.col("codigo_resposta_sip").alias("co_resposta_sip"),
             F.col("autenticacao").alias("no_autenticacao"),
+            # 4. Roteamento & Rede Telecom (Por onde a chamada passou)
+            F.col("prestadora").alias("no_prestadora"),
             F.col("rota_entrada").alias("no_rota_entrada"),
             F.col("rota_saida").alias("no_rota_saida"),
             F.col("bilhetador").alias("no_bilhetador"),
+            # 5. Dados Técnicos de Dispositivo & IP (Células, aparelhos e IPs)
             F.col("celula_origem").alias("nu_cgi_origem"),
             F.col("imei_origem").alias("nu_imei_origem"),
             F.col("imsi_origem").alias("nu_imsi_origem"),
+            F.col("ip_origem").alias("nu_ip_origem"),
             F.col("celula_destino").alias("nu_cgi_destino"),
             F.col("imei_destino").alias("nu_imei_destino"),
             F.col("imsi_destino").alias("nu_imsi_destino"),
-            F.col("prestadora").alias("no_prestadora"),
-            F.col("tipo_cdr").alias("no_tipo_cdr"),
-            F.col("codigo_resposta_sip").alias("co_resposta_sip"),
-            F.col("ip_origem").alias("nu_ip_origem"),
             F.col("ip_destino").alias("nu_ip_destino"),
             F.col("agente_usuario").alias("no_agente_usuario"),
+            # 6. Metadados do Arquivo & Regras de Negócio (Para auditoria e particionamento)
+            F.col("tipo_cdr").alias("no_tipo_cdr"),
             F.col("arquivo_origem").alias("no_arquivo_origem"),
+            F.col("tipo_chamada").alias("no_tipo_chamada"),     
         )
 
     def _write_parquet(self, df: DataFrame, target_file: str) -> None:
