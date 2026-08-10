@@ -277,6 +277,7 @@ class CDRBaseTransformer:
             "tipo_chamada", F.col("tipo_chamada").cast(T.StringType())
         ).select(
             F.col("referencia").alias("nu_referencia"),
+            F.col("data_hora_referencia").alias("dh_referencia"),
             F.col("numero_origem").alias("nu_origem_original"),
             F.col("numero_destino").alias("nu_destino_original"),
             F.col("numero_origem_formatado").alias("nu_origem"),
@@ -300,6 +301,10 @@ class CDRBaseTransformer:
             F.col("imsi_destino").alias("nu_imsi_destino"),
             F.col("prestadora").alias("no_prestadora"),
             F.col("tipo_cdr").alias("no_tipo_cdr"),
+            F.col("codigo_resposta_sip").alias("co_resposta_sip"),
+            F.col("ip_origem").alias("nu_ip_origem"),
+            F.col("ip_destino").alias("nu_ip_destino"),
+            F.col("agente_usuario").alias("no_agente_usuario"),
             F.col("arquivo_origem").alias("no_arquivo_origem"),
         )
 

@@ -145,6 +145,16 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
             }
         )
 
+        # Colunas inexistentes nos CDR Ericsson, mas exigidas pelo contrato final, são preenchidas com nulo.
+        missing_columns = [
+            "data_hora_referencia",
+            "codigo_resposta_sip",
+            "ip_origem",
+            "ip_destino",
+            "agente_usuario"
+        ]
+        df = df.withColumns({col: F.lit(None) for col in missing_columns})
+
         self._write_parquet(df, target_file)
         return self.spark.read.parquet(target_file)
 
