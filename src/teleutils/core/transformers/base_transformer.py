@@ -103,6 +103,12 @@ class CDRBaseTransformer:
                 F.nullif(F.concat_ws(" ", F.col("_data"), F.col("_hora")), F.lit("")),
             )
 
+        if "data_hora_fim" not in df.columns:
+            df = df.withColumn(
+                "data_hora_fim",
+                F.nullif(F.concat_ws(" ", F.col("_data"), F.col("_hora_fim")), F.lit("")),
+            )
+
         return df.withColumns(
             {
                 # Tratamento da duração (convertendo nulos para 0)
@@ -115,6 +121,13 @@ class CDRBaseTransformer:
                     None,
                 ).otherwise(
                     F.try_to_timestamp(F.col("data_hora"), F.lit(date_time_fmt))
+                ),
+                "data_hora_fim": F.when(
+                    F.try_to_timestamp(F.col("data_hora_fim"), F.lit(date_time_fmt))
+                    < MIN_SAFE_DATE,
+                    None,
+                ).otherwise(
+                    F.try_to_timestamp(F.col("data_hora_fim"), F.lit(date_time_fmt))
                 ),
             }
         )
@@ -269,6 +282,7 @@ class CDRBaseTransformer:
             F.col("numero_destino_formatado").alias("nu_destino"),
             F.col("numero_destino_valido").alias("ic_destino_valido"),
             F.col("data_hora").alias("dh_chamada"),
+            F.col("data_hora_fim").alias("dh_fim_chamada"),
             F.col("duracao").alias("qt_duracao_segundos"),
             F.col("tipo_chamada").alias("no_tipo_chamada"),
             F.col("autenticacao").alias("no_autenticacao"),
