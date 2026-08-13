@@ -34,9 +34,9 @@ from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 from pyspark.sql import types as T
 
+from teleutils._config import ALGAR_MNC, CLARO_MNC, DEFAULT_MCC
 from teleutils._logging import log_operation
 from teleutils.core.transformers.base_transformer import CDRBaseTransformer
-from teleutils._config import ALGAR_MNC, CLARO_MNC, DEFAULT_MCC
 
 
 def _null_if_blank(column_name: str):
