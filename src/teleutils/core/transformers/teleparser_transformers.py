@@ -27,6 +27,9 @@ Example:
     >>> df = transformer.transform_cdr_nokia("/tmp/in", "/tmp/out")
 """
 
+from functools import reduce
+from operator import or_
+
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 from pyspark.sql import types as T
@@ -44,9 +47,18 @@ def _null_if_blank(column_name: str):
 
 
 def _concat_or_null(separator: str, *columns):
-    return F.nullif(
-        F.concat_ws(separator, *columns),
-        F.lit(""),
+    # 1. Normaliza os argumentos garantindo objetos Column
+    cols = [F.col(c) if isinstance(c, str) else c for c in columns]
+    
+    # 2. Retorna True se QUALQUER coluna for NULL
+    has_any_null = reduce(or_, [c.isNull() for c in cols])
+    
+    # 3. Retorna NULL se houver algum nulo, caso contrário, executa o concat_ws
+    return F.when(
+        has_any_null, 
+        F.lit(None)
+    ).otherwise(
+        F.nullif(F.concat_ws(separator, *cols), F.lit(""))
     )
 
 
