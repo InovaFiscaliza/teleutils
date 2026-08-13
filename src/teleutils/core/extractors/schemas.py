@@ -186,6 +186,7 @@ TELEPARSER_DEFAULT_SCHEMAS: dict[str, CDRTeleparserSchema] = {
             ("calling_imei", "imei_origem"),
             ("called_imei", "imei_destino"),
             ("cause_for_termination", "status_chamada"),
+            ("operator_profile", "perfil_prestadora"),
         ],
         job_description="Extraindo CDR Parquet: Nokia",
     ),
