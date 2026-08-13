@@ -365,8 +365,8 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
                 F.col("prestadora") == "claro",
                 _concat_or_null(
                     "-",
-                    "724",
-                    "05",
+                    F.lit("724"),
+                    F.lit("05"),
                     _null_if_blank("celula_origem_lac"),
                     F.lpad(
                         _null_if_blank("celula_origem_ci"),
@@ -378,8 +378,8 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
                 F.col("prestadora") == "algar",
                 _concat_or_null(
                     "-",
-                    "724",
-                    "32",
+                    F.lit("724"),
+                    F.lit("32"),
                     _null_if_blank("celula_origem_lac"),
                     F.lpad(
                         _null_if_blank("celula_origem_ci"),
@@ -394,8 +394,8 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
                 F.col("prestadora") == "claro",
                 _concat_or_null(
                     "-",
-                    "724",
-                    "05",
+                    F.lit("724"),
+                    F.lit("05"),
                     _null_if_blank("celula_destino_lac"),
                     F.lpad(
                         _null_if_blank("celula_destino_ci"),
@@ -407,8 +407,8 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
                 F.col("prestadora") == "algar",
                 _concat_or_null(
                     "-",
-                    "724",
-                    "32",
+                    F.lit("724"),
+                    F.lit("32"),
                     _null_if_blank("celula_destino_lac"),
                     F.lpad(
                         _null_if_blank("celula_destino_ci"),
