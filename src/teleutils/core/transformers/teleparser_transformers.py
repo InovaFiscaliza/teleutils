@@ -419,6 +419,15 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
             ).otherwise(F.lit(None)),
         )
 
+        # Colunas inexistentes nos CDR Nokia, mas exigidas pelo contrato final, são preenchidas com nulo.
+        missing_string_columns = ["ip_origem", "ip_destino", "agente_usuario"]
+        missing_int_columns = ["codigo_resposta_sip"]
+        missing_columns = {
+            **{col: F.lit(None).cast(T.StringType()) for col in missing_string_columns},
+            **{col: F.lit(None).cast(T.IntegerType()) for col in missing_int_columns},
+        }
+        df = df.withColumns(missing_columns)        
+
         df = self._apply_standard_pipeline(df, date_time_fmt)
 
         self._write_parquet(df, target_file)
