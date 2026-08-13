@@ -131,6 +131,13 @@ class CDRBaseTransformer:
                 ).otherwise(
                     F.try_to_timestamp(F.col("data_hora_fim"), F.lit(date_time_fmt))
                 ),
+                "data_hora_referencia": F.when(
+                    F.try_to_timestamp(F.col("data_hora_fim"), F.lit(date_time_fmt))
+                    < MIN_SAFE_DATE,
+                    None,
+                ).otherwise(
+                    F.try_to_timestamp(F.col("data_hora_fim"), F.lit(date_time_fmt))
+                ),
             }
         )
 
@@ -276,7 +283,7 @@ class CDRBaseTransformer:
         return df.withColumn(
             "tipo_chamada", F.col("tipo_chamada").cast(T.StringType())
         ).select(
-            # 1. Identificação Geral & Tempo (Quando e qual o contexto da carga)    
+            # 1. Identificação Geral & Tempo (Quando e qual o contexto da carga)
             F.col("referencia").alias("nu_referencia"),
             F.col("data_hora_referencia").alias("dh_referencia"),
             F.col("data_hora").alias("dh_chamada"),
@@ -287,7 +294,7 @@ class CDRBaseTransformer:
             F.col("numero_origem_valido").alias("ic_origem_valido"),
             F.col("numero_origem").alias("nu_origem_original"),
             F.col("numero_destino_formatado").alias("nu_destino"),
-            F.col("numero_destino_valido").alias("ic_destino_valido"),  
+            F.col("numero_destino_valido").alias("ic_destino_valido"),
             F.col("numero_destino").alias("nu_destino_original"),
             # 3. Status & Resultado da Chamada (O que aconteceu com a ligação)
             F.col("status_chamada").alias("no_resultado_chamada"),
@@ -311,7 +318,7 @@ class CDRBaseTransformer:
             # 6. Metadados do Arquivo & Regras de Negócio (Para auditoria e particionamento)
             F.col("tipo_cdr").alias("no_tipo_cdr"),
             F.col("arquivo_origem").alias("no_arquivo_origem"),
-            F.col("tipo_chamada").alias("no_tipo_chamada"),     
+            F.col("tipo_chamada").alias("no_tipo_chamada"),
         )
 
     def _write_parquet(self, df: DataFrame, target_file: str) -> None:
