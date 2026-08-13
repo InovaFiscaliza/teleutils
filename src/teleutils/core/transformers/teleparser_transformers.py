@@ -325,7 +325,7 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
                 "data_hora_fim",
                 F.when(
                     F.col("tipo_chamada") == "UCA", F.col("data_hora_desconexao")
-                ).otherwise(F.col("data_hora_fim_tarifacao")),
+                ).otherwise(F.col("data_hora_fim")),
             )
 
         # CDRs do tipo FORW não possuem os campos calling_number e called_number
