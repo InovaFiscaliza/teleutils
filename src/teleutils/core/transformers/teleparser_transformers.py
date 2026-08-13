@@ -300,19 +300,33 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         # CDRs Nokia possuem um campo de duração específico para cada tipo, apenas um com valor não nulo por registro.
         # A expressão a seguir garante apenas uma coluna com duracao final preenchida com o valor correto, independentemente do tipo de CDR.
         duration_columns = [col for col in df.columns if col.startswith("_duracao")]
-        coalesce_duration_expression = [F.col(c) for c in duration_columns]
-        coalesce_duration_expression.append(F.lit("0"))
-        coalesce_duration_expression = F.coalesce(*coalesce_duration_expression)
-        df = df.withColumn("duracao", coalesce_duration_expression)
+
+        # Trata o valor sentinela "FFFFFF", presentes em CDRs Algar, em cada coluna de origem, transformando em nulo,
+        # para que o coalesce já ignore esses valores automaticamente.
+        cleaned_duration_cols = [
+            F.when(F.col(c) == "FFFFFF", F.lit(None)).otherwise(F.col(c))
+            for c in duration_columns
+        ]
+        df = df.withColumn("duracao", F.coalesce(*cleaned_duration_cols))
 
         # Alguns CDRs não contém valor em data_hora_alocacao_canal, mas possuem data_hora_referencia preenchida.
         # A expressão a seguir garante que a coluna data_hora final seja preenchida, ainda que por nulo, independentemente do tipo de CDR.
+
         df = df.withColumn(
             "data_hora",
             F.coalesce(
                 F.col("data_hora_alocacao_canal"), F.col("data_hora_referencia")
             ),
         )
+        # A coluna data_hora_fim é derivada de forma condicional, considerando o tipo de CDR.
+        # Para CDRs do tipo UCA, a data_hora_fim é obtida a partir de data_hora_desconexao, caso exista.
+        if "data_hora_desconexao" in df.columns:
+            df = df.withColumn(
+                "data_hora_fim",
+                F.when(
+                    F.col("tipo_chamada") == "UCA", F.col("data_hora_desconexao")
+                ).otherwise(F.col("data_hora_fim")),
+            )
 
         # CDRs do tipo FORW não possuem os campos calling_number e called_number
         # considerar os campos alternativos mapeados no extrator:
@@ -342,6 +356,67 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
             ).otherwise(
                 F.col("numero_destino"),
             ),
+        )
+
+        # CDRs Nokia não possuem campos de MCC/MNC, imputar conforme prestadora para derivar a célula de origem e destino.
+        df = df.withColumn(
+            "celula_origem",
+            F.when(
+                F.col("prestadora") == "claro",
+                _concat_or_null(
+                    "-",
+                    "724",
+                    "05",
+                    _null_if_blank("celula_origem_lac"),
+                    F.lpad(
+                        _null_if_blank("celula_origem_ci"),
+                        5,
+                        "0",
+                    ),
+                ),
+            ).when(
+                F.col("prestadora") == "algar",
+                _concat_or_null(
+                    "-",
+                    "724",
+                    "32",
+                    _null_if_blank("celula_origem_lac"),
+                    F.lpad(
+                        _null_if_blank("celula_origem_ci"),
+                        5,
+                        "0",
+                    ),
+                ),
+            ).otherwise(F.lit(None)),
+        ).withColumn(
+            "celula_destino",
+            F.when(
+                F.col("prestadora") == "claro",
+                _concat_or_null(
+                    "-",
+                    "724",
+                    "05",
+                    _null_if_blank("celula_destino_lac"),
+                    F.lpad(
+                        _null_if_blank("celula_destino_ci"),
+                        5,
+                        "0",
+                    ),
+                ),
+            ).when(
+                F.col("prestadora") == "algar",
+                _concat_or_null(
+                    "-",
+                    "724",
+                    "32",
+                    _null_if_blank("celula_destino_lac"),
+                    F.lpad(
+                        _null_if_blank("celula_destino_ci"),
+                        5,
+                        "0",
+                    ),
+                ),
+            ).otherwise(F.lit(None)),
         )
 
         df = self._apply_standard_pipeline(df, date_time_fmt)
