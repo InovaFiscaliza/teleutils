@@ -36,6 +36,7 @@ from pyspark.sql import types as T
 
 from teleutils._logging import log_operation
 from teleutils.core.transformers.base_transformer import CDRBaseTransformer
+from teleutils._config import ALGAR_MNC, CLARO_MNC, DEFAULT_MCC
 
 
 def _null_if_blank(column_name: str):
@@ -374,8 +375,8 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
                 F.col("prestadora") == "claro",
                 _concat_or_null(
                     "-",
-                    F.lit("724"),
-                    F.lit("05"),
+                    DEFAULT_MCC,
+                    CLARO_MNC,
                     F.lpad(
                         _null_if_blank("celula_origem_lac"),
                         5,
@@ -392,8 +393,8 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
                 F.col("prestadora") == "algar",
                 _concat_or_null(
                     "-",
-                    F.lit("724"),
-                    F.lit("32"),
+                    DEFAULT_MCC,
+                    ALGAR_MNC,
                     F.lpad(
                         _null_if_blank("celula_origem_lac"),
                         5,
@@ -413,8 +414,8 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
                 F.col("prestadora") == "claro",
                 _concat_or_null(
                     "-",
-                    F.lit("724"),
-                    F.lit("05"),
+                    DEFAULT_MCC,
+                    CLARO_MNC,
                     F.lpad(
                         _null_if_blank("celula_destino_lac"),
                         5,
@@ -431,8 +432,8 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
                 F.col("prestadora") == "algar",
                 _concat_or_null(
                     "-",
-                    F.lit("724"),
-                    F.lit("32"),
+                    DEFAULT_MCC,
+                    ALGAR_MNC,
                     F.lpad(
                         _null_if_blank("celula_destino_lac"),
                         5,

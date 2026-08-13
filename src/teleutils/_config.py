@@ -49,3 +49,9 @@ SHORT_CALL_THRESHOLD = 6
 
 # Define a data limite como um literal do Spark para o Catalyst otimizar a comparação
 MIN_SAFE_DATE = F.lit("1900-01-01 00:00:00")
+
+# Código MCC/MNC para preenchimento em caso de ausência de informação de operadora, utilizado em transformações
+# de CDRs para manter consistência de dados e evitar valores nulos em campos críticos
+DEFAULT_MCC = F.lit("72434")
+ALGAR_MNC = F.lit("34")
+CLARO_MNC = F.lit("05")
