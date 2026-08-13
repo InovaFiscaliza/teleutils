@@ -42,6 +42,8 @@ import pandas as pd
 from pyspark.sql.functions import pandas_udf  # type: ignore
 from pyspark.sql.types import BooleanType, StringType, StructField, StructType
 
+SUBSCRIBER_NULL_SENTINEL = ("5599999999999", False)
+
 #: Padrão regex para números telefônicos brasileiros com 10 ou mais dígitos.
 #: Cobre o formato E.164 completo incluindo código do país (55), código de área
 #: e os diferentes tipos de serviço: SMP, STFC, CNG e SME com seus padrões específicos.
@@ -222,7 +224,7 @@ def normalize_number(subscriber_number, national_destination_code=""):
     """
 
     if not subscriber_number:
-        return (None, False)
+        return SUBSCRIBER_NULL_SENTINEL
 
     subscriber_number = str(subscriber_number)
 

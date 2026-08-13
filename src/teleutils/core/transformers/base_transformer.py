@@ -280,6 +280,18 @@ class CDRBaseTransformer:
             - Anotação de manutenção: qualquer alteração de contrato de saída
               deve ocorrer neste método para preservar consistência.
         """
+
+        # Preenche valores nulos de data/hora para evitar inconsistências downstream
+        df = df.withColumns(
+            {
+                "data_hora_referencia": F.coalesce(
+                    F.col("data_hora_referencia"), MIN_SAFE_DATE
+                ),
+                "data_hora": F.coalesce(F.col("data_hora"), MIN_SAFE_DATE),
+                "data_hora_fim": F.coalesce(F.col("data_hora_fim"), MIN_SAFE_DATE),
+            }
+        )
+
         return df.withColumn(
             "tipo_chamada", F.col("tipo_chamada").cast(T.StringType())
         ).select(

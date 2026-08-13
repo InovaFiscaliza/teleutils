@@ -34,7 +34,7 @@ from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 from pyspark.sql import types as T
 
-from teleutils._config import ALGAR_MNC, CLARO_MNC, DEFAULT_MCC
+from teleutils._config import ALGAR_MNC, CLARO_MNC, DEFAULT_MCC, MIN_SAFE_DATE
 from teleutils._logging import log_operation
 from teleutils.core.transformers.base_transformer import CDRBaseTransformer
 
@@ -184,7 +184,9 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         missing_string_columns = ["ip_origem", "ip_destino", "agente_usuario"]
         missing_int_columns = ["codigo_resposta_sip"]
         missing_columns = {
-            **{col: F.lit(None).cast(T.TimestampType()) for col in missing_ts_columns},
+            **{
+                col: MIN_SAFE_DATE.cast(T.TimestampType()) for col in missing_ts_columns
+            },
             **{col: F.lit(None).cast(T.StringType()) for col in missing_string_columns},
             **{col: F.lit(None).cast(T.IntegerType()) for col in missing_int_columns},
         }
@@ -321,21 +323,27 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
 
         # Alguns CDRs não contém valor em data_hora_alocacao_canal, mas possuem data_hora_referencia preenchida.
         # A expressão a seguir garante que a coluna data_hora final seja preenchida, ainda que por nulo, independentemente do tipo de CDR.
-
+        # Se nenhuma das datas existir, preenche com valor sentinela MIN_SAFE_DATE para evitar nulos em campo crítico.
         df = df.withColumn(
             "data_hora",
             F.coalesce(
-                F.col("data_hora_alocacao_canal"), F.col("data_hora_referencia")
+                F.col("data_hora_alocacao_canal"),
+                F.col("data_hora_referencia"),
+                MIN_SAFE_DATE,
             ),
         )
         # A coluna data_hora_fim é derivada de forma condicional, considerando o tipo de CDR.
         # Para CDRs do tipo UCA, a data_hora_fim é obtida a partir de data_hora_desconexao, caso exista.
+        # Se nenhuma das datas existir, preenche com valor sentinela MIN_SAFE_DATE para evitar nulos em campo crítico.
         if "data_hora_desconexao" in df.columns:
             df = df.withColumn(
                 "data_hora_fim",
-                F.when(
-                    F.col("tipo_chamada") == "UCA", F.col("data_hora_desconexao")
-                ).otherwise(F.col("data_hora_fim")),
+                F.coalesce(
+                    F.when(
+                        F.col("tipo_chamada") == "UCA", F.col("data_hora_desconexao")
+                    ).otherwise(F.col("data_hora_fim")),
+                    MIN_SAFE_DATE,
+                ),
             )
 
         # CDRs do tipo FORW não possuem os campos calling_number e called_number
