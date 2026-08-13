@@ -49,15 +49,12 @@ def _null_if_blank(column_name: str):
 def _concat_or_null(separator: str, *columns):
     # 1. Normaliza os argumentos garantindo objetos Column
     cols = [F.col(c) if isinstance(c, str) else c for c in columns]
-    
+
     # 2. Retorna True se QUALQUER coluna for NULL
     has_any_null = reduce(or_, [c.isNull() for c in cols])
-    
+
     # 3. Retorna NULL se houver algum nulo, caso contrário, executa o concat_ws
-    return F.when(
-        has_any_null, 
-        F.lit(None)
-    ).otherwise(
+    return F.when(has_any_null, F.lit(None)).otherwise(
         F.nullif(F.concat_ws(separator, *cols), F.lit(""))
     )
 
@@ -379,27 +376,37 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
                     "-",
                     F.lit("724"),
                     F.lit("05"),
-                    _null_if_blank("celula_origem_lac"),
+                    F.lpad(
+                        _null_if_blank("celula_origem_lac"),
+                        5,
+                        "0",
+                    ),
                     F.lpad(
                         _null_if_blank("celula_origem_ci"),
                         5,
                         "0",
                     ),
                 ),
-            ).when(
+            )
+            .when(
                 F.col("prestadora") == "algar",
                 _concat_or_null(
                     "-",
                     F.lit("724"),
                     F.lit("32"),
-                    _null_if_blank("celula_origem_lac"),
+                    F.lpad(
+                        _null_if_blank("celula_origem_lac"),
+                        5,
+                        "0",
+                    ),
                     F.lpad(
                         _null_if_blank("celula_origem_ci"),
                         5,
                         "0",
                     ),
                 ),
-            ).otherwise(F.lit(None)),
+            )
+            .otherwise(F.lit(None)),
         ).withColumn(
             "celula_destino",
             F.when(
@@ -408,33 +415,43 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
                     "-",
                     F.lit("724"),
                     F.lit("05"),
-                    _null_if_blank("celula_destino_lac"),
+                    F.lpad(
+                        _null_if_blank("celula_destino_lac"),
+                        5,
+                        "0",
+                    ),
                     F.lpad(
                         _null_if_blank("celula_destino_ci"),
                         5,
                         "0",
                     ),
                 ),
-            ).when(
+            )
+            .when(
                 F.col("prestadora") == "algar",
                 _concat_or_null(
                     "-",
                     F.lit("724"),
                     F.lit("32"),
-                    _null_if_blank("celula_destino_lac"),
+                    F.lpad(
+                        _null_if_blank("celula_destino_lac"),
+                        5,
+                        "0",
+                    ),
                     F.lpad(
                         _null_if_blank("celula_destino_ci"),
                         5,
                         "0",
                     ),
                 ),
-            ).otherwise(F.lit(None)),
+            )
+            .otherwise(F.lit(None)),
         )
 
         # Agrupar os valores de _status_chamada em faixas de códigos de status, conforme documentação Nokia:
         # +-----------------+---------------------+
         # | _status_chamada | descrição           |
-        # +-----------------+---------------------+ 
+        # +-----------------+---------------------+
         # | 0000H - 03FFH   | normal clearing     |
         # | 0400H - 07FFH   | internal congestion |
         # | 0800H - 0BFFH   | external congestion |
@@ -463,7 +480,9 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
                 & (F.col("_status_chamada") <= F.lit(int("0FFF", 16))),
                 F.lit("subscriber errors"),
             )
-            .when(F.col("_status_chamada") >= F.lit(int("1000", 16)), F.lit("event codes"))
+            .when(
+                F.col("_status_chamada") >= F.lit(int("1000", 16)), F.lit("event codes")
+            )
             .otherwise(F.lit(None)),
         )
 
@@ -474,7 +493,7 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
             **{col: F.lit(None).cast(T.StringType()) for col in missing_string_columns},
             **{col: F.lit(None).cast(T.IntegerType()) for col in missing_int_columns},
         }
-        df = df.withColumns(missing_columns)        
+        df = df.withColumns(missing_columns)
 
         df = self._apply_standard_pipeline(df, date_time_fmt)
 
