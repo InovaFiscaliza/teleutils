@@ -352,7 +352,7 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         # | orig_called_number      | numero_destino_original       |
         # | forwarding_number       | numero_origem_encaminhamento  |
         # | forwarded_to_number     | numero_destino_encaminhamento |
-        # +------------------------+-------------------------------+
+        # +------------------------+--------------------------------+
         #
         # O script legado utiliza as colunas `orig_calling_number` e `forwarding_number` para derivar os campos numero_origem e numero_destino.
         # Os campos utilizados por esse script (numero_origem_original e numero_destino_original) mostraram o mesmo resultados e estão mais aderentes à documentação Nokia, com erro muito pequeno em relação ao parser legado.
@@ -429,6 +429,42 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
                     ),
                 ),
             ).otherwise(F.lit(None)),
+        )
+
+        # Agrupar os valores de _status_chamada em faixas de códigos de status, conforme documentação Nokia:
+        # +-----------------+---------------------+
+        # | _status_chamada | descrição           |
+        # +-----------------+---------------------+ 
+        # | 0000H - 03FFH   | normal clearing     |
+        # | 0400H - 07FFH   | internal congestion |
+        # | 0800H - 0BFFH   | external congestion |
+        # | 0C00H - 0FFFH   | subscriber errors   |
+        # | 1000H -         | event codes         |
+        # +-----------------+---------------------+
+        df = df.withColumn(
+            "status_chamada",
+            F.when(
+                (F.col("_status_chamada") >= F.lit(int("0000", 16)))
+                & (F.col("_status_chamada") <= F.lit(int("03FF", 16))),
+                F.lit("normal clearing"),
+            )
+            .when(
+                (F.col("_status_chamada") >= F.lit(int("0400", 16)))
+                & (F.col("_status_chamada") <= F.lit(int("07FF", 16))),
+                F.lit("internal congestion"),
+            )
+            .when(
+                (F.col("_status_chamada") >= F.lit(int("0800", 16)))
+                & (F.col("_status_chamada") <= F.lit(int("0BFF", 16))),
+                F.lit("external congestion"),
+            )
+            .when(
+                (F.col("_status_chamada") >= F.lit(int("0C00", 16)))
+                & (F.col("_status_chamada") <= F.lit(int("0FFF", 16))),
+                F.lit("subscriber errors"),
+            )
+            .when(F.col("_status_chamada") >= F.lit(int("1000", 16)), F.lit("event codes"))
+            .otherwise(F.lit(None)),
         )
 
         # Colunas inexistentes nos CDR Nokia, mas exigidas pelo contrato final, são preenchidas com nulo.
