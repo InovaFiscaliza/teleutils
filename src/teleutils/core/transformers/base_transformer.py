@@ -305,10 +305,12 @@ class CDRBaseTransformer:
             F.col("imei_origem").alias("nu_imei_origem"),
             F.col("imsi_origem").alias("nu_imsi_origem"),
             F.col("ip_origem").alias("nu_ip_origem"),
+            F.col("porta_ip_origem").alias("nu_porta_ip_origem"),
             F.col("celula_destino").alias("nu_cgi_destino"),
             F.col("imei_destino").alias("nu_imei_destino"),
             F.col("imsi_destino").alias("nu_imsi_destino"),
             F.col("ip_destino").alias("nu_ip_destino"),
+            F.col("porta_ip_destino").alias("nu_porta_ip_destino"),
             F.col("agente_usuario").alias("no_agente_usuario"),
             # 6. Metadados do Arquivo & Regras de Negócio (Para auditoria e particionamento)
             F.col("tipo_cdr").alias("no_tipo_cdr"),

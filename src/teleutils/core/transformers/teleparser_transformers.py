@@ -184,7 +184,7 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         # Colunas inexistentes nos CDR Ericsson, mas exigidas pelo contrato final, são preenchidas com nulo.
         missing_ts_columns = ["data_hora_referencia"]
         missing_string_columns = ["ip_origem", "ip_destino", "agente_usuario"]
-        missing_int_columns = ["codigo_resposta_sip"]
+        missing_int_columns = ["porta_ip_origem", "porta_ip_destino", "codigo_resposta_sip"]
         missing_columns = {
             **{col: MIN_SAFE_DATE for col in missing_ts_columns},
             **{col: F.lit(None).cast(T.StringType()) for col in missing_string_columns},
@@ -451,7 +451,7 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
 
         # Colunas inexistentes nos CDR Nokia, mas exigidas pelo contrato final, são preenchidas com nulo.
         missing_string_columns = ["ip_origem", "ip_destino", "agente_usuario"]
-        missing_int_columns = ["codigo_resposta_sip"]
+        missing_int_columns = ["porta_ip_origem", "porta_ip_destino", "codigo_resposta_sip"]
         missing_columns = {
             **{col: F.lit(None).cast(T.StringType()) for col in missing_string_columns},
             **{col: F.lit(None).cast(T.IntegerType()) for col in missing_int_columns},
