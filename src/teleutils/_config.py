@@ -53,6 +53,6 @@ MIN_SAFE_DATE = F.lit("1900-01-01 00:00:00").cast(TimestampType())
 
 # Código MCC/MNC para preenchimento em caso de ausência de informação de operadora, utilizado em transformações
 # de CDRs para manter consistência de dados e evitar valores nulos em campos críticos
-DEFAULT_MCC = F.lit("72434")
+DEFAULT_MCC = F.lit("724")
 ALGAR_MNC = F.lit("34")
 CLARO_MNC = F.lit("05")
