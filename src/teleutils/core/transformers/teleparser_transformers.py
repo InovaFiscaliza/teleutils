@@ -141,7 +141,6 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
             "duracao",
             F.when(col.isNotNull(), hours + minutes + seconds).otherwise(0).cast("int"),
         )
-        df = self._apply_standard_pipeline(df, date_time_fmt)
 
         df = df.withColumns(
             {
@@ -187,13 +186,13 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         missing_string_columns = ["ip_origem", "ip_destino", "agente_usuario"]
         missing_int_columns = ["codigo_resposta_sip"]
         missing_columns = {
-            **{
-                col: MIN_SAFE_DATE for col in missing_ts_columns
-            },
+            **{col: MIN_SAFE_DATE for col in missing_ts_columns},
             **{col: F.lit(None).cast(T.StringType()) for col in missing_string_columns},
             **{col: F.lit(None).cast(T.IntegerType()) for col in missing_int_columns},
         }
         df = df.withColumns(missing_columns)
+
+        df = self._apply_standard_pipeline(df, date_time_fmt)
 
         self._write_parquet(df, target_file)
         return self.spark.read.parquet(target_file)
@@ -380,34 +379,37 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         )
 
         # CDRs Nokia não possuem campos de MCC/MNC; o MNC é imputado pela prestadora.
-        nokia_mnc = (
-            F.when(F.col("prestadora") == "claro", CLARO_MNC)
-            .when(F.col("prestadora") == "algar", ALGAR_MNC)
+        nokia_mnc = F.when(F.col("prestadora") == "claro", CLARO_MNC).when(
+            F.col("prestadora") == "algar", ALGAR_MNC
         )
-        df = df.withColumn("_nokia_mnc", nokia_mnc).withColumns(
-            {
-                "celula_origem": _build_composite_column(
-                    "-",
-                    (
-                        DEFAULT_MCC,
-                        F.col("_nokia_mnc"),
-                        "celula_origem_lac",
-                        "celula_origem_ci",
+        df = (
+            df.withColumn("_nokia_mnc", nokia_mnc)
+            .withColumns(
+                {
+                    "celula_origem": _build_composite_column(
+                        "-",
+                        (
+                            DEFAULT_MCC,
+                            F.col("_nokia_mnc"),
+                            "celula_origem_lac",
+                            "celula_origem_ci",
+                        ),
+                        ("celula_origem_lac", "celula_origem_ci"),
                     ),
-                    ("celula_origem_lac", "celula_origem_ci"),
-                ),
-                "celula_destino": _build_composite_column(
-                    "-",
-                    (
-                        DEFAULT_MCC,
-                        F.col("_nokia_mnc"),
-                        "celula_destino_lac",
-                        "celula_destino_ci",
+                    "celula_destino": _build_composite_column(
+                        "-",
+                        (
+                            DEFAULT_MCC,
+                            F.col("_nokia_mnc"),
+                            "celula_destino_lac",
+                            "celula_destino_ci",
+                        ),
+                        ("celula_destino_lac", "celula_destino_ci"),
                     ),
-                    ("celula_destino_lac", "celula_destino_ci"),
-                ),
-            }
-        ).drop("_nokia_mnc")
+                }
+            )
+            .drop("_nokia_mnc")
+        )
 
         # Agrupar os valores de _status_chamada em faixas de códigos de status, conforme documentação Nokia:
         # +-----------------+---------------------+
