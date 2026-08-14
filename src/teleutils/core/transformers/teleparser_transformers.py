@@ -55,9 +55,22 @@ def _concat_or_null(separator: str, *columns):
     has_any_null = reduce(or_, [c.isNull() for c in cols])
 
     # 3. Retorna NULL se houver algum nulo, caso contrário, executa o concat_ws
-    return F.when(has_any_null, F.lit(None)).otherwise(
-        F.nullif(F.concat_ws(separator, *cols), F.lit(""))
-    )
+    return F.when(has_any_null, F.lit(None)).otherwise(F.concat_ws(separator, *cols))
+
+
+def _build_composite_column(
+    separator: str,
+    components: tuple,
+    padded_columns: tuple[str, ...] = (),
+):
+    columns = []
+    for component in components:
+        column = _null_if_blank(component) if isinstance(component, str) else component
+        if isinstance(component, str) and component in padded_columns:
+            column = F.lpad(column, 5, "0")
+        columns.append(column)
+
+    return _concat_or_null(separator, *columns)
 
 
 class CDRTeleparserTransformer(CDRBaseTransformer):
@@ -132,49 +145,39 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
 
         df = df.withColumns(
             {
-                "celula_origem": _concat_or_null(
+                "celula_origem": _build_composite_column(
                     "-",
-                    _null_if_blank("celula_origem_mcc"),
-                    _null_if_blank("celula_origem_mnc"),
-                    _null_if_blank("celula_origem_lac"),
-                    F.lpad(
-                        _null_if_blank("celula_origem_ci_sac"),
-                        5,
-                        "0",
+                    (
+                        "celula_origem_mcc",
+                        "celula_origem_mnc",
+                        "celula_origem_lac",
+                        "celula_origem_ci_sac",
                     ),
+                    ("celula_origem_lac", "celula_origem_ci_sac"),
                 ),
-                "celula_destino": _concat_or_null(
+                "celula_destino": _build_composite_column(
                     "-",
-                    _null_if_blank("celula_destino_mcc"),
-                    _null_if_blank("celula_destino_mnc"),
-                    _null_if_blank("celula_destino_lac"),
-                    F.lpad(
-                        _null_if_blank("celula_destino_ci_sac"),
-                        5,
-                        "0",
+                    (
+                        "celula_destino_mcc",
+                        "celula_destino_mnc",
+                        "celula_destino_lac",
+                        "celula_destino_ci_sac",
                     ),
+                    ("celula_destino_lac", "celula_destino_ci_sac"),
                 ),
-                "imsi_origem": _concat_or_null(
+                "imsi_origem": _build_composite_column(
                     "",
-                    _null_if_blank("imsi_origem_mcc"),
-                    _null_if_blank("imsi_origem_mnc"),
-                    _null_if_blank("imsi_origem_msin"),
+                    ("imsi_origem_mcc", "imsi_origem_mnc", "imsi_origem_msin"),
                 ),
-                "imsi_destino": _concat_or_null(
+                "imsi_destino": _build_composite_column(
                     "",
-                    _null_if_blank("imsi_destino_mcc"),
-                    _null_if_blank("imsi_destino_mnc"),
-                    _null_if_blank("imsi_destino_msin"),
+                    ("imsi_destino_mcc", "imsi_destino_mnc", "imsi_destino_msin"),
                 ),
-                "imei_origem": _concat_or_null(
-                    "",
-                    _null_if_blank("imei_origem_tac"),
-                    _null_if_blank("imei_origem_sn"),
+                "imei_origem": _build_composite_column(
+                    "", ("imei_origem_tac", "imei_origem_sn")
                 ),
-                "imei_destino": _concat_or_null(
-                    "",
-                    _null_if_blank("imei_destino_tac"),
-                    _null_if_blank("imei_destino_sn"),
+                "imei_destino": _build_composite_column(
+                    "", ("imei_destino_tac", "imei_destino_sn")
                 ),
             }
         )
@@ -376,86 +379,35 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
             ),
         )
 
-        # CDRs Nokia não possuem campos de MCC/MNC, imputar conforme prestadora para derivar a célula de origem e destino.
-        df = df.withColumn(
-            "celula_origem",
-            F.when(
-                F.col("prestadora") == "claro",
-                _concat_or_null(
-                    "-",
-                    DEFAULT_MCC,
-                    CLARO_MNC,
-                    F.lpad(
-                        _null_if_blank("celula_origem_lac"),
-                        5,
-                        "0",
-                    ),
-                    F.lpad(
-                        _null_if_blank("celula_origem_ci"),
-                        5,
-                        "0",
-                    ),
-                ),
-            )
-            .when(
-                F.col("prestadora") == "algar",
-                _concat_or_null(
-                    "-",
-                    DEFAULT_MCC,
-                    ALGAR_MNC,
-                    F.lpad(
-                        _null_if_blank("celula_origem_lac"),
-                        5,
-                        "0",
-                    ),
-                    F.lpad(
-                        _null_if_blank("celula_origem_ci"),
-                        5,
-                        "0",
-                    ),
-                ),
-            )
-            .otherwise(F.lit(None)),
-        ).withColumn(
-            "celula_destino",
-            F.when(
-                F.col("prestadora") == "claro",
-                _concat_or_null(
-                    "-",
-                    DEFAULT_MCC,
-                    CLARO_MNC,
-                    F.lpad(
-                        _null_if_blank("celula_destino_lac"),
-                        5,
-                        "0",
-                    ),
-                    F.lpad(
-                        _null_if_blank("celula_destino_ci"),
-                        5,
-                        "0",
-                    ),
-                ),
-            )
-            .when(
-                F.col("prestadora") == "algar",
-                _concat_or_null(
-                    "-",
-                    DEFAULT_MCC,
-                    ALGAR_MNC,
-                    F.lpad(
-                        _null_if_blank("celula_destino_lac"),
-                        5,
-                        "0",
-                    ),
-                    F.lpad(
-                        _null_if_blank("celula_destino_ci"),
-                        5,
-                        "0",
-                    ),
-                ),
-            )
-            .otherwise(F.lit(None)),
+        # CDRs Nokia não possuem campos de MCC/MNC; o MNC é imputado pela prestadora.
+        nokia_mnc = (
+            F.when(F.col("prestadora") == "claro", CLARO_MNC)
+            .when(F.col("prestadora") == "algar", ALGAR_MNC)
         )
+        df = df.withColumn("_nokia_mnc", nokia_mnc).withColumns(
+            {
+                "celula_origem": _build_composite_column(
+                    "-",
+                    (
+                        DEFAULT_MCC,
+                        F.col("_nokia_mnc"),
+                        "celula_origem_lac",
+                        "celula_origem_ci",
+                    ),
+                    ("celula_origem_lac", "celula_origem_ci"),
+                ),
+                "celula_destino": _build_composite_column(
+                    "-",
+                    (
+                        DEFAULT_MCC,
+                        F.col("_nokia_mnc"),
+                        "celula_destino_lac",
+                        "celula_destino_ci",
+                    ),
+                    ("celula_destino_lac", "celula_destino_ci"),
+                ),
+            }
+        ).drop("_nokia_mnc")
 
         # Agrupar os valores de _status_chamada em faixas de códigos de status, conforme documentação Nokia:
         # +-----------------+---------------------+
