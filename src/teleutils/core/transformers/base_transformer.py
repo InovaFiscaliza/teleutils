@@ -111,32 +111,26 @@ class CDRBaseTransformer:
                 ),
             )
 
+        timestamp_format = F.lit(date_time_fmt)
+
+        def normalize_timestamp(parsed_timestamp):
+            return F.greatest(parsed_timestamp, MIN_SAFE_DATE)
+
         return df.withColumns(
             {
                 # Tratamento da duração (convertendo nulos para 0)
                 "duracao": F.coalesce(F.col("duracao").cast(T.IntegerType()), F.lit(0)),
-                # 1. Faz o parse da string normalmente na CPU
-                # 2. Se o resultado for uma data antiga (como ano 0000), força para NULL
-                "data_hora": F.when(
-                    F.try_to_timestamp(F.col("data_hora"), F.lit(date_time_fmt))
-                    < MIN_SAFE_DATE,
-                    None,
-                ).otherwise(
-                    F.try_to_timestamp(F.col("data_hora"), F.lit(date_time_fmt))
+                # Datas nulas, inválidas ou anteriores ao limite viram MIN_SAFE_DATE.
+                "data_hora": normalize_timestamp(
+                    F.try_to_timestamp(F.col("data_hora"), timestamp_format)
                 ),
-                "data_hora_fim": F.when(
-                    F.try_to_timestamp(F.col("data_hora_fim"), F.lit(date_time_fmt))
-                    < MIN_SAFE_DATE,
-                    None,
-                ).otherwise(
-                    F.try_to_timestamp(F.col("data_hora_fim"), F.lit(date_time_fmt))
+                "data_hora_fim": normalize_timestamp(
+                    F.try_to_timestamp(F.col("data_hora_fim"), timestamp_format)
                 ),
-                "data_hora_referencia": F.when(
-                    F.try_to_timestamp(F.col("data_hora_fim"), F.lit(date_time_fmt))
-                    < MIN_SAFE_DATE,
-                    None,
-                ).otherwise(
-                    F.try_to_timestamp(F.col("data_hora_fim"), F.lit(date_time_fmt))
+                "data_hora_referencia": normalize_timestamp(
+                    F.try_to_timestamp(
+                        F.col("data_hora_referencia"), timestamp_format
+                    )
                 ),
             }
         )
@@ -280,17 +274,6 @@ class CDRBaseTransformer:
             - Anotação de manutenção: qualquer alteração de contrato de saída
               deve ocorrer neste método para preservar consistência.
         """
-
-        # Preenche valores nulos de data/hora para evitar inconsistências downstream
-        df = df.withColumns(
-            {
-                "data_hora_referencia": F.coalesce(
-                    F.col("data_hora_referencia"), MIN_SAFE_DATE
-                ),
-                "data_hora": F.coalesce(F.col("data_hora"), MIN_SAFE_DATE),
-                "data_hora_fim": F.coalesce(F.col("data_hora_fim"), MIN_SAFE_DATE),
-            }
-        )
 
         return df.withColumn(
             "tipo_chamada", F.col("tipo_chamada").cast(T.StringType())

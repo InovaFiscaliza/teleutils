@@ -185,7 +185,7 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         missing_int_columns = ["codigo_resposta_sip"]
         missing_columns = {
             **{
-                col: MIN_SAFE_DATE.cast(T.TimestampType()) for col in missing_ts_columns
+                col: MIN_SAFE_DATE for col in missing_ts_columns
             },
             **{col: F.lit(None).cast(T.StringType()) for col in missing_string_columns},
             **{col: F.lit(None).cast(T.IntegerType()) for col in missing_int_columns},
