@@ -73,6 +73,48 @@ def _build_composite_column(
     return _concat_or_null(separator, *columns)
 
 
+def _format_cell_id(df, col_name, out_col, gnb_id_bits=26):
+    c = F.col(col_name)
+    length = F.length(c)
+
+    # ---- 4G (ECGI, 16 chars) ----
+    ecgi_val = F.conv(F.substring(col_name, 10, 7), 16, 10).cast("long")
+    ecgi_formatted = F.concat_ws(
+        "-",
+        F.substring(col_name, 1, 3),  # mcc
+        F.substring(col_name, 4, 2),  # mnc
+        F.lpad(
+            (ecgi_val / 256).cast("long").cast("string"), 7, "0"
+        ),  # enb_id (20 bits)
+        F.lpad((ecgi_val % 256).cast("string"), 3, "0"),  # cell_id (8 bits)
+    )
+
+    # ---- 5G (NCGI, 20 chars) ----
+    # NCGI = 36 bits totais. gNB ID = 26 bits (default), Cell ID = 36 - 26 = 10 bits
+    cell_id_bits = 36 - gnb_id_bits  # 10
+    cell_id_mask = (1 << cell_id_bits) - 1  # 0x3FF = 1023
+
+    ncgi_val = F.conv(F.substring(col_name, 12, 9), 16, 10).cast("long")
+    ncgi_formatted = F.concat_ws(
+        "-",
+        F.substring(col_name, 1, 3),  # mcc
+        F.substring(col_name, 4, 2),  # mnc
+        F.lpad(
+            F.shiftright(ncgi_val, cell_id_bits).cast("string"), 8, "0"
+        ),  # gnb_id (26 bits)
+        F.lpad(
+            ncgi_val.bitwiseAND(cell_id_mask).cast("string"), 4, "0"
+        ),  # cell_id (10 bits)
+    )
+
+    return df.withColumn(
+        out_col,
+        F.when(length == 16, ecgi_formatted)
+        .when(length == 20, ncgi_formatted)
+        .otherwise(F.lit(None)),
+    )
+
+
 class CDRTeleparserTransformer(CDRBaseTransformer):
     """Transformador de CDRs Teleparser com regras por fornecedor.
 
@@ -309,9 +351,18 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
                     "callHasOnlyReachedThroughConnection",
                 )
                 .when(F.col("_status_chamada") == "3", "b-AnswerHasBeenReceived")
-                .otherwise(F.col("_status_chamada"))
+                .otherwise(F.col("_status_chamada")),
+            )
+            .withColumns(
+                {
+                    "imei_origem": F.translate(F.col("imei_origem"), "-", ""),
+                    "imei_destino": F.translate(F.col("imei_destino"), "-", ""),
+                }
             )
         )
+
+        df = _format_cell_id(df, "celula_origem", "celula_origem")
+        df = _format_cell_id(df, "celula_destino", "celula_destino")
 
         # Colunas inexistentes nos CDR Vivo Huawei, mas exigidas pelo contrato final, são preenchidas com nulo.
         missing_ts_columns = ["data_hora_referencia"]
