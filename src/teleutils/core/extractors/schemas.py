@@ -135,8 +135,8 @@ TELEPARSER_DEFAULT_SCHEMAS: dict[str, CDRTeleparserSchema] = {
         ],
         job_description="Extraindo CDR Parquet: TIM Huawei",
     ),
-    "vivo_fcdr": CDRTeleparserSchema(
-        name="Vivo FCDR",
+    "vivo_huawei": CDRTeleparserSchema(
+        name="Vivo Huawei",
         column_mapping=[
             ("callModule", "_tipo_chamada"),
             ("callingPartyNumber", "_numero_origem"),
@@ -144,11 +144,20 @@ TELEPARSER_DEFAULT_SCHEMAS: dict[str, CDRTeleparserSchema] = {
             ("chargeableDurat", "duracao"),
             ("dateForStartOfCharge", "_data"),
             ("timeForStartOfCharge", "_hora"),
+            ("timeForStopOfCharge", "_hora_fim"),
             ("networkCallReference", "referencia"),
             ("incomingRoute", "rota_entrada"),
             ("outgoingRoute", "rota_saida"),
+            ("exchangeIdentity", "bilhetador"),
+            ("firstCallingLocInf", "celula_origem"),
+            ("firstCalledLocInfo", "celula_destino"),
+            ("callingSubscriberIMEI", "imei_origem"),
+            ("callingSubscriberIMSI", "imsi_origem"),
+            ("calledSubscriberIMEI", "imei_destino"),
+            ("calledSubscriberIMSI", "imsi_destino"),
+            ("callPosition", "_status_chamada")
         ],
-        job_description="Extraindo CDR Parquet: Vivo FCDR",
+        job_description="Extraindo CDR Parquet: Vivo Huawei",
     ),
     "nokia": CDRTeleparserSchema(
         name="Nokia",

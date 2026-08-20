@@ -250,21 +250,21 @@ class CDRTeleparserExtractor:
         return df
 
     @log_operation
-    def extract_cdr_vivo_fcdr(self, source_file: str, target_file: str) -> DataFrame:
-        """Extrai CDR Vivo FCDR para parquet intermediário.
+    def extract_cdr_vivo_huawei(self, source_file: str, target_file: str) -> DataFrame:
+        """Extrai CDR Vivo Huawei para parquet intermediário.
 
         Args:
-            source_file: Caminho do parquet de entrada Vivo FCDR.
+            source_file: Caminho do parquet de entrada Vivo Huawei.
             target_file: Caminho do parquet intermediário de saída.
 
         Returns:
             DataFrame: Resultado da extração relido de ``target_file``.
 
         Notes:
-            Delega para ``extract_cdr`` com schema Vivo FCDR sem ajustes
+            Delega para ``extract_cdr`` com schema Vivo Huawei sem ajustes
             adicionais de tolerância ou deduplicação.
         """
-        df = self.extract_cdr(source_file, target_file, self.schemas["vivo_fcdr"])
+        df = self.extract_cdr(source_file, target_file, self.schemas["vivo_huawei"])
         return df
 
     @log_operation
