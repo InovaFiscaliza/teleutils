@@ -309,6 +309,56 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
             )  # spark exige o terceiro argumento para substr, mesmo que seja maior que o tamanho da string
             .withColumn("numero_destino", F.col("numero_destino").substr(3, 9999))
         )
+
+        df = df.withColumn(
+            "_cell_id",
+            F.regexp_extract(
+                "accessNetworkInformation", r"utran-cell-id-3gpp=([0-9a-zA-Z]+);", 1
+            ),
+        )
+        df = _format_cell_id(df, "_cell_id", "_cell_id")
+
+        df = df.withColumn(
+            "_imei",
+            F.when(F.col("_info_imei") == "iMEI", F.col("_imei")).otherwise(
+                F.lit(None)
+            ),
+        )
+        df = df.withColumn(
+            "_imsi",
+            F.when(F.col("_info_imsi") == "eND-USER-IMSI", F.col("_imsi")).otherwise(
+                F.lit(None)
+            ),
+        )
+
+        is_originating = F.col("tipo_chamada") == "oRIGINATING-ROLE"
+        is_terminating = F.col("tipo_chamada") == "tERMINATING-ROLE"
+        df = df.withColumns(
+            {
+                "celula_origem": F.when(is_originating, F.col("_cell_id")),
+                "celula_destino": F.when(is_terminating, F.col("_cell_id")),
+                "imei_origem": F.when(is_originating, F.col("_imei")),
+                "imei_destino": F.when(is_terminating, F.col("_imei")),
+                "imsi_origem": F.when(is_originating, F.col("_imsi")),
+                "imsi_destino": F.when(is_terminating, F.col("_imsi")),
+            },
+        )
+
+        # Colunas inexistentes nos CDR Tim Huawei, mas exigidas pelo contrato final, são preenchidas com nulo.
+        missing_ts_columns = ["data_hora_referencia"]
+        missing_string_columns = ["ip_origem", "ip_destino", "agente_usuario"]
+        missing_int_columns = [
+            "porta_ip_origem",
+            "porta_ip_destino",
+            "codigo_resposta_sip",
+        ]
+        missing_columns = {
+            **{col: MIN_SAFE_DATE for col in missing_ts_columns},
+            **{col: F.lit(None).cast(T.StringType()) for col in missing_string_columns},
+            **{col: F.lit(None).cast(T.IntegerType()) for col in missing_int_columns},
+        }
+        df = df.withColumns(missing_columns)
+
         df = self._apply_standard_pipeline(df, date_time_fmt)
 
         self._write_parquet(df, target_file)
