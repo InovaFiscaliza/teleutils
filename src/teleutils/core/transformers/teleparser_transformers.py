@@ -306,6 +306,12 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
                 "numero_origem", F.col("numero_origem").substr(3, 9999)
             )  # spark exige o terceiro argumento para substr, mesmo que seja maior que o tamanho da string
             .withColumn("numero_destino", F.col("numero_destino").substr(3, 9999))
+            .withColumn(
+                "referencia",
+                F.when(F.col("referencia").isNull(), F.lit("FFFFFFFFFF")).otherwise(
+                    F.col("referencia")
+                ),
+            )
         )
 
         df = df.withColumn(
