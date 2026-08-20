@@ -282,12 +282,10 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         df = self.spark.read.parquet(source_file)
 
         df = (
-            # Excluir registros com referência nula, pois não são válidos para análise.
-            df.filter(F.col("referencia").isNotNull())
             # Extrair autenticação e prefixos adicionais dos números.
             # A autenticação está contida na coluna _numero_origem_generico,
             # por exemplo: verstat=TN-Validation-Passed
-            .withColumn(
+            df.withColumn(
                 "_autenticacao",
                 F.regexp_extract(
                     "_numero_origem_generico", r"(verstat=[a-zA-Z\-]+)", 0
