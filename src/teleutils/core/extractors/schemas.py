@@ -140,6 +140,7 @@ TELEPARSER_DEFAULT_SCHEMAS: dict[str, CDRTeleparserSchema] = {
             ("list-of-subscription-ID_subscriptionIDType", "_info_imsi"),
             ("list-of-subscription-ID_subscriptionIDData","_imsi"),
             ("serviceReasonReturnCode", "_status_chamada"),
+            ("user-Agent-Value", "agente_usuario"),
         ],
         job_description="Extraindo CDR Parquet: TIM Huawei",
     ),

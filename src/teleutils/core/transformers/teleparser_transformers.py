@@ -344,7 +344,7 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
             },
         )
 
-        is_ibcf = F.col("_tipo_cdr") == "iBCFRecord"
+        is_ibcf = F.col("tipo_cdr") == "iBCFRecord"
         df = df.withColumn(
             "_status_chamada",
             F.when(
@@ -407,7 +407,7 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
 
         # Colunas inexistentes nos CDR Tim Huawei, mas exigidas pelo contrato final, são preenchidas com nulo.
         missing_ts_columns = ["data_hora_referencia"]
-        missing_string_columns = ["ip_origem", "ip_destino", "agente_usuario"]
+        missing_string_columns = ["ip_origem", "ip_destino"]
         missing_int_columns = [
             "porta_ip_origem",
             "porta_ip_destino",
