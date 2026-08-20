@@ -231,11 +231,11 @@ class CDRTeleparserExtractor:
         return self.extract_cdr(source_file, target_file, self.schemas["ericsson"])
 
     @log_operation
-    def extract_cdr_tim_huawei(self, source_file: str, target_file: str) -> DataFrame:
+    def extract_cdr_lte_huawei_tim(self, source_file: str, target_file: str) -> DataFrame:
         """Extrai CDR TIM Huawei com remoção de duplicatas.
 
         Args:
-            source_file: Caminho do parquet de entrada TIM Huawei.
+            source_file: Caminho do parquet de entrada LTE Huawei TIM.
             target_file: Caminho do parquet intermediário de saída.
 
         Returns:
@@ -248,26 +248,26 @@ class CDRTeleparserExtractor:
               deduplicação em cenários de retentativa de ingestão.
         """
         df = self.extract_cdr(
-            source_file, target_file, self.schemas["tim_huawei"], unique=True
+            source_file, target_file, self.schemas["lte_huawei_tim"], unique=True
         )
         return df
 
     @log_operation
-    def extract_cdr_vivo_huawei(self, source_file: str, target_file: str) -> DataFrame:
-        """Extrai CDR Vivo Huawei para parquet intermediário.
+    def extract_cdr_lte_ericsson_vivo(self, source_file: str, target_file: str) -> DataFrame:
+        """Extrai CDR LTE Ericsson Vivo para parquet intermediário.
 
         Args:
-            source_file: Caminho do parquet de entrada Vivo Huawei.
+            source_file: Caminho do parquet de entrada LTE Ericsson Vivo.
             target_file: Caminho do parquet intermediário de saída.
 
         Returns:
             DataFrame: Resultado da extração relido de ``target_file``.
 
         Notes:
-            Delega para ``extract_cdr`` com schema Vivo Huawei sem ajustes
+            Delega para ``extract_cdr`` com schema LTE Ericsson Vivo sem ajustes
             adicionais de tolerância ou deduplicação.
         """
-        df = self.extract_cdr(source_file, target_file, self.schemas["vivo_huawei"])
+        df = self.extract_cdr(source_file, target_file, self.schemas["lte_ericsson_vivo"])
         return df
 
     @log_operation

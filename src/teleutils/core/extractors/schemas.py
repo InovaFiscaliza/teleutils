@@ -119,8 +119,8 @@ TELEPARSER_DEFAULT_SCHEMAS: dict[str, CDRTeleparserSchema] = {
         ],
         job_description="Extraindo CDR Parquet: Ericsson",
     ),
-    "tim_huawei": CDRTeleparserSchema(
-        name="TIM Huawei",
+    "lte_huawei_tim": CDRTeleparserSchema(
+        name="LTE Huawei TIM",
         column_mapping=[
             ("network-Call-Reference", "referencia"),
             ("calling-Party-Address-Generic", "_numero_origem_generico"),
@@ -142,10 +142,10 @@ TELEPARSER_DEFAULT_SCHEMAS: dict[str, CDRTeleparserSchema] = {
             ("serviceReasonReturnCode", "_status_chamada"),
             ("user-Agent-Value", "agente_usuario"),
         ],
-        job_description="Extraindo CDR Parquet: TIM Huawei",
+        job_description="Extraindo CDR Parquet: LTE Huawei TIM",
     ),
-    "vivo_huawei": CDRTeleparserSchema(
-        name="Vivo Huawei",
+    "lte_ericsson_vivo": CDRTeleparserSchema(
+        name="LTE Ericsson Vivo",
         column_mapping=[
             ("callModule", "_tipo_chamada"),
             ("callingPartyNumber", "_numero_origem"),
@@ -166,7 +166,7 @@ TELEPARSER_DEFAULT_SCHEMAS: dict[str, CDRTeleparserSchema] = {
             ("calledSubscriberIMSI", "imsi_destino"),
             ("callPosition", "_status_chamada")
         ],
-        job_description="Extraindo CDR Parquet: Vivo Huawei",
+        job_description="Extraindo CDR Parquet: LTE Ericsson Vivo",
     ),
     "nokia": CDRTeleparserSchema(
         name="Nokia",

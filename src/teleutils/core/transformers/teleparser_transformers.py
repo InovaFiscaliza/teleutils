@@ -256,8 +256,8 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         return self.spark.read.parquet(target_file)
 
     @log_operation
-    def transform_cdr_tim_huawei(self, source_file: str, target_file: str):
-        """Transforma CDR TIM/Huawei para o contrato padronizado do domínio.
+    def transform_cdr_lte_huawei_tim(self, source_file: str, target_file: str):
+        """Transforma CDR TIM LTE Huawei para o contrato padronizado do domínio.
 
         Objetivo da operação:
             Aplicar filtros de qualidade mínima, extrair autenticação de campo
@@ -265,7 +265,7 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
             normalização central.
 
         Args:
-            source_file: Caminho parquet com CDRs TIM/Huawei de entrada.
+            source_file: Caminho parquet com CDRs TIM LTE Huawei de entrada.
             target_file: Caminho parquet de saída transformada.
 
         Returns:
@@ -429,15 +429,15 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         return self.spark.read.parquet(target_file)
 
     @log_operation
-    def transform_cdr_vivo_huawei(self, source_file: str, target_file: str):
-        """Transforma CDR Vivo/FCDR para o contrato padronizado do domínio.
+    def transform_cdr_lte_ericsson_vivo(self, source_file: str, target_file: str):
+        """Transforma CDR Vivo LTE Ericsson para o contrato padronizado do domínio.
 
         Objetivo da operação:
-            Executar o pré-processamento específico da Vivo/FCDR para separar
+            Executar o pré-processamento específico da Vivo LTE Ericsson para separar
             metadados embutidos e, em seguida, aplicar a normalização padrão.
 
         Args:
-            source_file: Caminho parquet com CDRs Vivo/Huawei de entrada.
+            source_file: Caminho parquet com CDRs Vivo LTE Ericsson de entrada.
             target_file: Caminho parquet de saída transformada.
 
         Returns:
