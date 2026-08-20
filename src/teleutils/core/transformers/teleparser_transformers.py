@@ -344,13 +344,73 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
             },
         )
 
+        is_ibcf = F.col("_tipo_cdr") == "iBCFRecord"
+        df = df.withColumn(
+            "_status_chamada",
+            F.when(
+                is_ibcf,
+                F.regexp_extract(
+                    F.col("_status_chamada"), r"SIP;cause=([0-9]+);", 1
+                ).cast(T.IntegerType()),
+            ).otherwise(F.col("_status_chamada").cast(T.IntegerType())),
+        ).withColumn(
+            "codigo_resposta_sip",
+            F.when(
+                F.col("_status_chamada")
+                >= 200,  # códigos de resposta SIP válidos são >= 200
+                F.col("_status_chamada"),
+            ).otherwise(F.lit(None).cast(T.IntegerType())),
+        )
+
+        df = df.withColumn(
+            "status_chamada",
+            F.when(
+                (F.col("_status_chamada") <= -300) & (F.col("_status_chamada") > -400),
+                F.lit("Redirection"),
+            )
+            .when(
+                (F.col("_status_chamada") <= -200) & (F.col("_status_chamada") > -300),
+                F.lit("Final Response"),
+            )
+            .when(F.col("_status_chamada") == -3, F.lit("End of REGISTER dialog"))
+            .when(F.col("_status_chamada") == -2, F.lit("End of SUBSCRIBE dialog"))
+            .when(F.col("_status_chamada") == -1, F.lit("Successful transaction"))
+            .when(F.col("_status_chamada") == 0, F.lit("Normal end of session"))
+            .when(F.col("_status_chamada") == 1, F.lit("Unspecified error"))
+            .when(F.col("_status_chamada") == 2, F.lit("Unsuccessful session setup"))
+            .when(F.col("_status_chamada") == 3, F.lit("Internal error"))
+            .when(F.col("_status_chamada") == 4, F.lit("Session timer timeout"))
+            .when(F.col("_status_chamada") == 5, F.lit("CAC_REJECT"))
+            .when(F.col("_status_chamada") == 200, F.lit("Normal end of session"))
+            .when(
+                (F.col("_status_chamada") > 200) & (F.col("_status_chamada") < 300),
+                F.lit("Final Response"),
+            )
+            .when(
+                (F.col("_status_chamada") >= 300) & (F.col("_status_chamada") < 400),
+                F.lit("Redirection"),
+            )
+            .when(
+                (F.col("_status_chamada") >= 400) & (F.col("_status_chamada") < 500),
+                F.lit("Request failure"),
+            )
+            .when(
+                (F.col("_status_chamada") >= 500) & (F.col("_status_chamada") < 600),
+                F.lit("Server failure"),
+            )
+            .when(
+                (F.col("_status_chamada") >= 600) & (F.col("_status_chamada") < 700),
+                F.lit("Global failure"),
+            )
+            .otherwise(F.lit(None).cast(T.StringType())),
+        )
+
         # Colunas inexistentes nos CDR Tim Huawei, mas exigidas pelo contrato final, são preenchidas com nulo.
         missing_ts_columns = ["data_hora_referencia"]
         missing_string_columns = ["ip_origem", "ip_destino", "agente_usuario"]
         missing_int_columns = [
             "porta_ip_origem",
             "porta_ip_destino",
-            "codigo_resposta_sip",
         ]
         missing_columns = {
             **{col: MIN_SAFE_DATE for col in missing_ts_columns},
