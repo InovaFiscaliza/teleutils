@@ -278,7 +278,7 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
             - Anotação de manutenção: a regra de remoção de prefixo pressupõe
               metadados fixos de 2 caracteres no início do número.
         """
-        date_time_fmt = "yyyy-MM-dd HH:mm:ssxxx"
+        date_time_fmt = "yyyy-MM-dd HH:mm:ssXXX"
         df = self.spark.read.parquet(source_file)
 
         df = (
