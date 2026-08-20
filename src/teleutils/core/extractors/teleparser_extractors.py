@@ -140,7 +140,10 @@ class CDRTeleparserExtractor:
         # self._sc.setJobDescription(schema.job_description)
 
         logger.info("Lendo arquivo parquet: %s", source_file)
-        df = self.spark.read.parquet(source_file)
+        if isinstance(source_file, list):
+            df = self.spark.read.parquet(*source_file)
+        else:
+            df = self.spark.read.parquet(source_file)
 
         logger.info(
             "Parâmetro ignore_missing_columns: %s. %s colunas ausentes.",
