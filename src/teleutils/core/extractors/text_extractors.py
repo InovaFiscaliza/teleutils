@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from typing import ClassVar
 
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
@@ -196,7 +197,7 @@ class CDRTextExtractor:
     # Schemas declarados como atributo de classe: são constantes e não dependem
     # de instância. Isso evita recriar os objetos a cada chamada e deixa a
     # configuração visível e fácil de manter no topo da classe.
-    _SCHEMAS: dict[str, CDRSchema] = {
+    _SCHEMAS: ClassVar[dict[str, CDRSchema]] = {
         "ericsson": CDRSchema(
             name="Ericsson",
             delimiter=";",
