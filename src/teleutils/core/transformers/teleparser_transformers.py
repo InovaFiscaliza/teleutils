@@ -77,6 +77,17 @@ def _format_cell_id(df, col_name, out_col, gnb_id_bits=26):
     c = F.col(col_name)
     length = F.length(c)
 
+    # ---- 3G (UTRAN, 13 chars) ----
+    tac_3g = F.conv(F.substring(col_name, 6, 4), 16, 10).cast("long")
+    ci_3g = F.conv(F.substring(col_name, 10, 4), 16, 10).cast("long")
+    ci_formatted = F.concat_ws(
+        "-",
+        F.substring(col_name, 1, 3),  # mcc
+        F.substring(col_name, 4, 2),  # mnc
+        F.lpad(tac_3g.cast("string"), 5, "0"),  # tac (16 bits)
+        F.lpad(ci_3g.cast("string"), 5, "0"),  # ci (16 bits)
+    )
+
     # ---- 4G (ECGI, 16 chars) ----
     ecgi_val = F.conv(F.substring(col_name, 10, 7), 16, 10).cast("long")
     ecgi_formatted = F.concat_ws(
@@ -109,7 +120,8 @@ def _format_cell_id(df, col_name, out_col, gnb_id_bits=26):
 
     return df.withColumn(
         out_col,
-        F.when(length == 16, ecgi_formatted)
+        F.when(length == 13, ci_formatted)
+        .when(length == 16, ecgi_formatted)
         .when(length == 20, ncgi_formatted)
         .otherwise(F.lit(None)),
     )
