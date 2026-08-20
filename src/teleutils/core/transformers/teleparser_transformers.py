@@ -184,7 +184,11 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         # Colunas inexistentes nos CDR Ericsson, mas exigidas pelo contrato final, são preenchidas com nulo.
         missing_ts_columns = ["data_hora_referencia"]
         missing_string_columns = ["ip_origem", "ip_destino", "agente_usuario"]
-        missing_int_columns = ["porta_ip_origem", "porta_ip_destino", "codigo_resposta_sip"]
+        missing_int_columns = [
+            "porta_ip_origem",
+            "porta_ip_destino",
+            "codigo_resposta_sip",
+        ]
         missing_columns = {
             **{col: MIN_SAFE_DATE for col in missing_ts_columns},
             **{col: F.lit(None).cast(T.StringType()) for col in missing_string_columns},
@@ -257,7 +261,7 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         return self.spark.read.parquet(target_file)
 
     @log_operation
-    def transform_cdr_vivo_fcdr(self, source_file: str, target_file: str):
+    def transform_cdr_vivo_huawei(self, source_file: str, target_file: str):
         """Transforma CDR Vivo/FCDR para o contrato padronizado do domínio.
 
         Objetivo da operação:
@@ -265,7 +269,7 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
             metadados embutidos e, em seguida, aplicar a normalização padrão.
 
         Args:
-            source_file: Caminho parquet com CDRs Vivo/FCDR de entrada.
+            source_file: Caminho parquet com CDRs Vivo/Huawei de entrada.
             target_file: Caminho parquet de saída transformada.
 
         Returns:
@@ -278,7 +282,52 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         """
         date_time_fmt = "yyyyMMdd HHmmss"
         df = self.spark.read.parquet(source_file)
-        df = self._preprocess_cdr_vivo_fcdr(df)
+
+        # Extrair autenticação e prefixos adicionais dos números.
+        # A autenticação está contida na coluna _numero_origem,
+        # por exemplo: 551136128860;verstat=TN-Validation-Passe
+        df = (
+            df.withColumn("_split", F.split(F.col("_numero_origem"), ";"))
+            .withColumn("numero_origem", F.col("_split").getItem(0))
+            .withColumn("_autenticacao", F.col("_split").getItem(1))
+            .drop("_split")
+            .withColumn(
+                "tipo_chamada",
+                F.when(F.col("_tipo_chamada") == "1", "msOriginating")
+                .when(F.col("_tipo_chamada") == "3", "callForwarding")
+                .when(F.col("_tipo_chamada") == "4", "msTerminating")
+                .otherwise(F.col("_tipo_chamada")),
+            )
+            .withColumn(
+                "status_chamada",
+                F.when(
+                    F.col("_status_chamada") == "1",
+                    "callHasReachedCongestionOrBusyState",
+                )
+                .when(
+                    F.col("_status_chamada") == "2",
+                    "callHasOnlyReachedThroughConnection",
+                )
+                .when(F.col("_status_chamada") == "3", "b-AnswerHasBeenReceived")
+                .otherwise(F.col("_status_chamada"))
+            )
+        )
+
+        # Colunas inexistentes nos CDR Vivo Huawei, mas exigidas pelo contrato final, são preenchidas com nulo.
+        missing_ts_columns = ["data_hora_referencia"]
+        missing_string_columns = ["ip_origem", "ip_destino", "agente_usuario"]
+        missing_int_columns = [
+            "porta_ip_origem",
+            "porta_ip_destino",
+            "codigo_resposta_sip",
+        ]
+        missing_columns = {
+            **{col: MIN_SAFE_DATE for col in missing_ts_columns},
+            **{col: F.lit(None).cast(T.StringType()) for col in missing_string_columns},
+            **{col: F.lit(None).cast(T.IntegerType()) for col in missing_int_columns},
+        }
+        df = df.withColumns(missing_columns)
+
         df = self._apply_standard_pipeline(df, date_time_fmt)
 
         self._write_parquet(df, target_file)
@@ -451,7 +500,11 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
 
         # Colunas inexistentes nos CDR Nokia, mas exigidas pelo contrato final, são preenchidas com nulo.
         missing_string_columns = ["ip_origem", "ip_destino", "agente_usuario"]
-        missing_int_columns = ["porta_ip_origem", "porta_ip_destino", "codigo_resposta_sip"]
+        missing_int_columns = [
+            "porta_ip_origem",
+            "porta_ip_destino",
+            "codigo_resposta_sip",
+        ]
         missing_columns = {
             **{col: F.lit(None).cast(T.StringType()) for col in missing_string_columns},
             **{col: F.lit(None).cast(T.IntegerType()) for col in missing_int_columns},

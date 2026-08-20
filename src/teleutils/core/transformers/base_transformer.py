@@ -108,7 +108,7 @@ class CDRBaseTransformer:
                 "data_hora_fim",
                 F.nullif(
                     F.concat_ws(" ", F.col("_data"), F.col("_hora_fim")), F.lit("")
-                ),
+                ), # nullif → se o resultado da concatenação for vazio, retorna null
             )
 
         timestamp_format = F.lit(date_time_fmt)
@@ -335,46 +335,3 @@ class CDRBaseTransformer:
         logger.info("Escrevendo DataFrame transformado para parquet: %s", target_file)
         df = self._select_transformed_columns(df)
         df.write.mode("overwrite").partitionBy("no_tipo_chamada").parquet(target_file)
-
-    def _preprocess_cdr_vivo_fcdr(self, df: DataFrame) -> DataFrame:
-        """Aplica pré-processamento específico para layout FCDR da Vivo.
-
-        Objetivo da operação:
-            Extrair o token de autenticação embutido em ``_numero_origem`` e
-            mapear códigos de ``_tipo_chamada`` para rótulos funcionais
-            utilizados no restante do pipeline.
-
-        Args:
-            df: DataFrame bruto no layout FCDR da Vivo.
-
-        Returns:
-            DataFrame: DataFrame com ``numero_origem`` e ``_autenticacao``
-            separados, além de ``tipo_chamada`` normalizado.
-
-        Notes:
-            - Regra de negócio: ``_numero_origem`` pode carregar metadados em
-              formato "numero;autenticacao" e precisa ser decomposto.
-            - O mapeamento de ``_tipo_chamada`` preserva valores não previstos,
-              reduzindo risco de descarte de novas categorias enviadas pela
-              origem.
-            - Anotação de manutenção: novos códigos de ``_tipo_chamada`` devem
-              ser adicionados na cadeia de ``when`` abaixo.
-        """
-        # Extrair autenticação e prefixos adicionais dos números.
-        # A autenticação está contida na coluna _numero_origem,
-        # por exemplo: 551136128860;verstat=TN-Validation-Passe
-        df = (
-            df.withColumn("_split", F.split(F.col("_numero_origem"), ";"))
-            .withColumn("numero_origem", F.col("_split").getItem(0))
-            .withColumn("_autenticacao", F.col("_split").getItem(1))
-            .drop("_split")
-            .withColumn(
-                "tipo_chamada",
-                F.when(F.col("_tipo_chamada") == "1", "msOriginating")
-                .when(F.col("_tipo_chamada") == "3", "callForwarding")
-                .when(F.col("_tipo_chamada") == "4", "msTerminating")
-                .otherwise(F.col("_tipo_chamada")),
-            )
-        )
-
-        return df
