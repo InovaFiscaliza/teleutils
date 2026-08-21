@@ -99,15 +99,14 @@ class CDRTeleparserExtractor:
         source_file: str,
         target_file: str,
         schema: CDRTeleparserSchema,
-        ignore_missing_columns: bool = False,
         unique: bool = False,
     ) -> DataFrame:
         """Executa extração genérica conforme schema de mapeamento informado.
 
         Fluxo de processamento:
             1. Lê parquet de entrada.
-            2. Valida presença de colunas requeridas (ou ignora, conforme flag).
-            3. Aplica seleção e renomeação com base no schema.
+            2. Aplica seleção e renomeação com base no schema.
+            3. Cria como nulas as colunas do schema ausentes na origem.
             4. Enriquece metadados de origem a partir do caminho do arquivo.
             5. Remove duplicatas opcionalmente.
             6. Persiste parquet intermediário e relê resultado final.
@@ -116,17 +115,12 @@ class CDRTeleparserExtractor:
             source_file: Caminho do parquet de entrada.
             target_file: Caminho do parquet de saída intermediária.
             schema: Contrato de mapeamento a ser aplicado.
-            ignore_missing_columns: Define se colunas ausentes devem ser
-                toleradas (selecionando apenas as presentes).
             unique: Define se duplicatas devem ser removidas no resultado.
 
         Returns:
             DataFrame: DataFrame relido de ``target_file`` após escrita.
 
         Raises:
-            ValueError:
-                Quando colunas obrigatórias do schema estão ausentes e
-                ``ignore_missing_columns`` é ``False``.
             AnalysisException:
                 Propagada pelo Spark em erros de leitura/escrita parquet.
 
@@ -141,15 +135,9 @@ class CDRTeleparserExtractor:
 
         logger.info("Lendo arquivo parquet: %s", source_file)
         if isinstance(source_file, list):
-            df = self.spark.read.parquet(*source_file)
+            df = self.spark.read.option("mergeSchema", "true").parquet(*source_file)
         else:
-            df = self.spark.read.parquet(source_file)
-
-        logger.info(
-            "Parâmetro ignore_missing_columns: %s. %s colunas ausentes.",
-            ignore_missing_columns,
-            "Ignorando" if ignore_missing_columns else "Verificando",
-        )
+            df = self.spark.read.option("mergeSchema", "true").parquet(source_file)
 
         missing_columns = [
             source_col
@@ -157,37 +145,28 @@ class CDRTeleparserExtractor:
             if source_col not in df.columns
         ]
 
-        if missing_columns and not ignore_missing_columns:
-            raise ValueError(
-                f"Schema '{schema.name}' requer colunas ausentes no parquet: "
-                f"{missing_columns}. Colunas disponiveis: {df.columns}"
-            )
-
-        if missing_columns and ignore_missing_columns:
+        if missing_columns:
             logger.warning(
-                "Colunas ausentes no parquet: %s. Selecionando apenas colunas presentes.",
+                "Schema '%s': colunas ausentes no parquet: %s. "
+                "Criando-as com valor nulo.",
+                schema.name,
                 missing_columns,
             )
 
-        # Filtrar o mapeamento para incluir apenas colunas presentes quando ignore_missing_columns=True
-        filtered_column_mapping = (
-            [
-                (source_col, target_col)
-                for source_col, target_col in schema.column_mapping
-                if source_col in df.columns
-            ]
-            if ignore_missing_columns
-            else schema.column_mapping
-        )
-
         # Colunas com ponto representam caminhos de campo (nested) e exigem
         # escaping com crases para evitar interpretação incorreta pelo Spark SQL.
-        select_expr = [
-            F.col(f"`{source_col}`").alias(target_col)
-            if "." in source_col
-            else F.col(source_col).alias(target_col)
-            for source_col, target_col in filtered_column_mapping
-        ]
+        select_expr = []
+        for source_col, target_col in schema.column_mapping:
+            if source_col in df.columns:
+                source_expr = (
+                    F.col(f"`{source_col}`")
+                    if "." in source_col
+                    else F.col(source_col)
+                )
+            else:
+                source_expr = F.lit(None).cast("string")
+
+            select_expr.append(source_expr.alias(target_col))
 
         df = (
             df.select(*select_expr)
@@ -282,8 +261,8 @@ class CDRTeleparserExtractor:
             DataFrame: Resultado da extração relido de ``target_file``.
 
         Notes:
-            - Regra de negócio: ``ignore_missing_columns=True`` para acomodar
-              variações de disponibilidade entre tipos de CDR Nokia.
+                        - Regra de negócio: colunas ausentes são criadas com valor nulo
+                            para acomodar variações de disponibilidade entre tipos de CDR Nokia.
             - Anotação de manutenção: sempre revisar logs de colunas ausentes
               para identificar mudanças de layout na origem.
         """
@@ -291,6 +270,5 @@ class CDRTeleparserExtractor:
             source_file,
             target_file,
             self.schemas["nokia"],
-            ignore_missing_columns=True,
         )
         return df
