@@ -495,7 +495,7 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         # A autenticação está contida na coluna _numero_origem,
         # por exemplo: 551136128860;verstat=TN-Validation-Passe
         df = (
-            df.withColumn("_split", F.split(F.col("_numero_origem"), ";"))
+            df.withColumn("_split", F.split(F.col("_numero_origem_original"), ";"))
             .withColumn("numero_origem", F.col("_split").getItem(0))
             .withColumn("_autenticacao", F.col("_split").getItem(1))
             .drop("_split")

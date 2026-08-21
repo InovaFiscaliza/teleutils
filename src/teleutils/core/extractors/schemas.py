@@ -150,7 +150,7 @@ TELEPARSER_DEFAULT_SCHEMAS: dict[str, CDRTeleparserSchema] = {
         name="LTE Ericsson Vivo",
         column_mapping=[
             ("callModule", "_tipo_chamada"),
-            ("callingPartyNumber", "_numero_origem"),
+            ("callingPartyNumber", "_numero_origem_original"),
             ("calledPartyNumber", "numero_destino"),
             ("chargeableDurat", "duracao"),
             ("dateForStartOfCharge", "_data"),
