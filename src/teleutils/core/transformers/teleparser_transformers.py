@@ -339,7 +339,7 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         df = df.withColumn(
             "_cell_id",
             F.regexp_extract(
-                "_informacao_rede", r"utran-cell-id-3gpp=([0-9a-zA-Z]+);", 1
+                F.col("_informacao_rede"), r"utran-cell-id-3gpp=([0-9a-zA-Z]+);", 1
             ),
         )
         df = _format_cell_id(df, "_cell_id", "_cell_id")
