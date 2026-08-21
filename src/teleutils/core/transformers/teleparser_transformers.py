@@ -292,7 +292,7 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
 
         ats_calling_party = F.when(
             F.col("_numero_origem_ats_auth").isNotNull(),
-            F.regexp_extract(F.col("_numero_origem_ats_auth"), r":\+([0-9]+)", 1),
+            F.regexp_extract(F.col("_numero_origem_ats_auth"), r":\+?([0-9]+)", 1),
         ).otherwise(F.col("_numero_origem_ats").substr(3, 9999))
         # Remover caracteres adicionais dos números de telefone, mantendo apenas os 20  caracteres.
         # As colunas numero_origem e numero_destino contêm os números dos terminais
@@ -311,7 +311,7 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         ).otherwise(F.col("_numero_origem_ats"))
 
         ibcf_calling_party = F.regexp_extract(
-            F.col("_numero_origem_ibcf"), r"<sip:([0-9]+)[@;]", 1
+            F.col("_numero_origem_ibcf"), r"sip:\+?([0-9]+)", 1
         )
 
         df = df.withColumn(
@@ -327,7 +327,7 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         df = df.withColumn(
             "numero_destino",
             F.when(is_ats, F.col("_numero_destino_ats").substr(3, 9999)).otherwise(
-                F.regexp_extract(F.col("_numero_destino_ibcf"), r"sip:([0-9]+)[@;]", 1)
+                F.regexp_extract(F.col("_numero_destino_ibcf"), r"sip:\+?([0-9]+)", 1)
             ),
         ).withColumn(
             "_numero_destino_original",
