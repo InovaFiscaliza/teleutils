@@ -281,31 +281,53 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         date_time_fmt = "yyyy-MM-dd HH:mm:ssXXX"
         df = self.spark.read.parquet(source_file)
 
+        is_ats = F.col("tipo_cdr") == "aTSRecord"
+        is_ibcf = F.col("tipo_cdr") == "iBCFRecord"
+        is_originating = F.col("tipo_chamada") == "oRIGINATING-ROLE"
+        is_terminating = F.col("tipo_chamada") == "tERMINATING-ROLE"
+        
+
         df = (
-            # Extrair autenticação e prefixos adicionais dos números.
-            # A autenticação está contida na coluna _numero_origem_generico,
-            # por exemplo: verstat=TN-Validation-Passed
             df.withColumn(
                 "_autenticacao",
-                F.regexp_extract(
-                    "_numero_origem_generico", r"(verstat=[a-zA-Z\-]+)", 0
+                F.when(
+                    is_ats,
+                    F.regexp_extract(
+                        F.col("_numero_origem_ats_auth"), r"(verstat=[a-zA-Z\-]+)", 0
+                    ),
+                ).otherwise(
+                    F.regexp_extract(
+                        F.col("_numero_origem_ibcf"), r"(verstat=[a-zA-Z\-]+)", 0
+                    )
                 ),
             )
-            # Remover caracteres adicionais dos números de telefone, mantendo apenas os 20  caracteres.
-            # As colunas numero_origem e numero_destino contêm os números dos terminais
-            # precedidos de prefixos adicionais (11 ou 14) que devem ser removidos:
-            #
-            # +-----------------|---------------+
-            # | Antes           | Depois        |
-            # |-----------------|---------------|
-            # | 1440042704      | 40042704      |
-            # | 115595981241366 | 5595981241366 |
-            # | 1408000910091   | 08000910091   |
-            # +-----------------|---------------+
             .withColumn(
-                "numero_origem", F.col("numero_origem").substr(3, 9999)
-            )  # spark exige o terceiro argumento para substr, mesmo que seja maior que o tamanho da string
-            .withColumn("numero_destino", F.col("numero_destino").substr(3, 9999))
+                "numero_origem",
+                # Remover caracteres adicionais dos números de telefone, mantendo apenas os 20  caracteres.
+                # As colunas numero_origem e numero_destino contêm os números dos terminais
+                # precedidos de prefixos adicionais (11 ou 14) que devem ser removidos:
+                #
+                # +-----------------|---------------+
+                # | Antes           | Depois        |
+                # |-----------------|---------------|
+                # | 1440042704      | 40042704      |
+                # | 115595981241366 | 5595981241366 |
+                # | 1408000910091   | 08000910091   |
+                # +-----------------|---------------+
+                F.when(is_ats, F.col("_numero_origem_ats").substr(3, 9999)).otherwise(
+                    F.regexp_extract(
+                        F.col("_numero_origem_ibcf"), r"sip:([0-9]+)[@;]", 1
+                    )
+                ),
+            )
+            .withColumn(
+                "numero_destino",
+                F.when(is_ats, F.col("_numero_destino_ats").substr(3, 9999)).otherwise(
+                    F.regexp_extract(
+                        F.col("_numero_destino_ibcf"), r"sip:([0-9]+)[@;]", 1
+                    )
+                ),
+            )
             .withColumn(
                 "referencia",
                 F.when(F.col("referencia").isNull(), F.lit("FFFFFFFFFF")).otherwise(
@@ -335,8 +357,6 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
             ),
         )
 
-        is_originating = F.col("tipo_chamada") == "oRIGINATING-ROLE"
-        is_terminating = F.col("tipo_chamada") == "tERMINATING-ROLE"
         df = df.withColumns(
             {
                 "celula_origem": F.when(is_originating, F.col("_cell_id")),
@@ -348,7 +368,6 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
             },
         )
 
-        is_ibcf = F.col("tipo_cdr") == "iBCFRecord"
         df = df.withColumn(
             "_status_chamada",
             F.when(
