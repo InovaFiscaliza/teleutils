@@ -74,26 +74,26 @@ def _build_composite_column(
 
 
 def _format_cell_id(df, col_name, out_col, gnb_id_bits=26):
-    c = F.col(col_name)
-    length = F.length(c)
+    col = F.col(col_name)
+    length = F.length(col)
 
     # ---- 3G (UTRAN, 13 chars) ----
-    tac_3g = F.conv(F.substring(col_name, 6, 4), 16, 10).cast("long")
-    ci_3g = F.conv(F.substring(col_name, 10, 4), 16, 10).cast("long")
+    tac_3g = F.conv(F.substring(col, 6, 4), 16, 10).cast("long")
+    ci_3g = F.conv(F.substring(col, 10, 4), 16, 10).cast("long")
     ci_formatted = F.concat_ws(
         "-",
-        F.substring(col_name, 1, 3),  # mcc
-        F.substring(col_name, 4, 2),  # mnc
+        F.substring(col, 1, 3),  # mcc
+        F.substring(col, 4, 2),  # mnc
         F.lpad(tac_3g.cast("string"), 5, "0"),  # tac (16 bits)
         F.lpad(ci_3g.cast("string"), 5, "0"),  # ci (16 bits)
     )
 
     # ---- 4G (ECGI, 16 chars) ----
-    ecgi_val = F.conv(F.substring(col_name, 10, 7), 16, 10).cast("long")
+    ecgi_val = F.conv(F.substring(col, 10, 7), 16, 10).cast("long")
     ecgi_formatted = F.concat_ws(
         "-",
-        F.substring(col_name, 1, 3),  # mcc
-        F.substring(col_name, 4, 2),  # mnc
+        F.substring(col, 1, 3),  # mcc
+        F.substring(col, 4, 2),  # mnc
         F.lpad(
             (ecgi_val / 256).cast("long").cast("string"), 7, "0"
         ),  # enb_id (20 bits)
@@ -105,11 +105,11 @@ def _format_cell_id(df, col_name, out_col, gnb_id_bits=26):
     cell_id_bits = 36 - gnb_id_bits  # 10
     cell_id_mask = (1 << cell_id_bits) - 1  # 0x3FF = 1023
 
-    ncgi_val = F.conv(F.substring(col_name, 12, 9), 16, 10).cast("long")
+    ncgi_val = F.conv(F.substring(col, 12, 9), 16, 10).cast("long")
     ncgi_formatted = F.concat_ws(
         "-",
-        F.substring(col_name, 1, 3),  # mcc
-        F.substring(col_name, 4, 2),  # mnc
+        F.substring(col, 1, 3),  # mcc
+        F.substring(col, 4, 2),  # mnc
         F.lpad(
             F.shiftright(ncgi_val, cell_id_bits).cast("string"), 8, "0"
         ),  # gnb_id (26 bits)
@@ -118,12 +118,16 @@ def _format_cell_id(df, col_name, out_col, gnb_id_bits=26):
         ),  # cell_id (10 bits)
     )
 
-    return df.withColumn(
-        out_col,
+    formatted_cell_id = (
         F.when(length == 13, ci_formatted)
         .when(length == 16, ecgi_formatted)
         .when(length == 20, ncgi_formatted)
-        .otherwise(F.col(col_name)),
+        .otherwise(col)
+    )
+
+    return df.withColumn(
+        out_col,
+        F.when(formatted_cell_id == "", F.lit(None)).otherwise(formatted_cell_id),
     )
 
 
