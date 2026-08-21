@@ -108,7 +108,7 @@ class CDRBaseTransformer:
                 "data_hora_fim",
                 F.nullif(
                     F.concat_ws(" ", F.col("_data"), F.col("_hora_fim")), F.lit("")
-                ), # nullif → se o resultado da concatenação for vazio, retorna null
+                ),  # nullif → se o resultado da concatenação for vazio, retorna null
             )
 
         timestamp_format = F.lit(date_time_fmt)
@@ -128,9 +128,7 @@ class CDRBaseTransformer:
                     F.try_to_timestamp(F.col("data_hora_fim"), timestamp_format)
                 ),
                 "data_hora_referencia": normalize_timestamp(
-                    F.try_to_timestamp(
-                        F.col("data_hora_referencia"), timestamp_format
-                    )
+                    F.try_to_timestamp(F.col("data_hora_referencia"), timestamp_format)
                 ),
             }
         )
@@ -189,6 +187,17 @@ class CDRBaseTransformer:
             .drop("_numero_origem_formatado")
             .drop("_numero_destino_formatado")
         )
+
+        # se as colunas de origem/destino originais foram mantidas no dataframe original retorna ao dataframe final
+        if "_numero_origem_original" in df.columns:
+            df = df.withColumn("numero_origem", F.col("_numero_origem_original")).drop(
+                "_numero_origem_original"
+            )
+
+        if "_numero_destino_original" in df.columns:
+            df = df.withColumn(
+                "numero_destino", F.col("_numero_destino_original")
+            ).drop("_numero_destino_original")
 
         return df
 
