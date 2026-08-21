@@ -123,7 +123,7 @@ def _format_cell_id(df, col_name, out_col, gnb_id_bits=26):
         F.when(length == 13, ci_formatted)
         .when(length == 16, ecgi_formatted)
         .when(length == 20, ncgi_formatted)
-        .otherwise(F.lit(None)),
+        .otherwise(F.col(col_name)),
     )
 
 
