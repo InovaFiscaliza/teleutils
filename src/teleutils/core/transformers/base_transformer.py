@@ -289,6 +289,7 @@ class CDRBaseTransformer:
         ).select(
             # 1. Identificação Geral & Tempo (Quando e qual o contexto da carga)
             F.col("referencia").alias("nu_referencia"),
+            F.col("referencia_sip").alias("nu_referencia_sip"),
             F.col("data_hora_referencia").alias("dh_referencia"),
             F.col("data_hora").alias("dh_chamada"),
             F.col("data_hora_fim").alias("dh_fim_chamada"),
