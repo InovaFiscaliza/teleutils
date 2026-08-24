@@ -123,6 +123,7 @@ TELEPARSER_DEFAULT_SCHEMAS: dict[str, CDRTeleparserSchema] = {
         name="LTE Huawei TIM",
         column_mapping=[
             ("network-Call-Reference", "referencia"),
+            ("iMS-Charging-Identifier", "referencia_sip"),
             ("calling-Party-Address-Generic", "_numero_origem_ats_auth"),
             ("list-Of-Calling-Party-Address_tEL-URI", "_numero_origem_ats"),
             ("list-Of-Calling-Party-Address_sIP-URI", "_numero_origem_ibcf"),
