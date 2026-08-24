@@ -351,13 +351,6 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         )
 
         df = df.withColumn(
-            "referencia",
-            F.when(F.col("referencia").isNull(), F.lit("FFFFFFFFFF")).otherwise(
-                F.col("referencia")
-            ),
-        )
-
-        df = df.withColumn(
             "_cell_id",
             F.regexp_extract(
                 F.col("_informacao_rede"), r"utran-cell-id-3gpp=([0-9a-zA-Z]+);", 1

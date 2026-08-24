@@ -150,6 +150,8 @@ TELEPARSER_DEFAULT_SCHEMAS: dict[str, CDRTeleparserSchema] = {
     "lte_ericsson_vivo": CDRTeleparserSchema(
         name="LTE Ericsson Vivo",
         column_mapping=[
+            ("networkCallReference", "referencia"),
+            ("imsChargingIdentifier", "referencia_sip"),
             ("callModule", "_tipo_chamada"),
             ("callingPartyNumber", "_numero_origem_original"),
             ("calledPartyNumber", "numero_destino"),
@@ -157,7 +159,6 @@ TELEPARSER_DEFAULT_SCHEMAS: dict[str, CDRTeleparserSchema] = {
             ("dateForStartOfCharge", "_data"),
             ("timeForStartOfCharge", "_hora"),
             ("timeForStopOfCharge", "_hora_fim"),
-            ("networkCallReference", "referencia"),
             ("incomingRoute", "rota_entrada"),
             ("outgoingRoute", "rota_saida"),
             ("exchangeIdentity", "bilhetador"),

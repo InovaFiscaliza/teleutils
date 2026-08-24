@@ -240,6 +240,37 @@ class CDRBaseTransformer:
 
         return df
 
+    def _add_missing_reference_columns(self, df):
+        """Adiciona colunas de referência ausentes com valor sentinela.
+
+        Args:
+            df: DataFrame Spark de entrada.
+
+        Returns:
+            DataFrame: DataFrame com colunas ``referencia`` e
+            ``referencia_sip`` garantidas, mesmo que ausentes no layout original.
+
+        Notes:
+            - Regra de negócio: a ausência de referência deve ser sinalizada com valor sentinela para evitar inconsistências.
+        """
+        if "referencia" not in df.columns:
+            df = df.withColumn("referencia", F.lit("FFFFFFFFFF"))
+        else:
+            df = df.withColumn(
+                "referencia", F.coalesce(F.col("referencia"), F.lit("FFFFFFFFFF"))
+            )
+
+        if "referencia_sip" not in df.columns:
+            df = df.withColumn("referencia_sip", F.lit("FFFFFFFFFF"))
+        else:
+            df = df.withColumn(
+                "referencia_sip", F.coalesce(F.col("referencia_sip"), F.lit("FFFFFFFFFF"))
+            )
+
+        return df
+
+
+
     def _apply_standard_pipeline(
         self, df: DataFrame, date_time_fmt: str = "yyyy-MM-dd HH-mm-ss"
     ) -> DataFrame:
@@ -265,6 +296,7 @@ class CDRBaseTransformer:
         df = self._format_date_time(df, date_time_fmt)
         df = self._format_numbers(df)
         df = self._add_tn_validation_status(df)
+        df = self._add_missing_reference_columns(df)
 
         return df
 
