@@ -35,7 +35,7 @@ from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
 from pyspark.sql import types as T
 
-from teleutils._config import MIN_SAFE_DATE
+from teleutils._config import MIN_SAFE_DATE, NULL_SENTINEL_VALUE
 from teleutils.preprocessing import spark_normalize_number
 
 logger = logging.getLogger(__name__)
@@ -254,22 +254,47 @@ class CDRBaseTransformer:
             - Regra de negócio: a ausência de referência deve ser sinalizada com valor sentinela para evitar inconsistências.
         """
         if "referencia" not in df.columns:
-            df = df.withColumn("referencia", F.lit("FFFFFFFFFF"))
+            df = df.withColumn("referencia", NULL_SENTINEL_VALUE)
         else:
             df = df.withColumn(
-                "referencia", F.coalesce(F.col("referencia"), F.lit("FFFFFFFFFF"))
+                "referencia", F.coalesce(F.col("referencia"), NULL_SENTINEL_VALUE)
             )
 
         if "referencia_sip" not in df.columns:
-            df = df.withColumn("referencia_sip", F.lit("FFFFFFFFFF"))
+            df = df.withColumn("referencia_sip", NULL_SENTINEL_VALUE)
         else:
             df = df.withColumn(
-                "referencia_sip", F.coalesce(F.col("referencia_sip"), F.lit("FFFFFFFFFF"))
+                "referencia_sip",
+                F.coalesce(F.col("referencia_sip"), NULL_SENTINEL_VALUE),
             )
 
         return df
 
+    def _fill_missing_columns(
+        self, df: DataFrame, required_columns: list[str]
+    ) -> DataFrame:
+        """Preenche colunas ausentes com valor nulo.
 
+        Args:
+            df: DataFrame Spark de entrada.
+            required_columns: Lista de nomes de colunas que devem estar presentes.
+
+        Returns:
+            DataFrame: DataFrame com todas as colunas obrigatórias garantidas,
+            preenchendo ausentes com nulos.
+
+        Notes:
+            - Regra de negócio: colunas ausentes são preenchidas com nulo para
+              manter consistência de schema.
+        """
+        for column in required_columns:
+            if column not in df.columns:
+                df = df.withColumn(column, NULL_SENTINEL_VALUE)
+            else:
+                df = df.withColumn(
+                    column, F.coalesce(F.col(column), NULL_SENTINEL_VALUE)
+                )
+        return df
 
     def _apply_standard_pipeline(
         self, df: DataFrame, date_time_fmt: str = "yyyy-MM-dd HH-mm-ss"
@@ -297,6 +322,15 @@ class CDRBaseTransformer:
         df = self._format_numbers(df)
         df = self._add_tn_validation_status(df)
         df = self._add_missing_reference_columns(df)
+
+        # Colunas necessárias para desduplicação de registros, preenchidas com valor sentinela caso nulo
+        required_columns = [
+            "status_chamada",
+            "rota_entrada",
+            "rota_saida",
+            "bilhetador",
+        ]
+        df = self._fill_missing_columns(df, required_columns)
 
         return df
 

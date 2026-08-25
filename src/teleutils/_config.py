@@ -31,7 +31,7 @@ Notes:
 """
 
 from pyspark.sql import functions as F
-from pyspark.sql.types import TimestampType
+from pyspark.sql.types import TimestampType, StringType
 
 # Marcador textual utilizado pelo classificador de robocalls para identificar
 # chamadas que passaram pelo processo de autenticação da operadora.
@@ -56,3 +56,26 @@ MIN_SAFE_DATE = F.lit("1900-01-01 00:00:00").cast(TimestampType())
 DEFAULT_MCC = F.lit("724")
 ALGAR_MNC = F.lit("34")
 CLARO_MNC = F.lit("05")
+
+# Valor sentinela para preenchimentos de campos nulos necessários para desduplicação de registros, 
+# evitando que registros distintos sejam erroneamente considerados duplicados
+NULL_SENTINEL_VALUE = F.lit("__NULL__").cast(StringType())
+
+# Chave primária para desduplicação de registros, composta por campos críticos que identificam unicamente uma chamada
+PRIMARY_KEY_COLUMNS = [
+    "no_tipo_chamada",
+    "nu_referencia",
+    "nu_referencia_sip",
+    "dh_referencia",
+    "dh_chamada",
+    "dh_fim_chamada",
+    "qt_duracao_segundos",
+    "nu_origem",
+    "nu_origem_original",
+    "nu_destino",
+    "nu_destino_original",
+    "no_resultado_chamada",
+    "no_rota_entrada",
+    "no_rota_saida",
+    "no_bilhetador"
+]
