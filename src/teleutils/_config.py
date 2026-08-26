@@ -49,7 +49,7 @@ MAX_RECORDS_PER_FILE = 1000000
 SHORT_CALL_THRESHOLD = 6
 
 # Define a data limite como um literal do Spark para o Catalyst otimizar a comparação
-MIN_SAFE_DATE = F.lit("1900-01-01 00:00:00").cast(TimestampType())
+MIN_SAFE_DATE = F.lit("1901-01-01 00:00:00").cast(TimestampType())
 
 # Código MCC/MNC para preenchimento em caso de ausência de informação de operadora, utilizado em transformações
 # de CDRs para manter consistência de dados e evitar valores nulos em campos críticos
