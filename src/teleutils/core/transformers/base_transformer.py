@@ -325,6 +325,8 @@ class CDRBaseTransformer:
 
         # Colunas necessárias para desduplicação de registros, preenchidas com valor sentinela caso nulo
         required_columns = [
+            "numero_origem",
+            "numero_destino",
             "status_chamada",
             "rota_entrada",
             "rota_saida",
