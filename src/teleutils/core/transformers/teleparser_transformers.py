@@ -290,6 +290,26 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         is_originating = F.col("tipo_chamada") == "oRIGINATING-ROLE"
         is_terminating = F.col("tipo_chamada") == "tERMINATING-ROLE"
 
+        df = df.withColumn(
+            "_numero_origem_ats",
+            F.regexp_replace(
+                F.get_json_object(
+                    F.col("_numero_origem"), "$[0].tEL-URI"
+                ),
+                "(.)(.)",
+                "$2$1",
+            ),
+        ).withColumn(
+            "_numero_origem_ibcf",
+            F.regexp_extract(
+                F.get_json_object(
+                    F.col("_numero_origem"), "$[0].sIP-URI"
+                ),
+                r"sip:([0-9]+)[@;]",
+                1,
+            ),
+        )
+
         ats_calling_party = F.when(
             F.col("_numero_origem_ats_auth").isNotNull(),
             F.regexp_extract(F.col("_numero_origem_ats_auth"), r":\+?([0-9]+)", 1),
