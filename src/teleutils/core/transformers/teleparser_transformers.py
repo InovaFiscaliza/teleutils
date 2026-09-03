@@ -40,6 +40,7 @@ from teleutils.core.transformers.base_transformer import CDRBaseTransformer
 
 _AUTH_EXTRACT_PATTERN = r"(verstat=[a-zA-Z\-]+)"
 
+
 def _null_if_blank(column_name: str):
     column = F.col(column_name)
     return F.when(
@@ -294,18 +295,14 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         df = df.withColumn(
             "_numero_origem_ats",
             F.regexp_replace(
-                F.get_json_object(
-                    F.col("_numero_origem"), "$[0].tEL-URI"
-                ),
+                F.get_json_object(F.col("_numero_origem"), "$[0].tEL-URI"),
                 "(.)(.)",
                 "$2$1",
             ),
         ).withColumn(
             "_numero_origem_ibcf",
             F.regexp_extract(
-                F.get_json_object(
-                    F.col("_numero_origem"), "$[0].sIP-URI"
-                ),
+                F.get_json_object(F.col("_numero_origem"), "$[0].sIP-URI"),
                 r"sip:([0-9]+)[@;]",
                 1,
             ),
@@ -365,9 +362,7 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
                     F.col("_numero_origem_ats_auth"), _AUTH_EXTRACT_PATTERN, 0
                 ),
             ).otherwise(
-                F.regexp_extract(
-                    F.col("_numero_origem"), _AUTH_EXTRACT_PATTERN, 0
-                )
+                F.regexp_extract(F.col("_numero_origem"), _AUTH_EXTRACT_PATTERN, 0)
             ),
         )
 
@@ -385,11 +380,29 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
                 F.lit(None)
             ),
         )
-        df = df.withColumn(
-            "_imsi",
-            F.when(F.col("_info_imsi") == "eND-USER-IMSI", F.col("_imsi")).otherwise(
-                F.lit(None)
-            ),
+
+        schema_imsi = T.ArrayType(
+            T.StructType(
+                [
+                    T.StructField("info_type", T.StringType()),
+                    T.StructField("info_value", T.StringType()),
+                ]
+            )
+        )
+
+        df = (
+            df.withColumn(
+                "_imsi_parsed",
+                F.from_json(F.col("_info_imsi"), schema_imsi).getItem(0),
+            )
+            .withColumn(
+                "_imsi",
+                F.when(
+                    F.col("_imsi_parsed.info_type") == "eND-USER-IMSI",
+                    F.col("_imsi_parsed.info_value"),
+                ),
+            )
+            .drop("_imsi_parsed")
         )
 
         df = df.withColumns(
