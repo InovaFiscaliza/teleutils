@@ -151,14 +151,6 @@ class CDRBaseTransformer:
               para manter o schema limpo.
         """
 
-        # Substitui caracteres '#' e '*' por 'c' e 'b', respectivamente para uniformizar a saída do Teleparser.
-        df = df.withColumn(
-            "numero_destino",
-            F.regexp_replace(
-                F.regexp_replace(F.col("numero_destino"), r"#", "c"), r"\*", "b"
-            ),
-        )
-
         # formata números de origem e destino, adicionando colunas de validade
         df = (
             df.withColumn(
