@@ -38,6 +38,7 @@ from teleutils._config import ALGAR_MNC, CLARO_MNC, DEFAULT_MCC, MIN_SAFE_DATE
 from teleutils._logging import log_operation
 from teleutils.core.transformers.base_transformer import CDRBaseTransformer
 
+_AUTH_EXTRACT_PATTERN = r"(verstat=[a-zA-Z\-]+)"
 
 def _null_if_blank(column_name: str):
     column = F.col(column_name)
@@ -361,11 +362,11 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
             F.when(
                 is_ats,
                 F.regexp_extract(
-                    F.col("_numero_origem_ats_auth"), r"(verstat=[a-zA-Z\-]+)", 0
+                    F.col("_numero_origem_ats_auth"), _AUTH_EXTRACT_PATTERN, 0
                 ),
             ).otherwise(
                 F.regexp_extract(
-                    F.col("_numero_origem_ibcf"), r"(verstat=[a-zA-Z\-]+)", 0
+                    F.col("_numero_origem"), _AUTH_EXTRACT_PATTERN, 0
                 )
             ),
         )
