@@ -278,8 +278,6 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
             DataFrame: DataFrame lido do destino após escrita, no schema final.
 
         Notes:
-            - Regra de negócio: registros sem ``referencia`` são descartados por
-              não atenderem aos critérios mínimos analíticos.
             - Efeito colateral: grava o resultado em ``target_file``.
             - Anotação de manutenção: a regra de remoção de prefixo pressupõe
               metadados fixos de 2 caracteres no início do número.
@@ -292,20 +290,25 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         is_originating = F.col("tipo_chamada") == "oRIGINATING-ROLE"
         is_terminating = F.col("tipo_chamada") == "tERMINATING-ROLE"
 
-        df = df.withColumn(
-            "_numero_origem_ats",
-            F.regexp_replace(
-                F.get_json_object(F.col("_numero_origem"), "$[0].tEL-URI"),
-                "(.)(.)",
-                "$2$1",
-            ),
-        ).withColumn(
-            "_numero_origem_ibcf",
-            F.regexp_extract(
-                F.get_json_object(F.col("_numero_origem"), "$[0].sIP-URI"),
-                r"sip:([0-9]+)[@;]",
-                1,
-            ),
+        df = df.withColumns(
+            {
+                "_numero_origem_ats": F.when(
+                    is_ats,
+                    F.regexp_replace(
+                        F.get_json_object(F.col("_numero_origem"), "$[0].tEL-URI"),
+                        "(.)(.)",
+                        "$2$1",
+                    ),
+                ),
+                "_numero_origem_ibcf": F.when(
+                    is_ibcf,
+                    F.regexp_extract(
+                        F.get_json_object(F.col("_numero_origem"), "$[0].sIP-URI"),
+                        r"sip:([0-9]+)[@;]",
+                        1,
+                    ),
+                ),
+            }
         )
 
         ats_calling_party = F.when(
