@@ -38,10 +38,26 @@ from teleutils._config import ALGAR_MNC, CLARO_MNC, DEFAULT_MCC, MIN_SAFE_DATE
 from teleutils._logging import log_operation
 from teleutils.core.transformers.base_transformer import CDRBaseTransformer
 
+# Regex utilizado para extrair o marcador de autenticação (ex.: "verstat=TN-Validation-Passed")
+# embutido em campos SIP de origem de CDRs Huawei.
 _AUTH_EXTRACT_PATTERN = r"(verstat=[a-zA-Z\-]+)"
 
 
 def _null_if_blank(column_name: str):
+    """Converte valores de string vazios/em branco em nulo Spark.
+
+    Objetivo da operação:
+        Uniformizar campos de origem que podem chegar como string vazia em vez
+        de nulo, evitando que esses valores poluam concatenações posteriores
+        (ex.: chaves compostas montadas por ``_concat_or_null``).
+
+    Args:
+        column_name: Nome da coluna a ser avaliada e normalizada.
+
+    Returns:
+        Column: Expressão Spark que resulta no valor original da coluna, ou
+        ``NULL`` quando o conteúdo (após ``trim``) for uma string vazia.
+    """
     column = F.col(column_name)
     return F.when(
         F.trim(column.cast("string")) == "",
@@ -50,6 +66,28 @@ def _null_if_blank(column_name: str):
 
 
 def _concat_or_null(separator: str, *columns):
+    """Concatena colunas com separador, retornando nulo se qualquer uma for nula.
+
+    Objetivo da operação:
+        Evitar a formação de identificadores compostos parcialmente
+        preenchidos (ex.: ``"216-XX--"``), o que mascararia a ausência de
+        dados essenciais para correlação de registros.
+
+    Args:
+        separator: Separador utilizado entre os componentes concatenados.
+        *columns: Colunas (``Column`` ou nome de coluna em ``str``) a
+            concatenar, na ordem em que devem aparecer no resultado final.
+
+    Returns:
+        Column: Expressão Spark com o resultado de ``concat_ws`` quando todas
+        as colunas estiverem preenchidas, ou ``NULL`` caso qualquer uma delas
+        seja nula.
+
+    Notes:
+        Regra de negócio: um identificador composto só é válido quando todos
+        os seus componentes existem; a presença de um único componente nulo
+        invalida o composto inteiro.
+    """
     # 1. Normaliza os argumentos garantindo objetos Column
     cols = [F.col(c) if isinstance(c, str) else c for c in columns]
 
@@ -65,6 +103,32 @@ def _build_composite_column(
     components: tuple,
     padded_columns: tuple[str, ...] = (),
 ):
+    """Monta uma coluna composta a partir de múltiplos componentes de origem.
+
+    Objetivo da operação:
+        Padronizar a construção de identificadores compostos (ex.: célula ou
+        IMSI/IMEI) usados por diferentes fornecedores, tratando componentes em
+        branco como nulos e aplicando zero-padding em campos que exigem largura
+        fixa antes da concatenação final via ``_concat_or_null``.
+
+    Args:
+        separator: Separador utilizado entre os componentes concatenados.
+        components: Sequência de componentes do composto. Cada item pode ser
+            o nome (``str``) de uma coluna do DataFrame ou uma expressão
+            ``Column`` já calculada (ex.: um literal de MCC).
+        padded_columns: Subconjunto de ``components`` (identificados por nome
+            de coluna) que deve receber zero-padding à esquerda até 5
+            caracteres antes da concatenação.
+
+    Returns:
+        Column: Expressão Spark com o composto final, ou ``NULL`` caso algum
+        componente esteja ausente/em branco.
+
+    Notes:
+        Regra de negócio: o zero-padding de 5 caracteres reflete o tamanho
+        máximo esperado para campos como LAC/CI/TAC em formato decimal,
+        garantindo largura fixa e comparável entre fornecedores.
+    """
     columns = []
     for component in components:
         column = _null_if_blank(component) if isinstance(component, str) else component
@@ -76,6 +140,41 @@ def _build_composite_column(
 
 
 def _format_cell_id(df, col_name, out_col, gnb_id_bits=26):
+    """Formata identificadores de célula hexadecimais em MCC-MNC-área-célula.
+
+    Objetivo da operação:
+        Decodificar o identificador de célula bruto (em hexadecimal) conforme
+        a tecnologia de acesso, reconhecida pelo comprimento da string de
+        entrada, produzindo uma representação textual única e comparável
+        entre 3G (UTRAN), 4G (ECGI) e 5G (NCGI).
+
+    Args:
+        df: DataFrame de origem contendo a coluna ``col_name`` a decodificar.
+        col_name: Nome da coluna com o identificador de célula bruto em
+            hexadecimal.
+        out_col: Nome da coluna de saída onde o identificador formatado será
+            gravado (pode coincidir com ``col_name`` para sobrescrever).
+        gnb_id_bits: Quantidade de bits reservados ao identificador do gNB
+            dentro do NCGI (5G). Os bits restantes (até completar 36) são
+            atribuídos ao Cell ID. Valor padrão de 26 bits segue a convenção
+            usual 3GPP para NCGI de 36 bits.
+
+    Returns:
+        DataFrame: Cópia do DataFrame de entrada com a coluna ``out_col``
+        adicionada/atualizada, contendo o identificador formatado no padrão
+        ``mcc-mnc-area-celula``, o valor original (quando o comprimento não
+        corresponde a nenhum layout conhecido) ou ``NULL`` quando a formatação
+        resultar em string vazia.
+
+    Notes:
+        - Algoritmo não trivial: o comprimento da string (13, 16 ou 20
+          caracteres) determina qual layout (3G/4G/5G) é aplicado; os campos
+          binários do NCGI são extraídos via deslocamento e máscara de bits
+          (``shiftright``/``bitwiseAND``) para separar gNB ID e Cell ID.
+        - Anotação de manutenção: ``gnb_id_bits`` deve ser ajustado caso a
+          operadora utilize uma partição de bits diferente da convenção
+          padrão 26/10 para NCGI.
+    """
     col = F.col(col_name)
     length = F.length(col)
 

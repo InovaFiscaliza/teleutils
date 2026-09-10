@@ -261,8 +261,8 @@ class CDRTeleparserExtractor:
             DataFrame: Resultado da extração relido de ``target_file``.
 
         Notes:
-                        - Regra de negócio: colunas ausentes são criadas com valor nulo
-                            para acomodar variações de disponibilidade entre tipos de CDR Nokia.
+            - Regra de negócio: colunas ausentes são criadas com valor nulo
+              para acomodar variações de disponibilidade entre tipos de CDR Nokia.
             - Anotação de manutenção: sempre revisar logs de colunas ausentes
               para identificar mudanças de layout na origem.
         """
