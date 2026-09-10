@@ -186,7 +186,8 @@ class CDRTextExtractor:
             )
             .withColumn("tipo_cdr", F.element_at(F.split(F.input_file_name(), "/"), -2))
             .withColumn(
-                "arquivo_origem", F.element_at(F.split(F.input_file_name(), "/"), -1)
+                "arquivo_origem",
+                F.url_decode(F.element_at(F.split(F.input_file_name(), "/"), -1)),
             )
         )
 
