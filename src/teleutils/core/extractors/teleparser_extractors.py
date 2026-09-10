@@ -5,7 +5,7 @@ fornecedores e layouts produzidos pelo Teleparser. O processo aplica mapeamento
 de colunas para um schema intermediário comum, enriquece metadados de origem e
 persiste o resultado para a etapa de transformação.
 
-As definições de schema (dataclass ``CDRTeleparserSchema`` e os contratos
+As definições de schema (dataclass ``CDRParquetSchema`` e os contratos
 padrão por fornecedor) residem no módulo ``teleutils.core.extractors.schemas``,
 mantendo aqui apenas a lógica de execução da extração.
 
@@ -39,10 +39,7 @@ from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
 
 from teleutils._logging import log_operation
-from teleutils.core.extractors.schemas import (
-    TELEPARSER_DEFAULT_SCHEMAS,
-    CDRTeleparserSchema,
-)
+from teleutils.core.extractors.schemas import CDRParquetSchema, PARQUET_DEFAULT_SCHEMAS
 
 logger = logging.getLogger(__name__)
 
@@ -58,13 +55,13 @@ class CDRTeleparserExtractor:
         spark:
             Sessão Spark utilizada para leitura, projeção e escrita dos dados.
         schemas:
-            Dicionário de contratos ``CDRTeleparserSchema`` disponíveis para
+            Dicionário de contratos ``CDRParquetSchema`` disponíveis para
             extração, indexados por chave de fornecedor/layout.
 
     Notes:
         - Os schemas são injetados via construtor (``schemas``), permitindo
           substituir ou estender os contratos padrão sem alterar esta classe.
-        - Quando nenhum schema é informado, ``TELEPARSER_DEFAULT_SCHEMAS`` (do
+        - Quando nenhum schema é informado, ``PARQUET_DEFAULT_SCHEMAS`` (do
           módulo ``teleutils.core.extractors.schemas``) é utilizado.
         - Métodos públicos são wrappers sem lógica adicional significativa,
           mantendo o fluxo principal em ``extract_cdr``.
@@ -73,15 +70,15 @@ class CDRTeleparserExtractor:
     def __init__(
         self,
         spark: SparkSession,
-        schemas: dict[str, CDRTeleparserSchema] | None = None,
+        schemas: dict[str, CDRParquetSchema] | None = None,
     ) -> None:
         """Inicializa o extrator com sessão Spark ativa e schemas de mapeamento.
 
         Args:
             spark: Sessão Spark compartilhada pelo pipeline de extração.
-            schemas: Dicionário de contratos ``CDRTeleparserSchema`` a utilizar.
+            schemas: Dicionário de contratos ``CDRParquetSchema`` a utilizar.
                 Quando omitido, os contratos padrão definidos em
-                ``TELEPARSER_DEFAULT_SCHEMAS`` são adotados.
+                ``PARQUET_DEFAULT_SCHEMAS`` são adotados.
 
         Notes:
             - O uso de uma única sessão favorece consistência operacional e
@@ -91,14 +88,14 @@ class CDRTeleparserExtractor:
               modificar esta classe.
         """
         self.spark = spark
-        self.schemas = schemas if schemas is not None else TELEPARSER_DEFAULT_SCHEMAS
+        self.schemas = schemas if schemas is not None else PARQUET_DEFAULT_SCHEMAS
         # self._sc = spark.sparkContext
 
     def extract_cdr(
         self,
         source_file: str,
         target_file: str,
-        schema: CDRTeleparserSchema,
+        schema: CDRParquetSchema,
         unique: bool = False,
     ) -> DataFrame:
         """Executa extração genérica conforme schema de mapeamento informado.

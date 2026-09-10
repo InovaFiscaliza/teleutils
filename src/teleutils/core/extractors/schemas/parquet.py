@@ -1,6 +1,6 @@
-"""Módulo de definição dos contratos de mapeamento de CDRs do Teleparser.
+"""Contratos de mapeamento para CDRs Parquet do Teleparser.
 
-Este módulo centraliza a dataclass de configuração ``CDRTeleparserSchema`` e os
+Este módulo centraliza a dataclass de configuração ``CDRParquetSchema`` e os
 schemas padrão de cada fornecedor/layout suportado pelo Teleparser. A separação
 entre configuração (este módulo) e execução (``teleparser_extractors.py``)
 permite que novos schemas sejam adicionados ou atualizados sem necessidade de
@@ -8,13 +8,15 @@ alterar a lógica de extração, favorecendo o princípio de responsabilidade ú
 e a extensão do projeto sem modificação do código existente (OCP).
 
 Responsabilidades principais:
-    - Definir o contrato imutável ``CDRTeleparserSchema``.
+    - Definir o contrato imutável ``CDRParquetSchema``.
     - Validar a consistência estrutural de cada schema configurado.
-    - Consolidar os schemas padrão em ``TELEPARSER_DEFAULT_SCHEMAS``.
+    - Consolidar os schemas padrão em ``PARQUET_DEFAULT_SCHEMAS``.
 
 Example:
-    >>> from teleutils.core.extractors.schemas import TELEPARSER_DEFAULT_SCHEMAS
-    >>> schema = TELEPARSER_DEFAULT_SCHEMAS["ericsson"]
+    >>> from teleutils.core.extractors.schemas.parquet import (
+    ...     PARQUET_DEFAULT_SCHEMAS,
+    ... )
+    >>> schema = PARQUET_DEFAULT_SCHEMAS["ericsson"]
     >>> schema.name
     'Ericsson'
 """
@@ -25,13 +27,13 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
-class CDRTeleparserSchema:
+class CDRParquetSchema:
     """Representa o contrato de extração para um layout específico de CDR.
 
     A estrutura define quais colunas da origem devem ser selecionadas e como
     elas serão renomeadas no dataset intermediário. A ideia é separar configuração
     de execução: a classe ``CDRTeleparserExtractor`` apenas aplica esse contrato,
-    enquanto cada instância de ``CDRTeleparserSchema`` define as regras.
+    enquanto cada instância de ``CDRParquetSchema`` define as regras.
     A configuração é imutável para evitar alteração acidental de regras em tempo de execução.
 
     Attributes:
@@ -82,8 +84,8 @@ class CDRTeleparserSchema:
                 )
 
 
-TELEPARSER_DEFAULT_SCHEMAS: dict[str, CDRTeleparserSchema] = {
-    "ericsson": CDRTeleparserSchema(
+PARQUET_DEFAULT_SCHEMAS: dict[str, CDRParquetSchema] = {
+    "ericsson": CDRParquetSchema(
         name="Ericsson",
         column_mapping=[
             ("networkCallReference", "referencia"),
@@ -119,7 +121,7 @@ TELEPARSER_DEFAULT_SCHEMAS: dict[str, CDRTeleparserSchema] = {
         ],
         job_description="Extraindo CDR Parquet: Ericsson",
     ),
-    "lte_huawei_tim": CDRTeleparserSchema(
+    "lte_huawei_tim": CDRParquetSchema(
         name="LTE Huawei TIM",
         column_mapping=[
             ("network-Call-Reference", "referencia"),
@@ -145,7 +147,7 @@ TELEPARSER_DEFAULT_SCHEMAS: dict[str, CDRTeleparserSchema] = {
         ],
         job_description="Extraindo CDR Parquet: LTE Huawei TIM",
     ),
-    "lte_ericsson_vivo": CDRTeleparserSchema(
+    "lte_ericsson_vivo": CDRParquetSchema(
         name="LTE Ericsson Vivo",
         column_mapping=[
             ("networkCallReference", "referencia"),
@@ -170,7 +172,7 @@ TELEPARSER_DEFAULT_SCHEMAS: dict[str, CDRTeleparserSchema] = {
         ],
         job_description="Extraindo CDR Parquet: LTE Ericsson Vivo",
     ),
-    "nokia": CDRTeleparserSchema(
+    "nokia": CDRParquetSchema(
         name="Nokia",
         column_mapping=[
             ("record_type", "tipo_chamada"),
