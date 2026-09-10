@@ -410,11 +410,7 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
             }
         )
 
-        ats_calling_party = F.when(
-            F.col("_numero_origem_ats_auth").isNotNull(),
-            F.regexp_extract(F.col("_numero_origem_ats_auth"), r":\+?([0-9]+)", 1),
-        ).otherwise(F.col("_numero_origem_ats").substr(3, 9999))
-        # Remover caracteres adicionais dos números de telefone, mantendo apenas os 20  caracteres.
+        # Remover os 3 primeiros caracteres de `_numero_origem_ats`, mantendo apenas os demais.
         # As colunas numero_origem e numero_destino contêm os números dos terminais
         # precedidos de prefixos adicionais (11 ou 14) que devem ser removidos:
         # +-----------------|---------------+
@@ -424,48 +420,53 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         # | 115595981241366 | 5595981241366 |
         # | 1408000910091   | 08000910091   |
         # +-----------------|---------------+
-
+        # Em situações em que o número de origem ATS são completos, por exemplo 115595981241366, 
+        # os caracteres iniciais não interverem na formação, mas nas situações onde o número está 
+        # incompleto, por exemplo, 1440042704, os prefixos podem ser confundicos com os CN 11 ou 14
+        ats_calling_party = F.when(
+            F.col("_numero_origem_ats_auth").isNotNull(),
+            F.regexp_extract(F.col("_numero_origem_ats_auth"), r":\+?([0-9]+)", 1),
+        ).otherwise(F.col("_numero_origem_ats").substr(3, 9999))
         raw_ats_calling_party = F.when(
             F.col("_numero_origem_ats_auth").isNotNull(),
             F.col("_numero_origem_ats_auth"),
         ).otherwise(F.col("_numero_origem_ats"))
-
         ibcf_calling_party = F.regexp_extract(
             F.col("_numero_origem_ibcf"), r"sip:\+?([0-9]+)", 1
         )
 
-        df = df.withColumn(
-            "numero_origem",
-            F.when(is_ats, ats_calling_party).otherwise(ibcf_calling_party),
-        ).withColumn(
-            "_numero_origem_original",
-            F.when(is_ats, raw_ats_calling_party).otherwise(
-                F.col("_numero_origem_ibcf")
-            ),
-        )
-
-        df = df.withColumn(
-            "numero_destino",
-            F.when(is_ats, F.col("_numero_destino_ats").substr(3, 9999)).otherwise(
-                F.regexp_extract(F.col("_numero_destino_ibcf"), r"sip:\+?([0-9]+)", 1)
-            ),
-        ).withColumn(
-            "_numero_destino_original",
-            F.when(is_ats, F.col("_numero_destino_ats")).otherwise(
-                F.col("_numero_destino_ibcf")
-            ),
-        )
-
-        df = df.withColumn(
-            "_autenticacao",
-            F.when(
-                is_ats,
-                F.regexp_extract(
-                    F.col("_numero_origem_ats_auth"), _AUTH_EXTRACT_PATTERN, 0
+        df = df.withColumns(
+            {
+                "numero_origem": F.when(
+                    is_ats, ats_calling_party
+                ).otherwise(ibcf_calling_party),
+                "_numero_origem_original": F.when(
+                    is_ats, raw_ats_calling_party
+                ).otherwise(F.col("_numero_origem_ibcf")),
+                "numero_destino": F.when(
+                    is_ats,
+                    F.col("_numero_destino_ats").substr(3, 9999),
+                ).otherwise(
+                    F.regexp_extract(
+                        F.col("_numero_destino_ibcf"), r"sip:\+?([0-9]+)", 1
+                    )
                 ),
-            ).otherwise(
-                F.regexp_extract(F.col("_numero_origem"), _AUTH_EXTRACT_PATTERN, 0)
-            ),
+                "_numero_destino_original": F.when(
+                    is_ats, F.col("_numero_destino_ats")
+                ).otherwise(F.col("_numero_destino_ibcf")),
+                "_autenticacao": F.when(
+                    is_ats,
+                    F.regexp_extract(
+                        F.col("_numero_origem_ats_auth"),
+                        _AUTH_EXTRACT_PATTERN,
+                        0,
+                    ),
+                ).otherwise(
+                    F.regexp_extract(
+                        F.col("_numero_origem"), _AUTH_EXTRACT_PATTERN, 0
+                    )
+                ),
+            }
         )
 
         df = df.withColumn(
