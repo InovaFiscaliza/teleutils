@@ -832,4 +832,7 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
             }
         )
 
-        return df
+        df = self._apply_standard_pipeline(df, date_time_fmt)
+        self._write_parquet(df, target_file)
+        
+        return self.spark.read.parquet(target_file)
