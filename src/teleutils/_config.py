@@ -31,7 +31,7 @@ Notes:
 """
 
 from pyspark.sql import functions as F
-from pyspark.sql.types import TimestampType, StringType
+from pyspark.sql import types as T
 
 # Marcador textual utilizado pelo classificador de robocalls para identificar
 # chamadas que passaram pelo processo de autenticação da operadora.
@@ -49,7 +49,7 @@ MAX_RECORDS_PER_FILE = 1000000
 SHORT_CALL_THRESHOLD = 6
 
 # Define a data limite como um literal do Spark para o Catalyst otimizar a comparação
-MIN_SAFE_DATE = F.lit("1901-01-01 00:00:00").cast(TimestampType())
+MIN_SAFE_DATE = F.lit("1901-01-01 00:00:00").cast(T.TimestampType())
 
 # Código MCC/MNC para preenchimento em caso de ausência de informação de operadora, utilizado em transformações
 # de CDRs para manter consistência de dados e evitar valores nulos em campos críticos
@@ -59,7 +59,7 @@ CLARO_MNC = F.lit("05")
 
 # Valor sentinela para preenchimentos de campos nulos necessários para desduplicação de registros, 
 # evitando que registros distintos sejam erroneamente considerados duplicados
-NULL_SENTINEL_VALUE = F.lit("__NULL__").cast(StringType())
+NULL_SENTINEL_VALUE = F.lit("__NULL__").cast(T.StringType())
 
 # Chave primária para desduplicação de registros, composta por campos críticos que identificam unicamente uma chamada
 PRIMARY_KEY_COLUMNS = [
@@ -79,3 +79,39 @@ PRIMARY_KEY_COLUMNS = [
     "no_rota_saida",
     "no_bilhetador"
 ]
+
+TARGET_SCHEMA = {
+    "referencia": ("nu_referencia", T.StringType()),
+    "referencia_sip": ("nu_referencia_sip", T.StringType()),
+    "data_hora_referencia": ("dh_referencia", T.TimestampType()),
+    "data_hora": ("dh_chamada", T.TimestampType()),
+    "data_hora_fim": ("dh_fim_chamada", T.TimestampType()),
+    "duracao": ("qt_duracao_segundos", T.LongType()),
+    "numero_origem_formatado": ("nu_origem", T.StringType()),
+    "numero_origem_valido": ("ic_origem_valido", T.BooleanType()),
+    "numero_origem": ("nu_origem_original", T.StringType()),
+    "numero_destino_formatado": ("nu_destino", T.StringType()),
+    "numero_destino_valido": ("ic_destino_valido", T.BooleanType()),
+    "numero_destino": ("nu_destino_original", T.StringType()),
+    "status_chamada": ("no_resultado_chamada", T.StringType()),
+    "codigo_resposta_sip": ("co_resposta_sip", T.StringType()),
+    "autenticacao": ("no_autenticacao", T.StringType()),
+    "prestadora": ("no_prestadora", T.StringType()),
+    "rota_entrada": ("no_rota_entrada", T.StringType()),
+    "rota_saida": ("no_rota_saida", T.StringType()),
+    "bilhetador": ("no_bilhetador", T.StringType()),
+    "celula_origem": ("nu_cgi_origem", T.StringType()),
+    "imei_origem": ("nu_imei_origem", T.StringType()),
+    "imsi_origem": ("nu_imsi_origem", T.StringType()),
+    "ip_origem": ("nu_ip_origem", T.StringType()),
+    "porta_ip_origem": ("nu_porta_ip_origem", T.IntegerType()),
+    "celula_destino": ("nu_cgi_destino", T.StringType()),
+    "imei_destino": ("nu_imei_destino", T.StringType()),
+    "imsi_destino": ("nu_imsi_destino", T.StringType()),
+    "ip_destino": ("nu_ip_destino", T.StringType()),
+    "porta_ip_destino": ("nu_porta_ip_destino", T.IntegerType()),
+    "agente_usuario": ("no_agente_usuario", T.StringType()),
+    "tipo_cdr": ("no_tipo_cdr", T.StringType()),
+    "arquivo_origem": ("no_arquivo_origem", T.StringType()),
+    "tipo_chamada": ("no_tipo_chamada", T.StringType()),
+}

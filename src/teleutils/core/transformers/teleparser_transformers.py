@@ -340,21 +340,6 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
             }
         )
 
-        # Colunas inexistentes nos CDR Ericsson, mas exigidas pelo contrato final, são preenchidas com nulo.
-        missing_ts_columns = ["data_hora_referencia"]
-        missing_string_columns = ["ip_origem", "ip_destino", "agente_usuario"]
-        missing_int_columns = [
-            "porta_ip_origem",
-            "porta_ip_destino",
-            "codigo_resposta_sip",
-        ]
-        missing_columns = {
-            **{col: MIN_SAFE_DATE for col in missing_ts_columns},
-            **{col: F.lit(None).cast(T.StringType()) for col in missing_string_columns},
-            **{col: F.lit(None).cast(T.IntegerType()) for col in missing_int_columns},
-        }
-        df = df.withColumns(missing_columns)
-
         df = self._apply_standard_pipeline(df, date_time_fmt)
 
         self._write_parquet(df, target_file)
@@ -420,8 +405,8 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         # | 115595981241366 | 5595981241366 |
         # | 1408000910091   | 08000910091   |
         # +-----------------|---------------+
-        # Em situações em que o número de origem ATS são completos, por exemplo 115595981241366, 
-        # os caracteres iniciais não interverem na formação, mas nas situações onde o número está 
+        # Em situações em que o número de origem ATS são completos, por exemplo 115595981241366,
+        # os caracteres iniciais não interverem na formação, mas nas situações onde o número está
         # incompleto, por exemplo, 1440042704, os prefixos podem ser confundicos com os CN 11 ou 14
         ats_calling_party = F.when(
             F.col("_numero_origem_ats_auth").isNotNull(),
@@ -437,9 +422,9 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
 
         df = df.withColumns(
             {
-                "numero_origem": F.when(
-                    is_ats, ats_calling_party
-                ).otherwise(ibcf_calling_party),
+                "numero_origem": F.when(is_ats, ats_calling_party).otherwise(
+                    ibcf_calling_party
+                ),
                 "_numero_origem_original": F.when(
                     is_ats, raw_ats_calling_party
                 ).otherwise(F.col("_numero_origem_ibcf")),
@@ -462,9 +447,7 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
                         0,
                     ),
                 ).otherwise(
-                    F.regexp_extract(
-                        F.col("_numero_origem"), _AUTH_EXTRACT_PATTERN, 0
-                    )
+                    F.regexp_extract(F.col("_numero_origem"), _AUTH_EXTRACT_PATTERN, 0)
                 ),
             }
         )
@@ -579,20 +562,6 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
             .otherwise(F.lit(None).cast(T.StringType())),
         )
 
-        # Colunas inexistentes nos CDR Tim Huawei, mas exigidas pelo contrato final, são preenchidas com nulo.
-        missing_ts_columns = ["data_hora_referencia"]
-        missing_string_columns = ["ip_origem", "ip_destino"]
-        missing_int_columns = [
-            "porta_ip_origem",
-            "porta_ip_destino",
-        ]
-        missing_columns = {
-            **{col: MIN_SAFE_DATE for col in missing_ts_columns},
-            **{col: F.lit(None).cast(T.StringType()) for col in missing_string_columns},
-            **{col: F.lit(None).cast(T.IntegerType()) for col in missing_int_columns},
-        }
-        df = df.withColumns(missing_columns)
-
         df = self._apply_standard_pipeline(df, date_time_fmt)
 
         self._write_parquet(df, target_file)
@@ -659,21 +628,6 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
 
         df = _format_cell_id(df, "celula_origem", "celula_origem")
         df = _format_cell_id(df, "celula_destino", "celula_destino")
-
-        # Colunas inexistentes nos CDR Vivo Huawei, mas exigidas pelo contrato final, são preenchidas com nulo.
-        missing_ts_columns = ["data_hora_referencia"]
-        missing_string_columns = ["ip_origem", "ip_destino", "agente_usuario"]
-        missing_int_columns = [
-            "porta_ip_origem",
-            "porta_ip_destino",
-            "codigo_resposta_sip",
-        ]
-        missing_columns = {
-            **{col: MIN_SAFE_DATE for col in missing_ts_columns},
-            **{col: F.lit(None).cast(T.StringType()) for col in missing_string_columns},
-            **{col: F.lit(None).cast(T.IntegerType()) for col in missing_int_columns},
-        }
-        df = df.withColumns(missing_columns)
 
         df = self._apply_standard_pipeline(df, date_time_fmt)
 
@@ -846,20 +800,36 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
             .otherwise(F.lit(None)),
         )
 
-        # Colunas inexistentes nos CDR Nokia, mas exigidas pelo contrato final, são preenchidas com nulo.
-        missing_string_columns = ["ip_origem", "ip_destino", "agente_usuario"]
-        missing_int_columns = [
-            "porta_ip_origem",
-            "porta_ip_destino",
-            "codigo_resposta_sip",
-        ]
-        missing_columns = {
-            **{col: F.lit(None).cast(T.StringType()) for col in missing_string_columns},
-            **{col: F.lit(None).cast(T.IntegerType()) for col in missing_int_columns},
-        }
-        df = df.withColumns(missing_columns)
-
         df = self._apply_standard_pipeline(df, date_time_fmt)
 
         self._write_parquet(df, target_file)
         return self.spark.read.parquet(target_file)
+
+    @log_operation
+    def transform_cdr_algar_ngn(self, source_file: str, target_file: str):
+        """Transforma registros do layout Algar NGN usando o pipeline padrão.
+
+        Args:
+            source_file: Caminho do arquivo de entrada no formato Algar NGN.
+            target_file: Diretório de saída em parquet padronizado.
+            date_time_fmt: Formato de data e hora a ser aplicado no pipeline padrão.
+
+        Returns:
+            DataFrame: Registros transformados e relidos do Parquet de destino.
+        """
+
+        date_time_fmt = "ddMMyyyy HHmmss"
+        df = self.spark.read.parquet(source_file)
+
+        df = df.withColumns(
+            {
+                "data_hora": F.nullif(
+                    F.concat_ws(" ", F.col("_data"), F.col("_hora")), F.lit("")
+                ),
+                "data_hora_fim": F.nullif(
+                    F.concat_ws(" ", F.col("_data_fim"), F.col("_hora")), F.lit("")
+                ),
+            }
+        )
+
+        return df

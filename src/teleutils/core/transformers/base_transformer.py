@@ -35,7 +35,12 @@ from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
 from pyspark.sql import types as T
 
-from teleutils._config import MIN_SAFE_DATE, NULL_SENTINEL_VALUE
+from teleutils._config import (
+    MIN_SAFE_DATE,
+    NULL_SENTINEL_VALUE,
+    PRIMARY_KEY_COLUMNS,
+    TARGET_SCHEMA,
+)
 from teleutils.preprocessing import spark_normalize_number
 
 logger = logging.getLogger(__name__)
@@ -94,16 +99,22 @@ class CDRBaseTransformer:
             - Regra de negócio: duração inválida é tratada como 0 para manter
               consistência em métricas downstream.
             - Quando ``data_hora`` não existe, ela é construída por concatenação
-              de ``_data`` e ``_hora``.
+                            de ``_data`` e ``_hora`` somente se ambas estiverem disponíveis;
+                            caso contrário, recebe ``MIN_SAFE_DATE``.
+                        - ``data_hora_fim`` segue a mesma regra usando ``_data`` e
+                            ``_hora_fim``. A ausência de ``data_hora_referencia`` também é
+                            normalizada para ``MIN_SAFE_DATE``.
         """
 
-        if "data_hora" not in df.columns:
+        if "data_hora" not in df.columns and {"_data", "_hora"}.issubset(df.columns):
             df = df.withColumn(
                 "data_hora",
                 F.nullif(F.concat_ws(" ", F.col("_data"), F.col("_hora")), F.lit("")),
             )
 
-        if "data_hora_fim" not in df.columns:
+        if "data_hora_fim" not in df.columns and {"_data", "_hora_fim"}.issubset(
+            df.columns
+        ):
             df = df.withColumn(
                 "data_hora_fim",
                 F.nullif(
@@ -118,17 +129,37 @@ class CDRBaseTransformer:
 
         return df.withColumns(
             {
-                # Tratamento da duração (convertendo nulos para 0)
-                "duracao": F.coalesce(F.col("duracao").cast(T.IntegerType()), F.lit(0)),
+                # Tratamento da duração (convertendo nulos e ausências para 0)
+                "duracao": (
+                    F.coalesce(F.col("duracao").cast(T.IntegerType()), F.lit(0))
+                    if "duracao" in df.columns
+                    else F.lit(0)
+                ),
                 # Datas nulas, inválidas ou anteriores ao limite viram MIN_SAFE_DATE.
                 "data_hora": normalize_timestamp(
-                    F.try_to_timestamp(F.col("data_hora"), timestamp_format)
+                    F.try_to_timestamp(
+                        F.col("data_hora")
+                        if "data_hora" in df.columns
+                        else F.lit(None),
+                        timestamp_format,
+                    )
                 ),
                 "data_hora_fim": normalize_timestamp(
-                    F.try_to_timestamp(F.col("data_hora_fim"), timestamp_format)
+                    F.try_to_timestamp(
+                        F.col("data_hora_fim")
+                        if "data_hora_fim" in df.columns
+                        else F.lit(None),
+                        timestamp_format,
+                    )
                 ),
-                "data_hora_referencia": normalize_timestamp(
-                    F.try_to_timestamp(F.col("data_hora_referencia"), timestamp_format)
+                "data_hora_referencia": (
+                    normalize_timestamp(
+                        F.try_to_timestamp(
+                            F.col("data_hora_referencia"), timestamp_format
+                        )
+                    )
+                    if "data_hora_referencia" in df.columns
+                    else MIN_SAFE_DATE
                 ),
             }
         )
@@ -232,61 +263,49 @@ class CDRBaseTransformer:
 
         return df
 
-    def _add_missing_reference_columns(self, df):
-        """Adiciona colunas de referência ausentes com valor sentinela.
+    def _fill_missing_columns(self, df: DataFrame) -> DataFrame:
+        """Garante as colunas do contrato intermediário e trata chaves nulas.
 
         Args:
             df: DataFrame Spark de entrada.
 
         Returns:
-            DataFrame: DataFrame com colunas ``referencia`` e
-            ``referencia_sip`` garantidas, mesmo que ausentes no layout original.
+            DataFrame: DataFrame contendo todas as colunas de origem definidas
+                em ``TARGET_SCHEMA``.
 
         Notes:
-            - Regra de negócio: a ausência de referência deve ser sinalizada com valor sentinela para evitar inconsistências.
+            Colunas ausentes que não compõem a chave primária recebem ``NULL``
+            com o tipo previsto no contrato. Colunas da chave primária recebem
+            ``NULL_SENTINEL_VALUE``, ``MIN_SAFE_DATE`` para timestamps ou ``0``
+            para valores numéricos, garantindo que as aliases definidas em
+            ``PRIMARY_KEY_COLUMNS`` não contenham valores nulos.
         """
-        if "referencia" not in df.columns:
-            df = df.withColumn("referencia", NULL_SENTINEL_VALUE)
-        else:
-            df = df.withColumn(
-                "referencia", F.coalesce(F.col("referencia"), NULL_SENTINEL_VALUE)
-            )
+        available_columns = set(df.columns)
+        primary_key_sources = {
+            source_column
+            for source_column, (target_column, _) in TARGET_SCHEMA.items()
+            if target_column in PRIMARY_KEY_COLUMNS
+        }
+        columns_to_fill = {}
 
-        if "referencia_sip" not in df.columns:
-            df = df.withColumn("referencia_sip", NULL_SENTINEL_VALUE)
-        else:
-            df = df.withColumn(
-                "referencia_sip",
-                F.coalesce(F.col("referencia_sip"), NULL_SENTINEL_VALUE),
-            )
+        for source_column, (_, data_type) in TARGET_SCHEMA.items():
+            if source_column in primary_key_sources:
+                if isinstance(data_type, T.TimestampType):
+                    default_value = MIN_SAFE_DATE
+                elif isinstance(data_type, T.NumericType):
+                    default_value = F.lit(0).cast(data_type)
+                else:
+                    default_value = NULL_SENTINEL_VALUE.cast(data_type)
 
-        return df
-
-    def _fill_missing_columns(
-        self, df: DataFrame, required_columns: list[str]
-    ) -> DataFrame:
-        """Preenche colunas ausentes com valor nulo.
-
-        Args:
-            df: DataFrame Spark de entrada.
-            required_columns: Lista de nomes de colunas que devem estar presentes.
-
-        Returns:
-            DataFrame: DataFrame com todas as colunas obrigatórias garantidas,
-            preenchendo ausentes com nulos.
-
-        Notes:
-            - Regra de negócio: colunas ausentes são preenchidas com nulo para
-              manter consistência de schema.
-        """
-        for column in required_columns:
-            if column not in df.columns:
-                df = df.withColumn(column, NULL_SENTINEL_VALUE)
-            else:
-                df = df.withColumn(
-                    column, F.coalesce(F.col(column), NULL_SENTINEL_VALUE)
+                columns_to_fill[source_column] = (
+                    F.coalesce(F.col(source_column).cast(data_type), default_value)
+                    if source_column in available_columns
+                    else default_value
                 )
-        return df
+            elif source_column not in available_columns:
+                columns_to_fill[source_column] = F.lit(None).cast(data_type)
+
+        return df.withColumns(columns_to_fill)
 
     def _apply_standard_pipeline(
         self, df: DataFrame, date_time_fmt: str = "yyyy-MM-dd HH-mm-ss"
@@ -295,8 +314,9 @@ class CDRBaseTransformer:
 
         Fluxo de processamento:
             1. Padronização temporal e duração.
-            2. Normalização de números telefônicos.
-            3. Enriquecimento de status de autenticação.
+            2. Garantia das colunas definidas em ``TARGET_SCHEMA``.
+            3. Normalização de números telefônicos.
+            4. Enriquecimento de status de autenticação.
 
         Args:
             df: DataFrame de entrada.
@@ -308,23 +328,15 @@ class CDRBaseTransformer:
         Notes:
             Decisão arquitetural: centralizar o pipeline reduz risco de regras
             divergentes entre prestadoras e facilita manutenção evolutiva.
+
+            As colunas do contrato são garantidas antes da normalização de
+            números, que depende de ``numero_origem`` e ``numero_destino``.
         """
 
+        df = self._fill_missing_columns(df)
         df = self._format_date_time(df, date_time_fmt)
         df = self._format_numbers(df)
         df = self._add_tn_validation_status(df)
-        df = self._add_missing_reference_columns(df)
-
-        # Colunas necessárias para desduplicação de registros, preenchidas com valor sentinela caso nulo
-        required_columns = [
-            "numero_origem",
-            "numero_destino",
-            "status_chamada",
-            "rota_entrada",
-            "rota_saida",
-            "bilhetador",
-        ]
-        df = self._fill_missing_columns(df, required_columns)
 
         return df
 
@@ -344,48 +356,11 @@ class CDRBaseTransformer:
               deve ocorrer neste método para preservar consistência.
         """
 
-        return df.withColumn(
-            "tipo_chamada", F.col("tipo_chamada").cast(T.StringType())
-        ).select(
-            # 1. Identificação Geral & Tempo (Quando e qual o contexto da carga)
-            F.col("referencia").alias("nu_referencia"),
-            F.col("referencia_sip").alias("nu_referencia_sip"),
-            F.col("data_hora_referencia").alias("dh_referencia"),
-            F.col("data_hora").alias("dh_chamada"),
-            F.col("data_hora_fim").alias("dh_fim_chamada"),
-            F.col("duracao").alias("qt_duracao_segundos"),
-            # 2. Partes Envolvidas (Quem ligou para quem)
-            F.col("numero_origem_formatado").alias("nu_origem"),
-            F.col("numero_origem_valido").alias("ic_origem_valido"),
-            F.col("numero_origem").alias("nu_origem_original"),
-            F.col("numero_destino_formatado").alias("nu_destino"),
-            F.col("numero_destino_valido").alias("ic_destino_valido"),
-            F.col("numero_destino").alias("nu_destino_original"),
-            # 3. Status & Resultado da Chamada (O que aconteceu com a ligação)
-            F.col("status_chamada").alias("no_resultado_chamada"),
-            F.col("codigo_resposta_sip").alias("co_resposta_sip"),
-            F.col("autenticacao").alias("no_autenticacao"),
-            # 4. Roteamento & Rede Telecom (Por onde a chamada passou)
-            F.col("prestadora").alias("no_prestadora"),
-            F.col("rota_entrada").alias("no_rota_entrada"),
-            F.col("rota_saida").alias("no_rota_saida"),
-            F.col("bilhetador").alias("no_bilhetador"),
-            # 5. Dados Técnicos de Dispositivo & IP (Células, aparelhos e IPs)
-            F.col("celula_origem").alias("nu_cgi_origem"),
-            F.col("imei_origem").alias("nu_imei_origem"),
-            F.col("imsi_origem").alias("nu_imsi_origem"),
-            F.col("ip_origem").alias("nu_ip_origem"),
-            F.col("porta_ip_origem").alias("nu_porta_ip_origem"),
-            F.col("celula_destino").alias("nu_cgi_destino"),
-            F.col("imei_destino").alias("nu_imei_destino"),
-            F.col("imsi_destino").alias("nu_imsi_destino"),
-            F.col("ip_destino").alias("nu_ip_destino"),
-            F.col("porta_ip_destino").alias("nu_porta_ip_destino"),
-            F.col("agente_usuario").alias("no_agente_usuario"),
-            # 6. Metadados do Arquivo & Regras de Negócio (Para auditoria e particionamento)
-            F.col("tipo_cdr").alias("no_tipo_cdr"),
-            F.col("arquivo_origem").alias("no_arquivo_origem"),
-            F.col("tipo_chamada").alias("no_tipo_chamada"),
+        return df.select(
+            *[
+                F.col(source_column).cast(data_type).alias(target_column)
+                for source_column, (target_column, data_type) in TARGET_SCHEMA.items()
+            ]
         )
 
     def _write_parquet(self, df: DataFrame, target_file: str) -> None:
