@@ -731,16 +731,17 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         )
         # A coluna data_hora_fim é derivada de forma condicional, considerando o tipo de CDR.
         # Para CDRs do tipo UCA, a data_hora_fim é obtida a partir de data_hora_desconexao, caso exista.
-        # Se nenhuma das datas existir, preenche com valor sentinela MIN_SAFE_DATE para evitar nulos em campo crítico.
+        # Valores nulos ou inválidos são normalizados para MIN_SAFE_DATE no pipeline padrão.
         if "data_hora_desconexao" in df.columns:
             df = df.withColumn(
                 "data_hora_fim",
-                F.coalesce(
-                    F.when(
-                        F.col("tipo_chamada") == "UCA", F.col("data_hora_desconexao")
-                    ).otherwise(F.col("data_hora_fim")),
-                    MIN_SAFE_DATE,
-                ),
+                F.when(
+                    F.col("tipo_chamada") == "UCA",
+                    F.coalesce(
+                        F.col("data_hora_desconexao"),
+                        F.col("data_hora_fim"),
+                    ),
+                ).otherwise(F.col("data_hora_fim")),
             )
 
         # CDRs do tipo FORW não possuem os campos calling_number e called_number
