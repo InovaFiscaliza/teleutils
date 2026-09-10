@@ -1,42 +1,50 @@
-"""Módulo teleutils.core.extractors.text_extractors.
+"""Extração e padronização de CDRs provenientes de arquivos texto/CSV.
 
-Responsável pela extração e padronização de registros de chamadas (CDR)
-provenientes de múltiplos layouts de arquivo texto/CSV utilizados por
-prestadoras e fornecedores distintos.
+Este módulo implementa o fluxo comum para ler arquivos delimitados com Spark,
+selecionar colunas por posição, renomeá-las conforme um contrato
+``CDRTextSchema`` e persistir o resultado em Parquet. O catálogo de layouts é
+definido em ``teleutils.core.extractors.schemas.text``; a classe deste módulo
+coordena a execução e mantém os métodos de entrada específicos de cada layout.
 
 Principais responsabilidades:
     - Consumir contratos de mapeamento por formato via ``CDRTextSchema``.
-    - Centralizar a leitura e validação de colunas em Spark.
-    - Uniformizar nomes de colunas em uma estrutura comum para etapas seguintes.
-    - Persistir o resultado em parquet para consumo das próximas etapas.
+    - Ler e validar a quantidade de colunas disponibilizada pelo arquivo.
+    - Uniformizar nomes de colunas e adicionar metadados de origem.
+    - Aplicar filtros de registros definidos pelo contrato de entrada.
+    - Persistir o DataFrame intermediário em Parquet e relê-lo como resultado.
 
 Principais funcionalidades:
-    - Extração parametrizada por esquema (delimitador, índices, nomes, filtro).
-    - Validação preventiva de configuração para reduzir falhas em runtime.
-    - Inclusão de metadados de rastreabilidade do arquivo de origem.
+    - Extração parametrizada por delimitador, cabeçalho, schema Spark, índices,
+      nomes de saída e filtro opcional.
+    - Validação preventiva do maior índice solicitado antes da seleção.
+    - Inclusão das colunas ``prestadora``, ``tipo_cdr`` e ``arquivo_origem`` a
+      partir do caminho retornado por ``input_file_name``.
 
 Dependências relevantes:
     - pyspark.sql.SparkSession
     - pyspark.sql.functions
-    - pyspark.sql.types
     - teleutils._logging.log_operation
+    - teleutils.core.extractors.schemas.text.CDRTextSchema
 
 Notes:
-    Os índices de coluna em ``CDRTextSchema.column_indices`` são zero-based e devem
-    corresponder exatamente ao layout do CSV após aplicação do delimitador.
+    Os índices de coluna em ``CDRTextSchema.column_indices`` são zero-based e
+    devem corresponder às colunas produzidas pelo Spark após a aplicação do
+    delimitador e do cabeçalho configurados.
+
+    A escrita do resultado usa modo ``overwrite``. O diretório de destino é
+    portanto substituído a cada execução do método ``extract_cdr``.
 
 Example:
     >>> extrator = CDRTextExtractor(spark)
-    >>> df = extrator.extract_cdr_ericsson(
-    ...     source_file="dados/ericsson.csv",
-    ...     target_file="saida/ericsson"
+    >>> df = extrator.extract_cdr_algar_ngn(
+    ...     source_file="dados/algar_ngn.csv",
+    ...     target_file="saida/algar_ngn"
     ... )
 """
 
 from __future__ import annotations
 
 import logging
-from typing import ClassVar
 
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
@@ -48,75 +56,88 @@ logger = logging.getLogger(__name__)
 
 
 class CDRTextExtractor:
-    """Orquestra a extração de CDR para um formato intermediário padronizado.
+    """Orquestra a extração de CDR texto/CSV para um formato intermediário.
 
-    Esta classe funciona como ponto de entrada para extração por tecnologia/
-    fornecedor. Cada método público seleciona um esquema pré-definido e delega a
-    execução para ``extract_cdr``, onde está o fluxo comum de processamento.
+    Cada método público de layout seleciona um contrato de
+    ``TEXT_DEFAULT_SCHEMAS`` e delega a execução para ``extract_cdr``, onde está
+    o fluxo comum de leitura, seleção, enriquecimento, filtragem e persistência.
 
-    O desenho separa lógica (implementação da extração) de configuração
-    (mapeamentos em ``_SCHEMAS``), facilitando evolução e manutenção incremental.
+    A separação entre a execução e os mapeamentos em ``_SCHEMAS`` permite alterar
+    configurações de layout sem duplicar o processamento Spark.
 
     Attributes:
         spark: Sessão Spark utilizada para leitura e escrita de dados.
+        schema: Schema opcional recebido no construtor e armazenado na instância.
 
     Notes:
-        Ponto de extensão principal: adição de novos formatos no dicionário
-        ``_SCHEMAS`` e criação de um método público delegando para ``extract_cdr``.
+        ``_SCHEMAS`` referencia o catálogo compartilhado ``TEXT_DEFAULT_SCHEMAS``.
+        Para adicionar um novo ponto de entrada, é necessário incluir o contrato
+        correspondente no catálogo e um método que o encaminhe a ``extract_cdr``.
+
+        O método ``extract_cdr`` recebe explicitamente o schema que será usado;
+        o atributo ``schema`` armazenado pelo construtor não é consultado nesse
+        fluxo.
     """
 
-    # Schemas declarados como atributo de classe: são constantes e não dependem
-    # de instância. Isso evita recriar os objetos a cada chamada e deixa a
-    # configuração visível e fácil de manter no topo da classe.
-    _SCHEMAS: ClassVar[dict[str, CDRTextSchema]] = TEXT_DEFAULT_SCHEMAS
-
-    def __init__(self, spark: SparkSession) -> None:
+    def __init__(
+        self, spark: SparkSession, schemas: dict[str, CDRTextSchema] | None = None
+    ) -> None:
         """Inicializa o extrator com uma sessão Spark ativa.
 
         Args:
             spark: Sessão Spark a ser reutilizada nas operações de extração.
+            schemas: Schemas opcionais armazenados na instância para uso do código
+                chamador. O método ``extract_cdr`` utiliza o schema recebido
+                diretamente em seu parâmetro próprio.
 
         Notes:
-            O construtor mantém apenas a sessão Spark necessária para executar
-            leitura, seleção de colunas e escrita da saída intermediária.
+            A sessão Spark é mantida em ``self.spark`` e o valor de ``schemas`` é
+            mantido em ``self.schemas``. Nenhum arquivo é lido ou escrito durante
+            a inicialização.
         """
         self.spark = spark
+        self.schemas = schemas if schemas is not None else TEXT_DEFAULT_SCHEMAS
         # SparkContext armazenado uma única vez, evitando chamadas repetidas
         # self._sc = spark.sparkContext
 
     def extract_cdr(
         self, source_file: str, target_file: str, schema: CDRTextSchema
     ) -> DataFrame:
-        """Executa o pipeline de extração/normalização para um esquema CDR.
+        """Lê, normaliza, filtra e persiste registros de um layout CDR.
 
         Fluxo de processamento:
-            1. Lê o CSV conforme delimitador/cabeçalho/schema informados.
-            2. Valida existência dos índices solicitados no dataset lido.
-            3. Seleciona e renomeia colunas para o contrato padronizado.
-            4. Adiciona metadados de linhagem (prestadora, tipo_cdr, arquivo_origem).
-            5. Aplica filtro opcional definido no schema.
-            6. Persiste parquet de saída e relê o resultado.
+            1. Lê o arquivo delimitado com as opções do ``schema``.
+            2. Verifica se o maior índice solicitado existe no DataFrame lido.
+            3. Seleciona as colunas por posição e aplica ``column_names``.
+            4. Adiciona ``prestadora``, ``tipo_cdr`` e ``arquivo_origem`` a partir
+               do caminho do arquivo de entrada.
+            5. Remove registros que correspondem ao filtro opcional do schema.
+            6. Sobrescreve o destino em Parquet e relê o artefato persistido.
 
         Args:
             source_file: Caminho do arquivo CSV de entrada.
             target_file: Diretório de saída em formato parquet.
             schema: Configuração de mapeamento aplicável ao formato de origem.
+                Define as opções de leitura, as posições selecionadas, os nomes
+                de saída e o filtro opcional.
 
         Returns:
-            DataFrame: Dados extraídos já persistidos e relidos do destino parquet.
+            DataFrame: Dados extraídos, já gravados e relidos do diretório Parquet
+                informado em ``target_file``.
 
         Raises:
             ValueError: Se algum índice requerido não existir no arquivo lido,
-                cenário comum quando delimitador/header estão incorretos.
-            FileNotFoundError: Se o caminho de entrada não existir.
-            Exception: Erros propagados pelo Spark durante leitura/escrita.
+                geralmente indicando incompatibilidade entre o layout do arquivo
+                e as opções de delimitador ou cabeçalho.
 
         Notes:
-            O retorno ocorre após releitura do parquet de saída, garantindo que o
-            DataFrame refletirá exatamente o artefato persistido.
+            A seleção de colunas usa posições, e não nomes de origem, porque os
+            contratos também suportam arquivos sem cabeçalho confiável. O retorno
+            ocorre após a releitura do destino, refletindo o artefato persistido.
 
-            Decisão arquitetural: a gravação é ``overwrite`` para simplificar
-            reprocessamentos determinísticos do mesmo lote.
+            O filtro é aplicado depois da seleção e renomeação; por isso, seu
+            primeiro elemento deve corresponder a um nome presente em
+            ``schema.column_names``.
         """
         # self._sc.setJobDescription(schema.job_description)
 
@@ -132,6 +153,8 @@ class CDRTextExtractor:
             header=schema.has_header,
             schema=schema.schema,
             inferSchema=False,
+            ignoreLeadingWhiteSpace=True,
+            ignoreTrailingWhiteSpace=True,
         )
 
         # Valida se todos os índices solicitados existem no DataFrame lido.
@@ -187,99 +210,24 @@ class CDRTextExtractor:
         return self.spark.read.parquet(target_file)
 
     @log_operation
-    def extract_cdr_ericsson(self, source_file: str, target_file: str) -> DataFrame:
-        """Extrai registros CDR no layout Ericsson.
+    def extract_cdr_algar_ngn(self, source_file: str, target_file: str) -> DataFrame:
+        """Extrai registros do layout Algar NGN usando o contrato pré-configurado.
 
         Args:
-            source_file: Caminho do arquivo de entrada no formato Ericsson.
+            source_file: Caminho do arquivo de entrada no formato Algar NGN.
             target_file: Diretório de saída em parquet padronizado.
 
         Returns:
-            DataFrame: Registros extraídos e normalizados do formato Ericsson.
+            DataFrame: Registros normalizados e relidos do Parquet de destino.
 
         Raises:
             ValueError: Se o arquivo não obedecer o layout esperado pelo schema.
-            Exception: Erros propagados do pipeline Spark.
 
         Example:
             >>> extrator = CDRTextExtractor(spark)
-            >>> df = extrator.extract_cdr_ericsson(
-            ...     source_file="dados/ericsson.csv",
-            ...     target_file="parquet/ericsson_extracted"
+            >>> df = extrator.extract_cdr_algar_ngn(
+            ...     source_file="dados/algar_ngn.csv",
+            ...     target_file="parquet/algar_ngn_extracted"
             ... )
         """
-        return self.extract_cdr(source_file, target_file, self._SCHEMAS["ericsson"])
-
-    @log_operation
-    def extract_cdr_tim_huawei(self, source_file: str, target_file: str) -> DataFrame:
-        """Extrai registros CDR no layout TIM Huawei.
-
-        Args:
-            source_file: Caminho do arquivo de entrada no formato TIM Huawei.
-            target_file: Diretório de saída em parquet padronizado.
-
-        Returns:
-            DataFrame: Registros extraídos e normalizados do formato TIM Huawei.
-
-        Raises:
-            ValueError: Se o arquivo não obedecer o layout esperado pelo schema.
-            Exception: Erros propagados do pipeline Spark.
-
-        Example:
-            >>> extrator = CDRTextExtractor(spark)
-            >>> df = extrator.extract_cdr_tim_huawei(
-            ...     source_file="dados/tim_huawei.csv",
-            ...     target_file="parquet/tim_huawei_extracted"
-            ... )
-        """
-        return self.extract_cdr(source_file, target_file, self._SCHEMAS["tim_huawei"])
-
-    @log_operation
-    def extract_cdr_vivo_fcdr(self, source_file: str, target_file: str) -> DataFrame:
-        """Extrai registros CDR no layout Vivo FCDR.
-
-        Args:
-            source_file: Caminho do arquivo de entrada no formato Vivo FCDR.
-            target_file: Diretório de saída em parquet padronizado.
-
-        Returns:
-            DataFrame: Registros extraídos e normalizados do formato Vivo FCDR.
-
-        Raises:
-            ValueError: Se o arquivo não obedecer o layout esperado pelo schema.
-            Exception: Erros propagados do pipeline Spark.
-
-        Example:
-            >>> extrator = CDRTextExtractor(spark)
-            >>> df = extrator.extract_cdr_vivo_fcdr(
-            ...     source_file="dados/vivo_fcdr.csv",
-            ...     target_file="parquet/vivo_fcdr_extracted"
-            ... )
-        """
-        return self.extract_cdr(source_file, target_file, self._SCHEMAS["vivo_fcdr"])
-
-    @log_operation
-    def extract_cdr_nokia(self, source_file: str, target_file: str) -> DataFrame:
-        """Extrai registros CDR no layout Nokia.
-
-        Args:
-            source_file: Caminho do arquivo de entrada no formato Nokia.
-            target_file: Diretório de saída em parquet padronizado.
-
-        Returns:
-            DataFrame: Registros extraídos e normalizados do formato Nokia.
-
-        Raises:
-            ValueError: Se o arquivo não obedecer o layout esperado pelo schema.
-            Exception: Erros propagados do pipeline Spark.
-
-        Example:
-            >>> extrator = CDRTextExtractor(spark)
-            >>> df = extrator.extract_cdr_nokia(
-            ...     source_file="dados/nokia.csv",
-            ...     target_file="parquet/nokia_extracted"
-            ... )
-        """
-        df = self.extract_cdr(source_file, target_file, self._SCHEMAS["claro_nokia"])
-
-        return df
+        return self.extract_cdr(source_file, target_file, self.schemas["algar_ngn"])
