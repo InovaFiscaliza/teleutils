@@ -6,7 +6,7 @@ Utilize a skill `documentar-linhagem-dados`.
 
 Analise o estado atual do código do projeto e gere ou atualize a documentação de linhagem e transformação dos dados.
 
-Considere o código atual como fonte da verdade.
+Considere o código atual como fonte da verdade, exceto o módulo robocalls que está depreciado.
 
 A análise deve:
 

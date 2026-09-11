@@ -6,7 +6,7 @@ Utilize a skill `auditar-linhagem-dados`.
 
 Realize uma auditoria independente da documentação atual de linhagem e transformação dos dados.
 
-Utilize o código atual como fonte da verdade.
+Utilize o código atual como fonte da verdade, exceto o módulo robocalls que está depreciado.
 
 A documentação existente não deve orientar a investigação inicial.
 

@@ -4,7 +4,7 @@ description: Cria ou atualiza a documentação técnica do projeto, incluindo a 
 
 Utilize a skill `documentar-projeto`.
 
-Analise o estado atual do repositório e execute integralmente o fluxo definido pela skill.
+Analise o estado atual do repositório, exceto o módulo robocalls que está depreciado, e execute integralmente o fluxo definido pela skill.
 
 Atualize primeiro a documentação técnica aplicável, incluindo obrigatoriamente a documentação da API pública.
 
