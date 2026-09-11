@@ -676,13 +676,12 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
 
         # Alguns CDRs não contém valor em data_hora_alocacao_canal, mas possuem data_hora_referencia preenchida.
         # A expressão a seguir garante que a coluna data_hora final seja preenchida, ainda que por nulo, independentemente do tipo de CDR.
-        # Se nenhuma das datas existir, preenche com valor sentinela MIN_SAFE_DATE para evitar nulos em campo crítico.
+        # Se nenhuma das datas existir, o tratamento será feito em ponto posterior no pipeline padrão.
         df = df.withColumn(
             "data_hora",
             F.coalesce(
                 F.col("data_hora_alocacao_canal"),
                 F.col("data_hora_referencia"),
-                MIN_SAFE_DATE,
             ),
         )
         # A coluna data_hora_fim é derivada de forma condicional, considerando o tipo de CDR.

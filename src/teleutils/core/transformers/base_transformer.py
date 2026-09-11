@@ -77,7 +77,8 @@ class CDRBaseTransformer:
             spark: Sessão Spark compartilhada pelo pipeline de transformação.
         """
 
-        self.spark = spark
+        self.spark = spark.newSession()
+        self.spark.conf.set("spark.sql.timestampType", "TIMESTAMP_NTZ")
 
     def _format_date_time(self, df, date_time_fmt: str = "yyyy-MM-dd HH-mm-ss"):
         """Padroniza campos temporais e normaliza duração.
