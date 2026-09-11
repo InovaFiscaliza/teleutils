@@ -806,11 +806,11 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         return self.spark.read.parquet(target_file)
 
     @log_operation
-    def transform_cdr_algar_ngn(self, source_file: str, target_file: str):
-        """Transforma registros do layout Algar NGN usando o pipeline padrão.
+    def transform_cdr_algar_hauwei(self, source_file: str, target_file: str):
+        """Transforma registros do layout Algar Hauwei usando o pipeline padrão.
 
         Args:
-            source_file: Caminho do arquivo de entrada no formato Algar NGN.
+            source_file: Caminho do arquivo de entrada no formato Algar Hauwei.
             target_file: Diretório de saída em parquet padronizado.
             date_time_fmt: Formato de data e hora a ser aplicado no pipeline padrão.
 

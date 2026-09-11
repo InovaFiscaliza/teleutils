@@ -67,8 +67,8 @@ class CDRTextSchema:
 
 
 TEXT_DEFAULT_SCHEMAS: dict[str, CDRTextSchema] = {
-    "algar_ngn": CDRTextSchema(
-        name="Algar NGN",
+    "algar_hauwei": CDRTextSchema(
+        name="Algar Hauwei",
         delimiter=",",
         schema=None,
         has_header=False,
