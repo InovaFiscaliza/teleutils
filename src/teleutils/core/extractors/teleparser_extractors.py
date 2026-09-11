@@ -35,7 +35,7 @@ from __future__ import annotations
 
 import logging
 
-from pyspark.sql import DataFrame, SparkSession
+from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 
 from teleutils._logging import log_operation
@@ -97,7 +97,7 @@ class CDRTeleparserExtractor:
         target_file: str,
         schema: CDRParquetSchema,
         unique: bool = False,
-    ) -> DataFrame:
+    ) -> str:
         """Executa extração genérica conforme schema de mapeamento informado.
 
         Fluxo de processamento:
@@ -106,7 +106,7 @@ class CDRTeleparserExtractor:
             3. Cria como nulas as colunas do schema ausentes na origem.
             4. Enriquece metadados de origem a partir do caminho do arquivo.
             5. Remove duplicatas opcionalmente.
-            6. Persiste parquet intermediário e relê resultado final.
+            6. Persiste parquet intermediário.
 
         Args:
             source_file: Caminho do parquet de entrada.
@@ -115,7 +115,7 @@ class CDRTeleparserExtractor:
             unique: Define se duplicatas devem ser removidas no resultado.
 
         Returns:
-            DataFrame: DataFrame relido de ``target_file`` após escrita.
+            str: Caminho do parquet persistido em ``target_file``.
 
         Raises:
             AnalysisException:
@@ -188,10 +188,11 @@ class CDRTeleparserExtractor:
 
         logger.info("Escrevendo DataFrame extraido para parquet: %s", target_file)
         df.write.mode("overwrite").parquet(target_file)
-        return self.spark.read.parquet(target_file)
+
+        return target_file
 
     @log_operation
-    def extract_cdr_ericsson(self, source_file: str, target_file: str) -> DataFrame:
+    def extract_cdr_ericsson(self, source_file: str, target_file: str) -> str:
         """Extrai CDR Ericsson para parquet intermediário.
 
         Args:
@@ -199,7 +200,7 @@ class CDRTeleparserExtractor:
             target_file: Caminho do parquet intermediário de saída.
 
         Returns:
-            DataFrame: Resultado da extração relido de ``target_file``.
+            str: Caminho do parquet persistido em ``target_file``.
 
         Notes:
             Delega integralmente para ``extract_cdr`` com schema Ericsson.
@@ -207,7 +208,7 @@ class CDRTeleparserExtractor:
         return self.extract_cdr(source_file, target_file, self.schemas["ericsson"])
 
     @log_operation
-    def extract_cdr_lte_huawei_tim(self, source_file: str, target_file: str) -> DataFrame:
+    def extract_cdr_lte_huawei_tim(self, source_file: str, target_file: str) -> str:
         """Extrai CDR TIM Huawei com remoção de duplicatas.
 
         Args:
@@ -215,7 +216,7 @@ class CDRTeleparserExtractor:
             target_file: Caminho do parquet intermediário de saída.
 
         Returns:
-            DataFrame: Resultado da extração relido de ``target_file``.
+            str: Caminho do parquet persistido em ``target_file``.
 
         Notes:
             - Regra de negócio: ``unique=True`` para reduzir duplicidade de
@@ -229,7 +230,7 @@ class CDRTeleparserExtractor:
         return df
 
     @log_operation
-    def extract_cdr_lte_ericsson_vivo(self, source_file: str, target_file: str) -> DataFrame:
+    def extract_cdr_lte_ericsson_vivo(self, source_file: str, target_file: str) -> str:
         """Extrai CDR LTE Ericsson Vivo para parquet intermediário.
 
         Args:
@@ -237,7 +238,7 @@ class CDRTeleparserExtractor:
             target_file: Caminho do parquet intermediário de saída.
 
         Returns:
-            DataFrame: Resultado da extração relido de ``target_file``.
+            str: Caminho do parquet persistido em ``target_file``.
 
         Notes:
             Delega para ``extract_cdr`` com schema LTE Ericsson Vivo sem ajustes
@@ -247,7 +248,7 @@ class CDRTeleparserExtractor:
         return df
 
     @log_operation
-    def extract_cdr_nokia(self, source_file: str, target_file: str) -> DataFrame:
+    def extract_cdr_nokia(self, source_file: str, target_file: str) -> str:
         """Extrai CDR Nokia com tolerância a colunas ausentes.
 
         Args:
@@ -255,7 +256,7 @@ class CDRTeleparserExtractor:
             target_file: Caminho do parquet intermediário de saída.
 
         Returns:
-            DataFrame: Resultado da extração relido de ``target_file``.
+            str: Caminho do parquet persistido em ``target_file``.
 
         Notes:
             - Regra de negócio: colunas ausentes são criadas com valor nulo

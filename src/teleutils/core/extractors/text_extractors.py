@@ -46,7 +46,7 @@ from __future__ import annotations
 
 import logging
 
-from pyspark.sql import DataFrame, SparkSession
+from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 
 from teleutils._logging import log_operation
@@ -102,7 +102,7 @@ class CDRTextExtractor:
 
     def extract_cdr(
         self, source_file: str, target_file: str, schema: CDRTextSchema
-    ) -> DataFrame:
+    ) -> str:
         """Lê, normaliza, filtra e persiste registros de um layout CDR.
 
         Fluxo de processamento:
@@ -112,7 +112,7 @@ class CDRTextExtractor:
             4. Adiciona ``prestadora``, ``tipo_cdr`` e ``arquivo_origem`` a partir
                do caminho do arquivo de entrada.
             5. Remove registros que correspondem ao filtro opcional do schema.
-            6. Sobrescreve o destino em Parquet e relê o artefato persistido.
+            6. Sobrescreve o destino em Parquet.
 
         Args:
             source_file: Caminho do arquivo CSV de entrada.
@@ -122,8 +122,7 @@ class CDRTextExtractor:
                 de saída e o filtro opcional.
 
         Returns:
-            DataFrame: Dados extraídos, já gravados e relidos do diretório Parquet
-                informado em ``target_file``.
+            str: Caminho do diretório Parquet persistido em ``target_file``.
 
         Raises:
             ValueError: Se algum índice requerido não existir no arquivo lido,
@@ -132,8 +131,7 @@ class CDRTextExtractor:
 
         Notes:
             A seleção de colunas usa posições, e não nomes de origem, porque os
-            contratos também suportam arquivos sem cabeçalho confiável. O retorno
-            ocorre após a releitura do destino, refletindo o artefato persistido.
+            contratos também suportam arquivos sem cabeçalho confiável.
 
             O filtro é aplicado depois da seleção e renomeação; por isso, seu
             primeiro elemento deve corresponder a um nome presente em
@@ -208,10 +206,10 @@ class CDRTextExtractor:
             target_file,
         )
         df.write.mode("overwrite").parquet(target_file)
-        return self.spark.read.parquet(target_file)
+        return target_file
 
     @log_operation
-    def extract_cdr_algar_hauwei(self, source_file: str, target_file: str) -> DataFrame:
+    def extract_cdr_algar_hauwei(self, source_file: str, target_file: str) -> str:
         """Extrai registros do layout Algar Hauwei usando o contrato pré-configurado.
 
         Args:
@@ -219,7 +217,7 @@ class CDRTextExtractor:
             target_file: Diretório de saída em parquet padronizado.
 
         Returns:
-            DataFrame: Registros normalizados e relidos do Parquet de destino.
+            str: Caminho do diretório Parquet persistido em ``target_file``.
 
         Raises:
             ValueError: Se o arquivo não obedecer o layout esperado pelo schema.

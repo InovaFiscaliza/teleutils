@@ -267,7 +267,7 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         super().__init__(spark)
 
     @log_operation
-    def transform_cdr_ericsson(self, source_file: str, target_file: str):
+    def transform_cdr_ericsson(self, source_file: str, target_file: str) -> str:
         """Transforma CDR Ericsson para o contrato padronizado do domínio.
 
         Objetivo da operação:
@@ -279,8 +279,7 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
             target_file: Caminho parquet de saída transformada.
 
         Returns:
-            DataFrame: DataFrame lido do destino após escrita, já no padrão
-            final utilizado no projeto.
+            str: Caminho do parquet transformado em ``target_file``.
 
         Notes:
             - Regra de negócio: duração ausente resulta em ``0``.
@@ -343,10 +342,10 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         df = self._apply_standard_pipeline(df, date_time_fmt)
 
         self._write_parquet(df, target_file)
-        return self.spark.read.parquet(target_file)
+        return target_file
 
     @log_operation
-    def transform_cdr_lte_huawei_tim(self, source_file: str, target_file: str):
+    def transform_cdr_lte_huawei_tim(self, source_file: str, target_file: str) -> str:
         """Transforma CDR TIM LTE Huawei para o contrato padronizado do domínio.
 
         Objetivo da operação:
@@ -359,7 +358,7 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
             target_file: Caminho parquet de saída transformada.
 
         Returns:
-            DataFrame: DataFrame lido do destino após escrita, no schema final.
+            str: Caminho do parquet transformado em ``target_file``.
 
         Notes:
             - Efeito colateral: grava o resultado em ``target_file``.
@@ -565,10 +564,12 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         df = self._apply_standard_pipeline(df, date_time_fmt)
 
         self._write_parquet(df, target_file)
-        return self.spark.read.parquet(target_file)
+        return target_file
 
     @log_operation
-    def transform_cdr_lte_ericsson_vivo(self, source_file: str, target_file: str):
+    def transform_cdr_lte_ericsson_vivo(
+        self, source_file: str, target_file: str
+    ) -> str:
         """Transforma CDR Vivo LTE Ericsson para o contrato padronizado do domínio.
 
         Objetivo da operação:
@@ -580,7 +581,7 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
             target_file: Caminho parquet de saída transformada.
 
         Returns:
-            DataFrame: DataFrame lido do destino após escrita, no schema final.
+            str: Caminho do parquet transformado em ``target_file``.
 
         Notes:
             - Integração relevante: utiliza método especializado herdado do
@@ -632,10 +633,10 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         df = self._apply_standard_pipeline(df, date_time_fmt)
 
         self._write_parquet(df, target_file)
-        return self.spark.read.parquet(target_file)
+        return target_file
 
     @log_operation
-    def transform_cdr_nokia(self, source_file: str, target_file: str):
+    def transform_cdr_nokia(self, source_file: str, target_file: str) -> str:
         """Transforma CDR Nokia para o contrato padronizado do domínio.
 
         Objetivo da operação:
@@ -647,7 +648,7 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
             target_file: Caminho parquet de saída transformada.
 
         Returns:
-            DataFrame: DataFrame lido do destino após escrita, no schema final.
+            str: Caminho do parquet transformado em ``target_file``.
 
         Notes:
             - Regra de negócio: múltiplos campos ``_duracao*`` são reduzidos a
@@ -803,10 +804,10 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         df = self._apply_standard_pipeline(df, date_time_fmt)
 
         self._write_parquet(df, target_file)
-        return self.spark.read.parquet(target_file)
+        return target_file
 
     @log_operation
-    def transform_cdr_algar_hauwei(self, source_file: str, target_file: str):
+    def transform_cdr_algar_hauwei(self, source_file: str, target_file: str) -> str:
         """Transforma registros do layout Algar Hauwei usando o pipeline padrão.
 
         Args:
@@ -815,7 +816,7 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
             date_time_fmt: Formato de data e hora a ser aplicado no pipeline padrão.
 
         Returns:
-            DataFrame: Registros transformados e relidos do Parquet de destino.
+            str: Caminho do parquet transformado em ``target_file``.
         """
 
         date_time_fmt = "ddMMyyyy HHmmss"
@@ -854,4 +855,4 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         df = self._apply_standard_pipeline(df, date_time_fmt)
         self._write_parquet(df, target_file)
 
-        return self.spark.read.parquet(target_file)
+        return target_file
