@@ -454,12 +454,12 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         )
 
         df = df.withColumn(
-            "_cell_id",
+            "_cell_id_hex",
             F.regexp_extract(
                 F.col("_informacao_rede"), r"utran-cell-id-3gpp=([0-9a-zA-Z]+);", 1
             ),
         )
-        df = _format_cell_id(df, "_cell_id", "_cell_id")
+        df = _format_cell_id(df, "_cell_id_hex", "_cell_id")
 
         df = df.withColumn(
             "_imei",
@@ -494,6 +494,8 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
 
         df = df.withColumns(
             {
+                "celula_origem_hex": F.when(is_originating, F.col("_cell_id_hex")),
+                "celula_destino_hex": F.when(is_terminating, F.col("_cell_id_hex")),
                 "celula_origem": F.when(is_originating, F.col("_cell_id")),
                 "celula_destino": F.when(is_terminating, F.col("_cell_id")),
                 "imei_origem": F.when(is_originating, F.col("_imei")),
@@ -629,8 +631,8 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
             )
         )
 
-        df = _format_cell_id(df, "celula_origem", "celula_origem")
-        df = _format_cell_id(df, "celula_destino", "celula_destino")
+        df = _format_cell_id(df, "celula_origem_hex", "celula_origem")
+        df = _format_cell_id(df, "celula_destino_hex", "celula_destino")
 
         df = self._apply_standard_pipeline(df, date_time_fmt)
 

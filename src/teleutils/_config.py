@@ -106,11 +106,13 @@ TARGET_SCHEMA = {
     "bilhetador": ("no_bilhetador", T.StringType()),
     # 5. Dados Técnicos de Dispositivo & IP (Células, aparelhos e IPs)
     "celula_origem": ("nu_cgi_origem", T.StringType()),
+    "celula_origem_hex": ("nu_cgi_origem_hex", T.StringType()),
     "imei_origem": ("nu_imei_origem", T.StringType()),
     "imsi_origem": ("nu_imsi_origem", T.StringType()),
     "ip_origem": ("nu_ip_origem", T.StringType()),
     "porta_ip_origem": ("nu_porta_ip_origem", T.IntegerType()),
     "celula_destino": ("nu_cgi_destino", T.StringType()),
+    "celula_destino_hex": ("nu_cgi_destino_hex", T.StringType()),
     "imei_destino": ("nu_imei_destino", T.StringType()),
     "imsi_destino": ("nu_imsi_destino", T.StringType()),
     "ip_destino": ("nu_ip_destino", T.StringType()),
