@@ -6,9 +6,8 @@ Teleparser (``CDRTeleparserTransformer``) e via extração textual
 ``CDRBaseTransformer``.
 """
 
-from teleutils.core.transformers.teleparser_transformers import (
+from teleutils.core.transformers.transformers import (
     CDRTeleparserTransformer,
 )
-from teleutils.core.transformers.text_transformers import CDRTextTransformer
 
-__all__ = ["CDRTeleparserTransformer", "CDRTextTransformer"]
+__all__ = ["CDRTeleparserTransformer"]
