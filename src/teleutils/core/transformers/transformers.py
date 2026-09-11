@@ -34,7 +34,7 @@ from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 from pyspark.sql import types as T
 
-from teleutils._config import ALGAR_MNC, CLARO_MNC, DEFAULT_MCC, MIN_SAFE_DATE
+from teleutils._config import ALGAR_MNC, CLARO_MNC, DEFAULT_MCC
 from teleutils._logging import log_operation
 from teleutils.core.transformers.base_transformer import CDRBaseTransformer
 
@@ -365,7 +365,7 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
             - Anotação de manutenção: a regra de remoção de prefixo pressupõe
               metadados fixos de 2 caracteres no início do número.
         """
-        date_time_fmt = "yyyy-MM-dd HH:mm:ssXXX"
+        date_time_fmt = "yyyy-MM-dd HH:mm:ss"
         df = self.spark.read.parquet(source_file)
 
         is_ats = F.col("tipo_cdr") == "aTSRecord"
@@ -391,6 +391,8 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
                         1,
                     ),
                 ),
+                "data_hora": F.left(F.col("data_hora"), F.lit(19)),
+                "data_hora_fim": F.left(F.col("data_hora_fim"), F.lit(19)),
             }
         )
 
