@@ -23,7 +23,7 @@ Dependências relevantes:
     - teleutils.core.transformers.base_transformer.CDRBaseTransformer
 
 Example:
-    >>> transformer = CDRTeleparserTransformer(spark)
+    >>> transformer = CDRTransformer(spark)
     >>> df = transformer.transform_cdr_nokia("/tmp/in", "/tmp/out")
 """
 
@@ -232,7 +232,7 @@ def _format_cell_id(df, col_name, out_col, gnb_id_bits=26):
     )
 
 
-class CDRTeleparserTransformer(CDRBaseTransformer):
+class CDRTransformer(CDRBaseTransformer):
     """Transformador de CDRs Teleparser com regras por fornecedor.
 
     A classe especializa o transformador base para lidar com peculiaridades de
