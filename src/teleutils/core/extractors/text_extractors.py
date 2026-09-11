@@ -175,18 +175,20 @@ class CDRTextExtractor:
         )
         # A seleção por índice preserva compatibilidade com layouts sem cabeçalho
         # estável, onde nomes de coluna originais não são confiáveis.
-        columns_to_keep = [f"`{df.columns[i]}`" for i in schema.column_indices]
-        df = (
-            df.select(columns_to_keep)
-            .toDF(*schema.column_names)
-            .withColumn(
-                "prestadora", F.element_at(F.split(F.input_file_name(), "/"), -3)
+        columns_to_keep = [
+            F.col(df.columns[index]).alias(column_name)
+            for index, column_name in zip(
+                schema.column_indices,
+                schema.column_names,
             )
-            .withColumn("tipo_cdr", F.element_at(F.split(F.input_file_name(), "/"), -2))
-            .withColumn(
-                "arquivo_origem",
-                F.url_decode(F.element_at(F.split(F.input_file_name(), "/"), -1)),
-            )
+        ]
+        df = df.select(
+            *columns_to_keep,
+            F.element_at(F.split(F.input_file_name(), "/"), -3).alias("prestadora"),
+            F.element_at(F.split(F.input_file_name(), "/"), -2).alias("tipo_cdr"),
+            F.url_decode(F.element_at(F.split(F.input_file_name(), "/"), -1)).alias(
+                "arquivo_origem"
+            ),
         )
 
         if schema.column_to_filter is not None:
