@@ -281,7 +281,7 @@ class CDRBaseTransformer:
         columns_to_fill = {}
 
         for source_column, data_type in primary_key_columns.items():
-            if isinstance(data_type, T.TimestampType):
+            if isinstance(data_type, T.TimestampNTZType):
                 default_value = MIN_SAFE_DATE
             elif isinstance(data_type, T.NumericType):
                 default_value = F.lit(0).cast(data_type)

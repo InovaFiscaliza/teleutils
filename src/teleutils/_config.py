@@ -49,7 +49,7 @@ MAX_RECORDS_PER_FILE = 1000000
 SHORT_CALL_THRESHOLD = 6
 
 # Define a data limite como um literal do Spark para o Catalyst otimizar a comparação
-MIN_SAFE_DATE = F.lit("1901-01-01 00:00:00").cast(T.TimestampType())
+MIN_SAFE_DATE = F.lit("1901-01-01 00:00:00").cast(T.TimestampNTZType())
 
 # Código MCC/MNC para preenchimento em caso de ausência de informação de operadora, utilizado em transformações
 # de CDRs para manter consistência de dados e evitar valores nulos em campos críticos
@@ -84,9 +84,9 @@ TARGET_SCHEMA = {
     # 1. Identificação Geral & Tempo (Quando e qual o contexto da carga)
     "referencia": ("nu_referencia", T.StringType()),
     "referencia_sip": ("nu_referencia_sip", T.StringType()),
-    "data_hora_referencia": ("dh_referencia", T.TimestampType()),
-    "data_hora": ("dh_chamada", T.TimestampType()),
-    "data_hora_fim": ("dh_fim_chamada", T.TimestampType()),
+    "data_hora_referencia": ("dh_referencia", T.TimestampNTZType()),
+    "data_hora": ("dh_chamada", T.TimestampNTZType()),
+    "data_hora_fim": ("dh_fim_chamada", T.TimestampNTZType()),
     "duracao": ("qt_duracao_segundos", T.IntegerType()),
     # 2. Partes Envolvidas (Quem ligou para quem)
     "numero_origem_formatado": ("nu_origem", T.StringType()),
