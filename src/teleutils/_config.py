@@ -81,25 +81,30 @@ PRIMARY_KEY_COLUMNS = [
 ]
 
 TARGET_SCHEMA = {
+    # 1. Identificação Geral & Tempo (Quando e qual o contexto da carga)
     "referencia": ("nu_referencia", T.StringType()),
     "referencia_sip": ("nu_referencia_sip", T.StringType()),
     "data_hora_referencia": ("dh_referencia", T.TimestampType()),
     "data_hora": ("dh_chamada", T.TimestampType()),
     "data_hora_fim": ("dh_fim_chamada", T.TimestampType()),
     "duracao": ("qt_duracao_segundos", T.LongType()),
+    # 2. Partes Envolvidas (Quem ligou para quem)
     "numero_origem_formatado": ("nu_origem", T.StringType()),
     "numero_origem_valido": ("ic_origem_valido", T.BooleanType()),
     "numero_origem": ("nu_origem_original", T.StringType()),
     "numero_destino_formatado": ("nu_destino", T.StringType()),
     "numero_destino_valido": ("ic_destino_valido", T.BooleanType()),
     "numero_destino": ("nu_destino_original", T.StringType()),
+    # 3. Status & Resultado da Chamada (O que aconteceu com a ligação)
     "status_chamada": ("no_resultado_chamada", T.StringType()),
     "codigo_resposta_sip": ("co_resposta_sip", T.StringType()),
     "autenticacao": ("no_autenticacao", T.StringType()),
+    # 4. Roteamento & Rede Telecom (Por onde a chamada passou)
     "prestadora": ("no_prestadora", T.StringType()),
     "rota_entrada": ("no_rota_entrada", T.StringType()),
     "rota_saida": ("no_rota_saida", T.StringType()),
     "bilhetador": ("no_bilhetador", T.StringType()),
+    # 5. Dados Técnicos de Dispositivo & IP (Células, aparelhos e IPs)
     "celula_origem": ("nu_cgi_origem", T.StringType()),
     "imei_origem": ("nu_imei_origem", T.StringType()),
     "imsi_origem": ("nu_imsi_origem", T.StringType()),
@@ -111,6 +116,7 @@ TARGET_SCHEMA = {
     "ip_destino": ("nu_ip_destino", T.StringType()),
     "porta_ip_destino": ("nu_porta_ip_destino", T.IntegerType()),
     "agente_usuario": ("no_agente_usuario", T.StringType()),
+    # 6. Metadados do Arquivo & Regras de Negócio (Para auditoria e particionamento)
     "tipo_cdr": ("no_tipo_cdr", T.StringType()),
     "arquivo_origem": ("no_arquivo_origem", T.StringType()),
     "tipo_chamada": ("no_tipo_chamada", T.StringType()),
