@@ -835,12 +835,12 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
         df = df.withColumns(
             {
                 "tipo_chamada": F.when(
-                    F.col("_tipo_chamada") == "01", F.lit("intra office")
+                    F.col("_tipo_chamada") == "01", F.lit("intra_office")
                 )
-                .when(F.col("_tipo_chamada") == "02", F.lit("incoming office"))
-                .when(F.col("_tipo_chamada") == "03", F.lit("outgoing office"))
+                .when(F.col("_tipo_chamada") == "02", F.lit("incoming_office"))
+                .when(F.col("_tipo_chamada") == "03", F.lit("outgoing_office"))
                 .when(F.col("_tipo_chamada") == "04", F.lit("tandem"))
-                .when(F.col("_tipo_chamada") == "05", F.lit("new service"))
+                .when(F.col("_tipo_chamada") == "05", F.lit("new_service"))
                 .otherwise(F.lit("unknown")),
                 "status_chamada": F.when(
                     F.col("_status_chamada") == "00", F.lit("caller party on-hook")
