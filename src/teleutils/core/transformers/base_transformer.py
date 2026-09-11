@@ -92,75 +92,37 @@ class CDRBaseTransformer:
             date_time_fmt: Máscara de parsing para conversão de ``data_hora``.
 
         Returns:
-            DataFrame: DataFrame com ``duracao`` normalizada e ``data_hora``
-            convertida para timestamp.
+            DataFrame: DataFrame com ``duracao`` normalizada e os campos
+            temporais convertidos para timestamp.
 
         Notes:
             - Regra de negócio: duração inválida é tratada como 0 para manter
               consistência em métricas downstream.
-            - Quando ``data_hora`` não existe, ela é construída por concatenação
-                            de ``_data`` e ``_hora`` somente se ambas estiverem disponíveis;
-                            caso contrário, recebe ``MIN_SAFE_DATE``.
-                        - ``data_hora_fim`` segue a mesma regra usando ``_data`` e
-                            ``_hora_fim``. A ausência de ``data_hora_referencia`` também é
-                            normalizada para ``MIN_SAFE_DATE``.
+            - As colunas ``duracao``, ``data_hora``, ``data_hora_fim`` e
+              ``data_hora_referencia`` devem existir antes desta etapa.
+            - Datas nulas, inválidas ou anteriores ao limite são normalizadas
+              para ``MIN_SAFE_DATE``.
         """
-
-        if "data_hora" not in df.columns and {"_data", "_hora"}.issubset(df.columns):
-            df = df.withColumn(
-                "data_hora",
-                F.nullif(F.concat_ws(" ", F.col("_data"), F.col("_hora")), F.lit("")),
-            )
-
-        if "data_hora_fim" not in df.columns and {"_data", "_hora_fim"}.issubset(
-            df.columns
-        ):
-            df = df.withColumn(
-                "data_hora_fim",
-                F.nullif(
-                    F.concat_ws(" ", F.col("_data"), F.col("_hora_fim")), F.lit("")
-                ),  # nullif → se o resultado da concatenação for vazio, retorna null
-            )
 
         timestamp_format = F.lit(date_time_fmt)
 
-        def normalize_timestamp(parsed_timestamp):
-            return F.greatest(parsed_timestamp, MIN_SAFE_DATE)
+        def normalize_timestamp(column_name):
+            return F.greatest(
+                F.try_to_timestamp(F.col(column_name), timestamp_format),
+                MIN_SAFE_DATE,
+            )
 
         return df.withColumns(
             {
                 # Tratamento da duração (convertendo nulos e ausências para 0)
-                "duracao": (
-                    F.coalesce(F.col("duracao").cast(T.IntegerType()), F.lit(0))
-                    if "duracao" in df.columns
-                    else F.lit(0)
+                "duracao": F.coalesce(
+                    F.col("duracao").cast(T.IntegerType()),
+                    F.lit(0).cast(T.IntegerType()),
                 ),
                 # Datas nulas, inválidas ou anteriores ao limite viram MIN_SAFE_DATE.
-                "data_hora": normalize_timestamp(
-                    F.try_to_timestamp(
-                        F.col("data_hora")
-                        if "data_hora" in df.columns
-                        else F.lit(None),
-                        timestamp_format,
-                    )
-                ),
-                "data_hora_fim": normalize_timestamp(
-                    F.try_to_timestamp(
-                        F.col("data_hora_fim")
-                        if "data_hora_fim" in df.columns
-                        else F.lit(None),
-                        timestamp_format,
-                    )
-                ),
-                "data_hora_referencia": (
-                    normalize_timestamp(
-                        F.try_to_timestamp(
-                            F.col("data_hora_referencia"), timestamp_format
-                        )
-                    )
-                    if "data_hora_referencia" in df.columns
-                    else MIN_SAFE_DATE
-                ),
+                "data_hora": normalize_timestamp("data_hora"),
+                "data_hora_fim": normalize_timestamp("data_hora_fim"),
+                "data_hora_referencia": normalize_timestamp("data_hora_referencia"),
             }
         )
 

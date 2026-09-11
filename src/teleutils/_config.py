@@ -87,7 +87,7 @@ TARGET_SCHEMA = {
     "data_hora_referencia": ("dh_referencia", T.TimestampType()),
     "data_hora": ("dh_chamada", T.TimestampType()),
     "data_hora_fim": ("dh_fim_chamada", T.TimestampType()),
-    "duracao": ("qt_duracao_segundos", T.LongType()),
+    "duracao": ("qt_duracao_segundos", T.IntegerType()),
     # 2. Partes Envolvidas (Quem ligou para quem)
     "numero_origem_formatado": ("nu_origem", T.StringType()),
     "numero_origem_valido": ("ic_origem_valido", T.BooleanType()),
