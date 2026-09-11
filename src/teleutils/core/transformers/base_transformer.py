@@ -226,7 +226,7 @@ class CDRBaseTransformer:
         return df
 
     def _fill_missing_columns(self, df: DataFrame) -> DataFrame:
-        """Garante as colunas do contrato intermediário e trata chaves nulas.
+        """Adiciona ao DataFrame as colunas ausentes do contrato intermediário.
 
         Args:
             df: DataFrame Spark de entrada.
@@ -236,37 +236,11 @@ class CDRBaseTransformer:
                 em ``TARGET_SCHEMA``.
 
         Notes:
-            Colunas ausentes que não compõem a chave primária recebem ``NULL``
-            com o tipo previsto no contrato. Colunas da chave primária recebem
-            ``NULL_SENTINEL_VALUE``, ``MIN_SAFE_DATE`` para timestamps ou ``0``
-            para valores numéricos, garantindo que as aliases definidas em
-            ``PRIMARY_KEY_COLUMNS`` não contenham valores nulos.
+            As colunas ausentes são adicionadas como ``NULL`` sem conversão de
+            tipo. Isso preserva valores textuais, especialmente timestamps,
+            para que ``_format_date_time`` possa aplicar o formato recebido.
         """
         available_columns = set(df.columns)
-        primary_key_sources = {
-            source_column
-            for source_column, (target_column, _) in TARGET_SCHEMA.items()
-            if target_column in PRIMARY_KEY_COLUMNS
-        }
-        columns_to_fill = {}
-
-        for source_column, (_, data_type) in TARGET_SCHEMA.items():
-            if source_column in primary_key_sources:
-                if isinstance(data_type, T.TimestampType):
-                    default_value = MIN_SAFE_DATE
-                elif isinstance(data_type, T.NumericType):
-                    default_value = F.lit(0).cast(data_type)
-                else:
-                    default_value = NULL_SENTINEL_VALUE.cast(data_type)
-
-                columns_to_fill[source_column] = (
-                    F.coalesce(F.col(source_column).cast(data_type), default_value)
-                    if source_column in available_columns
-                    else default_value
-                )
-            elif source_column not in available_columns:
-                columns_to_fill[source_column] = F.lit(None).cast(data_type)
-
         missing_columns = [
             source_column
             for source_column in TARGET_SCHEMA
@@ -275,8 +249,48 @@ class CDRBaseTransformer:
 
         if missing_columns:
             logger.warning(
-                "Colunas ausentes no DataFrame: %s. Criando-as com valores padrão.",
+                "Colunas ausentes no DataFrame: %s. Criando-as como NULL.",
                 missing_columns,
+            )
+
+        return df.withColumns(
+            {source_column: F.lit(None) for source_column in missing_columns}
+        )
+
+    def _fill_primary_key_columns(self, df: DataFrame) -> DataFrame:
+        """Preenche valores nulos das colunas que compõem a chave primária.
+
+        Args:
+            df: DataFrame após a normalização dos campos temporais e numéricos.
+
+        Returns:
+            DataFrame: DataFrame com as colunas da chave primária sem valores
+            nulos.
+
+        Notes:
+            ``PRIMARY_KEY_COLUMNS`` usa os nomes finais das colunas, enquanto
+            o DataFrame intermediário usa os nomes de origem definidos nas
+            chaves de ``TARGET_SCHEMA``. O mapeamento entre esses nomes é feito
+            nesta função.
+        """
+        primary_key_columns = {
+            source_column: data_type
+            for source_column, (target_column, data_type) in TARGET_SCHEMA.items()
+            if target_column in PRIMARY_KEY_COLUMNS
+        }
+        columns_to_fill = {}
+
+        for source_column, data_type in primary_key_columns.items():
+            if isinstance(data_type, T.TimestampType):
+                default_value = MIN_SAFE_DATE
+            elif isinstance(data_type, T.NumericType):
+                default_value = F.lit(0).cast(data_type)
+            else:
+                default_value = NULL_SENTINEL_VALUE
+
+            columns_to_fill[source_column] = F.coalesce(
+                F.col(source_column).cast(data_type),
+                default_value,
             )
 
         return df.withColumns(columns_to_fill)
@@ -287,10 +301,12 @@ class CDRBaseTransformer:
         """Executa pipeline comum de transformação para todos os layouts.
 
         Fluxo de processamento:
-            1. Padronização temporal e duração.
-            2. Garantia das colunas definidas em ``TARGET_SCHEMA``.
-            3. Normalização de números telefônicos.
-            4. Enriquecimento de status de autenticação.
+            1. Garantia da existência das colunas definidas em
+               ``TARGET_SCHEMA``.
+            2. Padronização temporal e duração.
+            3. Garantia de valores não nulos nas colunas da chave primária.
+            4. Normalização de números telefônicos.
+            5. Enriquecimento de status de autenticação.
 
         Args:
             df: DataFrame de entrada.
@@ -311,6 +327,7 @@ class CDRBaseTransformer:
         df = self._format_date_time(df, date_time_fmt)
         df = self._format_numbers(df)
         df = self._add_tn_validation_status(df)
+        df = self._fill_primary_key_columns(df)
 
         return df
 
