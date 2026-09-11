@@ -832,7 +832,26 @@ class CDRTeleparserTransformer(CDRBaseTransformer):
             }
         )
 
+        df = df.withColumns(
+            {
+                "tipo_chamada": F.when(
+                    F.col("_tipo_chamada") == "01", F.lit("intra office")
+                )
+                .when(F.col("_tipo_chamada") == "02", F.lit("incoming office"))
+                .when(F.col("_tipo_chamada") == "03", F.lit("outgoing office"))
+                .when(F.col("_tipo_chamada") == "04", F.lit("tandem"))
+                .when(F.col("_tipo_chamada") == "05", F.lit("new service"))
+                .otherwise(F.lit("unknown")),
+                "status_chamada": F.when(
+                    F.col("_status_chamada") == "00", F.lit("caller party on-hook")
+                )
+                .when(F.col("_status_chamada") == "01", F.lit("called party on-hook"))
+                .when(F.col("_status_chamada") == "02", F.lit("abnormal"))
+                .otherwise(F.lit("unknown")),
+            }
+        )
+
         df = self._apply_standard_pipeline(df, date_time_fmt)
         self._write_parquet(df, target_file)
-        
+
         return self.spark.read.parquet(target_file)
