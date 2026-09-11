@@ -267,6 +267,18 @@ class CDRBaseTransformer:
             elif source_column not in available_columns:
                 columns_to_fill[source_column] = F.lit(None).cast(data_type)
 
+        missing_columns = [
+            source_column
+            for source_column in TARGET_SCHEMA
+            if source_column not in available_columns
+        ]
+
+        if missing_columns:
+            logger.warning(
+                "Colunas ausentes no DataFrame: %s. Criando-as com valores padrão.",
+                missing_columns,
+            )
+
         return df.withColumns(columns_to_fill)
 
     def _apply_standard_pipeline(
