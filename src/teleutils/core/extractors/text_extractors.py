@@ -11,7 +11,7 @@ Principais responsabilidades:
     - Ler e validar a quantidade de colunas disponibilizada pelo arquivo.
     - Uniformizar nomes de colunas e adicionar metadados de origem.
     - Aplicar filtros de registros definidos pelo contrato de entrada.
-    - Persistir o DataFrame intermediário em Parquet e relê-lo como resultado.
+    - Persistir o DataFrame intermediário em Parquet e retornar seu caminho.
 
 Principais funcionalidades:
     - Extração parametrizada por delimitador, cabeçalho, schema Spark, índices,
@@ -36,7 +36,7 @@ Notes:
 
 Example:
     >>> extrator = CDRTextExtractor(spark)
-    >>> df = extrator.extract_cdr_algar_ngn(
+    >>> destino = extrator.extract_cdr_algar_hauwei(
     ...     source_file="dados/algar_ngn.csv",
     ...     target_file="saida/algar_ngn"
     ... )
@@ -62,21 +62,22 @@ class CDRTextExtractor:
     ``TEXT_DEFAULT_SCHEMAS`` e delega a execução para ``extract_cdr``, onde está
     o fluxo comum de leitura, seleção, enriquecimento, filtragem e persistência.
 
-    A separação entre a execução e os mapeamentos em ``_SCHEMAS`` permite alterar
+    A separação entre a execução e os mapeamentos em ``schemas`` permite alterar
     configurações de layout sem duplicar o processamento Spark.
 
     Attributes:
         spark: Sessão Spark utilizada para leitura e escrita de dados.
-        schema: Schema opcional recebido no construtor e armazenado na instância.
+        schemas: Dicionário de contratos de mapeamento indexados por chave de
+            fornecedor ou layout.
 
     Notes:
-        ``_SCHEMAS`` referencia o catálogo compartilhado ``TEXT_DEFAULT_SCHEMAS``.
-        Para adicionar um novo ponto de entrada, é necessário incluir o contrato
-        correspondente no catálogo e um método que o encaminhe a ``extract_cdr``.
+        Quando nenhum dicionário é fornecido ao construtor, ``schemas`` referencia
+        o catálogo compartilhado ``TEXT_DEFAULT_SCHEMAS``. Para adicionar um novo
+        ponto de entrada, é necessário incluir o contrato correspondente no
+        catálogo e um método que o encaminhe a ``extract_cdr``.
 
         O método ``extract_cdr`` recebe explicitamente o schema que será usado;
-        o atributo ``schema`` armazenado pelo construtor não é consultado nesse
-        fluxo.
+        os métodos específicos obtêm esse schema no atributo ``schemas``.
     """
 
     def __init__(
@@ -86,9 +87,8 @@ class CDRTextExtractor:
 
         Args:
             spark: Sessão Spark a ser reutilizada nas operações de extração.
-            schemas: Schemas opcionais armazenados na instância para uso do código
-                chamador. O método ``extract_cdr`` utiliza o schema recebido
-                diretamente em seu parâmetro próprio.
+            schemas: Dicionário opcional de contratos por layout. Quando omitido,
+                a instância usa ``TEXT_DEFAULT_SCHEMAS``.
 
         Notes:
             A sessão Spark é mantida em ``self.spark`` e o valor de ``schemas`` é
@@ -103,7 +103,7 @@ class CDRTextExtractor:
     def extract_cdr(
         self, source_file: str, target_file: str, schema: CDRTextSchema
     ) -> str:
-        """Lê, normaliza, filtra e persiste registros de um layout CDR.
+        """Lê, seleciona, renomeia, filtra e persiste registros de um layout CDR.
 
         Fluxo de processamento:
             1. Lê o arquivo delimitado com as opções do ``schema``.
@@ -111,7 +111,7 @@ class CDRTextExtractor:
             3. Seleciona as colunas por posição e aplica ``column_names``.
             4. Adiciona ``prestadora``, ``tipo_cdr`` e ``arquivo_origem`` a partir
                do caminho do arquivo de entrada.
-            5. Remove registros que correspondem ao filtro opcional do schema.
+            5. Mantém registros diferentes do valor do filtro opcional do schema.
             6. Sobrescreve o destino em Parquet.
 
         Args:
@@ -135,7 +135,8 @@ class CDRTextExtractor:
 
             O filtro é aplicado depois da seleção e renomeação; por isso, seu
             primeiro elemento deve corresponder a um nome presente em
-            ``schema.column_names``.
+            ``schema.column_names``. A condição de desigualdade do Spark não
+            mantém valores nulos na coluna filtrada.
         """
         # self._sc.setJobDescription(schema.job_description)
 

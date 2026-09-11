@@ -9,4 +9,8 @@ Subpacotes:
       (texto/CSV e Teleparser) para um formato intermediário comum.
     - teleutils.core.transformers: normalização de dados intermediários
       (datas, números telefônicos, autenticação) para o contrato final.
+
+Notes:
+    Este pacote não reexporta classes ou funções. As APIs de extração e
+    transformação devem ser importadas pelos respectivos subpacotes.
 """

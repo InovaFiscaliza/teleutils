@@ -10,8 +10,8 @@ padrão por fornecedor) residem no módulo ``teleutils.core.extractors.schemas``
 mantendo aqui apenas a lógica de execução da extração.
 
 Responsabilidades principais:
-    - Ler arquivos parquet de entrada e projetar colunas padronizadas conforme
-      um schema informado.
+    - Ler um ou mais caminhos parquet de entrada e projetar colunas
+            padronizadas conforme um schema informado.
     - Adicionar metadados de proveniência (prestadora, tipo e arquivo).
     - Escrever parquet intermediário para consumo pelos transformadores.
 
@@ -101,7 +101,7 @@ class CDRParquetExtractor:
         """Executa extração genérica conforme schema de mapeamento informado.
 
         Fluxo de processamento:
-            1. Lê parquet de entrada.
+            1. Lê um parquet de entrada ou todos os caminhos de uma lista.
             2. Aplica seleção e renomeação com base no schema.
             3. Cria como nulas as colunas do schema ausentes na origem.
             4. Enriquece metadados de origem a partir do caminho do arquivo.
@@ -109,7 +109,9 @@ class CDRParquetExtractor:
             6. Persiste parquet intermediário.
 
         Args:
-            source_file: Caminho do parquet de entrada.
+            source_file: Caminho do parquet de entrada. Embora anotado como
+                ``str``, o código também aceita uma ``list`` de caminhos, que
+                é expandida na chamada de leitura Spark.
             target_file: Caminho do parquet de saída intermediária.
             schema: Contrato de mapeamento a ser aplicado.
             unique: Define se duplicatas devem ser removidas no resultado.
@@ -117,14 +119,12 @@ class CDRParquetExtractor:
         Returns:
             str: Caminho do parquet persistido em ``target_file``.
 
-        Raises:
-            AnalysisException:
-                Propagada pelo Spark em erros de leitura/escrita parquet.
-
         Notes:
             - Regra de negócio: metadados ``prestadora``, ``tipo_cdr`` e
               ``arquivo_origem`` são derivados da hierarquia do path de entrada.
             - Efeito colateral: grava dados em ``target_file`` com overwrite.
+                        - Falhas de leitura, transformação e escrita do Spark não são
+                            interceptadas por este método e são propagadas ao chamador.
             - Anotação de manutenção: qualquer mudança no padrão de diretórios
               de origem impacta a extração de metadados via ``input_file_name``.
         """
@@ -150,8 +150,8 @@ class CDRParquetExtractor:
                 missing_columns,
             )
 
-        # Colunas com ponto representam caminhos de campo (nested) e exigem
-        # escaping com crases para evitar interpretação incorreta pelo Spark SQL.
+        # Crases fazem o Spark interpretar pontos no nome de origem literalmente,
+        # sem tratá-los como separadores de campos aninhados.
         select_expr = []
         for source_col, target_col in schema.column_mapping:
             if source_col in df.columns:

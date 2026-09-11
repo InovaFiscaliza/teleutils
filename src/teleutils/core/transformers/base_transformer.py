@@ -65,6 +65,9 @@ class CDRBaseTransformer:
     Notes:
         Pontos de extensão devem priorizar métodos de pré-processamento por
         layout e manter o pipeline padrão centralizado neste componente.
+
+        As transformações de DataFrame são lazy; a ação de escrita em
+        ``_write_parquet`` é a etapa deste módulo que materializa o plano Spark.
     """
 
     def __init__(
@@ -75,6 +78,12 @@ class CDRBaseTransformer:
 
         Args:
             spark: Sessão Spark compartilhada pelo pipeline de transformação.
+
+        Notes:
+            Uma nova sessão Spark é criada a partir de ``spark`` e armazenada
+            na instância. A configuração ``spark.sql.timestampType`` dessa
+            sessão é definida como ``TIMESTAMP_NTZ`` antes das transformações
+            temporais.
         """
 
         self.spark = spark.newSession()
@@ -86,7 +95,7 @@ class CDRBaseTransformer:
         Objetivo da operação:
             Garantir que o dataset possua coluna ``data_hora`` em formato
             timestamp e que ``duracao`` esteja tipada como inteiro, com fallback
-            para zero quando ausente ou inválida.
+            para zero quando nula ou não conversível.
 
         Args:
             df: DataFrame Spark de entrada.
@@ -97,12 +106,13 @@ class CDRBaseTransformer:
             temporais convertidos para timestamp.
 
         Notes:
-            - Regra de negócio: duração inválida é tratada como 0 para manter
-              consistência em métricas downstream.
+                        - Regra de negócio: duração nula ou não conversível é tratada como
+                            0 para manter consistência em métricas downstream.
             - As colunas ``duracao``, ``data_hora``, ``data_hora_fim`` e
               ``data_hora_referencia`` devem existir antes desta etapa.
-            - Datas nulas, inválidas ou anteriores ao limite são normalizadas
-              para ``MIN_SAFE_DATE``.
+                        - ``try_to_timestamp`` produz nulo para valores não conversíveis;
+                            ``greatest`` aplica ``MIN_SAFE_DATE`` como limite inferior aos
+                            valores temporais resultantes.
         """
 
         timestamp_format = F.lit(date_time_fmt)
@@ -115,7 +125,7 @@ class CDRBaseTransformer:
 
         return df.withColumns(
             {
-                # Tratamento da duração (convertendo nulos e ausências para 0)
+                    # Converte duração nula ou não conversível para zero.
                 "duracao": F.coalesce(
                     F.col("duracao").cast(T.IntegerType()),
                     F.lit(0).cast(T.IntegerType()),
@@ -145,7 +155,7 @@ class CDRBaseTransformer:
               para manter o schema limpo.
         """
 
-        # formata números de origem e destino, adicionando colunas de validade
+        # A UDF produz structs temporários, expandidos nas colunas finais abaixo.
         df = (
             df.withColumn(
                 "_numero_origem_formatado",
@@ -174,7 +184,7 @@ class CDRBaseTransformer:
             .drop("_numero_destino_formatado")
         )
 
-        # se as colunas de origem/destino originais foram mantidas no dataframe original retorna ao dataframe final
+        # Preserva os valores brutos quando o pré-processamento os disponibiliza.
         if "_numero_origem_original" in df.columns:
             df = df.withColumn("numero_origem", F.col("_numero_origem_original")).drop(
                 "_numero_origem_original"
@@ -262,7 +272,7 @@ class CDRBaseTransformer:
         """Preenche valores nulos das colunas que compõem a chave primária.
 
         Args:
-            df: DataFrame após a normalização dos campos temporais e numéricos.
+            df: DataFrame após as etapas anteriores do pipeline padrão.
 
         Returns:
             DataFrame: DataFrame com as colunas da chave primária sem valores
@@ -273,6 +283,10 @@ class CDRBaseTransformer:
             o DataFrame intermediário usa os nomes de origem definidos nas
             chaves de ``TARGET_SCHEMA``. O mapeamento entre esses nomes é feito
             nesta função.
+
+            Valores nulos são substituídos por ``MIN_SAFE_DATE`` para timestamps,
+            por zero para tipos numéricos e por ``NULL_SENTINEL_VALUE`` para os
+            demais tipos definidos na chave primária.
         """
         primary_key_columns = {
             source_column: data_type
@@ -305,9 +319,9 @@ class CDRBaseTransformer:
             1. Garantia da existência das colunas definidas em
                ``TARGET_SCHEMA``.
             2. Padronização temporal e duração.
-            3. Garantia de valores não nulos nas colunas da chave primária.
-            4. Normalização de números telefônicos.
-            5. Enriquecimento de status de autenticação.
+            3. Normalização de números telefônicos.
+            4. Enriquecimento de status de autenticação.
+            5. Garantia de valores não nulos nas colunas da chave primária.
 
         Args:
             df: DataFrame de entrada.
@@ -344,6 +358,9 @@ class CDRBaseTransformer:
         Notes:
             - Regra de negócio: ``tipo_chamada`` é forçado para string para
               uniformizar integração entre diferentes origens.
+                        - Todas as colunas presentes em ``TARGET_SCHEMA`` são selecionadas,
+                            convertidas para o tipo configurado e renomeadas para o nome final
+                            do contrato. Colunas fora desse contrato não são incluídas.
             - Anotação de manutenção: qualquer alteração de contrato de saída
               deve ocorrer neste método para preservar consistência.
         """
@@ -367,7 +384,8 @@ class CDRBaseTransformer:
 
         Notes:
             - A escrita usa ``overwrite`` para permitir reprocessamento idempotente.
-            - O schema é padronizado imediatamente antes da gravação.
+                        - O schema é padronizado imediatamente antes da gravação e a saída é
+                            particionada pela coluna final ``no_tipo_chamada``.
         """
         logger.info("Escrevendo DataFrame transformado para parquet: %s", target_file)
         df = self._select_transformed_columns(df)

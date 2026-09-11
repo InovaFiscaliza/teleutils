@@ -41,9 +41,10 @@ class CDRParquetSchema:
     ``CDRTeleparserExtractor`` consome esse contrato durante a extração, enquanto
     cada instância de ``CDRParquetSchema`` concentra as regras de um layout.
 
-    O dataclass é congelado e o mapeamento é uma tupla de tuplas, impedindo a
-    reatribuição dos atributos e a alteração dos pares configurados após a
-    criação do contrato.
+    O dataclass é congelado e o mapeamento é armazenado como uma tupla de
+    tuplas, impedindo a reatribuição dos atributos e a alteração dos pares
+    configurados após a criação do contrato. A ordem dos pares é preservada e
+    define a ordem das colunas selecionadas pelo extrator.
 
     Attributes:
         name:
@@ -66,8 +67,9 @@ class CDRParquetSchema:
 
         A validação garante que ``column_mapping`` contenha ao menos um item e
         que cada item siga o formato ``(origem, destino)`` com valores textuais.
-        Listas recebidas são convertidas para tuplas a fim de preservar o
-        contrato congelado do dataclass.
+        A coleção externa recebida é convertida para tupla a fim de preservar o
+        contrato congelado do dataclass; seus itens devem ser tuplas e não são
+        convertidos individualmente.
         Ela não consulta uma origem de dados nem valida a existência,
         duplicidade ou semântica das colunas informadas.
 

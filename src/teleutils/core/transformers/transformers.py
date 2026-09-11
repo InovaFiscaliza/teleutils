@@ -364,6 +364,16 @@ class CDRTransformer(CDRBaseTransformer):
             - Efeito colateral: grava o resultado em ``target_file``.
             - Anotação de manutenção: a regra de remoção de prefixo pressupõe
               metadados fixos de 2 caracteres no início do número.
+            - Registros ``aTSRecord`` e ``iBCFRecord`` têm números e
+              autenticação extraídos por regras distintas. Os atributos de célula, IMEI e
+              IMSI são atribuídos à origem ou ao destino apenas para os papéis
+              ``oRIGINATING-ROLE`` e ``tERMINATING-ROLE``.
+            - Os timestamps são truncados aos 19 primeiros caracteres antes do pipeline
+              comum. O IMSI é obtido apenas do primeiro objeto do JSON em ``_info_imsi``
+              quando seu tipo é ``eND-USER-IMSI``.
+            - ``codigo_resposta_sip`` é preenchido somente para valores de
+              ``_status_chamada`` maiores ou iguais a 200; a mesma coluna é então
+              classificada em faixas e códigos específicos para compor ``status_chamada``.
         """
         date_time_fmt = "yyyy-MM-dd HH:mm:ss"
         df = self.spark.read.parquet(source_file)
@@ -588,8 +598,14 @@ class CDRTransformer(CDRBaseTransformer):
             str: Caminho do parquet transformado em ``target_file``.
 
         Notes:
-            - Integração relevante: utiliza método especializado herdado do
-              transformador base para preparar campos da Vivo.
+            - A coluna ``_numero_origem_original`` é dividida em ``;``: o
+              primeiro trecho substitui ``numero_origem`` e o segundo é usado
+              como ``_autenticacao``.
+            - Os códigos de ``_tipo_chamada`` e ``_status_chamada`` conhecidos
+              são convertidos para rótulos textuais. Hífens de IMEIs são
+              removidos antes do pipeline comum.
+            - ``_format_cell_id`` converte separadamente os identificadores
+              hexadecimais de origem e destino para suas colunas de célula.
             - Efeito colateral: grava o resultado em ``target_file``.
         """
         date_time_fmt = "yyyyMMdd HHmmss"
@@ -656,9 +672,20 @@ class CDRTransformer(CDRBaseTransformer):
 
         Notes:
             - Regra de negócio: múltiplos campos ``_duracao*`` são reduzidos a
-              uma única duração por registro via ``coalesce``.
+              uma única duração por registro via ``coalesce``; valores
+              ``"FFFFFF"`` são tratados como nulos antes da redução.
             - Regra de negócio: para chamadas ``FORW``, o destino é derivado do
-              campo de encaminhamento para melhor aderência semântica.
+              campo ``numero_origem_encaminhamento``.
+            - ``data_hora`` usa ``data_hora_alocacao_canal`` quando disponível
+              e recorre a ``data_hora_referencia``. Para chamadas ``UCA``,
+              ``data_hora_fim`` pode usar ``data_hora_desconexao`` quando essa
+              coluna está presente no DataFrame.
+            - Como o layout não fornece MCC/MNC, as células usam ``DEFAULT_MCC``
+              e MNC conforme ``prestadora``: Claro recebe ``CLARO_MNC`` e Algar
+              recebe ``ALGAR_MNC``. Outros valores de prestadora resultam em MNC
+              nulo e, consequentemente, em célula composta nula.
+            - ``_status_chamada`` é agrupado em faixas de códigos hexadecimais
+              antes da aplicação do pipeline comum.
             - Efeito colateral: grava o resultado em ``target_file``.
             - Anotação de manutenção: divergências residuais com parser legado
               devem ser monitoradas em homologações futuras.
@@ -813,13 +840,24 @@ class CDRTransformer(CDRBaseTransformer):
     def transform_cdr_algar_hauwei(self, source_file: str, target_file: str) -> str:
         """Transforma registros do layout Algar Hauwei usando o pipeline padrão.
 
+        Combina os campos de data e hora extraídos, converte os códigos de tipo
+        e status de chamada conhecidos para rótulos textuais e delega a
+        normalização restante ao pipeline comum.
+
         Args:
             source_file: Caminho do arquivo de entrada no formato Algar Hauwei.
             target_file: Diretório de saída em parquet padronizado.
-            date_time_fmt: Formato de data e hora a ser aplicado no pipeline padrão.
 
         Returns:
             str: Caminho do parquet transformado em ``target_file``.
+
+        Notes:
+            - ``data_hora`` resulta da combinação de ``_data`` com ``_hora``;
+              ``data_hora_fim`` combina ``_data_fim`` com a mesma coluna
+              ``_hora``.
+            - Códigos não previstos em ``_tipo_chamada`` e ``_status_chamada``
+              recebem o rótulo ``"unknown"``.
+            - Efeito colateral: grava o resultado em ``target_file``.
         """
 
         date_time_fmt = "ddMMyyyy HHmmss"
