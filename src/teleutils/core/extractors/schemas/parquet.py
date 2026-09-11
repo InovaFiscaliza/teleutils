@@ -1,16 +1,22 @@
 """Contratos de mapeamento para CDRs Parquet do Teleparser.
 
-Este módulo centraliza a dataclass de configuração ``CDRParquetSchema`` e os
-schemas padrão de cada fornecedor/layout suportado pelo Teleparser. A separação
-entre configuração (este módulo) e execução (``teleparser_extractors.py``)
-permite que novos schemas sejam adicionados ou atualizados sem necessidade de
-alterar a lógica de extração, favorecendo o princípio de responsabilidade única
-e a extensão do projeto sem modificação do código existente (OCP).
+Este módulo centraliza a configuração ``CDRParquetSchema`` e os contratos
+padronizados dos fornecedores e layouts suportados pelo Teleparser. Cada
+contrato informa o nome do layout, os pares de coluna de origem e destino e a
+descrição usada pelo job de extração. O extrator aplica esses pares ao parquet
+de entrada; este módulo não lê, transforma ou grava DataFrames.
+
+A separação entre configuração (este módulo) e execução
+(``teleparser_extractors.py``) permite adicionar ou atualizar layouts sem
+alterar a lógica de extração. A validação realizada na criação do contrato é
+estrutural: garante que o mapeamento não esteja vazio e que seus itens sejam
+tuplas de duas strings, mas não verifica se as colunas existem na origem.
 
 Responsabilidades principais:
-    - Definir o contrato imutável ``CDRParquetSchema``.
+    - Definir o contrato congelado ``CDRParquetSchema``.
     - Validar a consistência estrutural de cada schema configurado.
-    - Consolidar os schemas padrão em ``PARQUET_DEFAULT_SCHEMAS``.
+    - Consolidar os contratos padrão em ``PARQUET_DEFAULT_SCHEMAS``, indexados
+      pelas chaves usadas pelos métodos do extrator.
 
 Example:
     >>> from teleutils.core.extractors.schemas.parquet import (
@@ -31,46 +37,55 @@ class CDRParquetSchema:
     """Representa o contrato de extração para um layout específico de CDR.
 
     A estrutura define quais colunas da origem devem ser selecionadas e como
-    elas serão renomeadas no dataset intermediário. A ideia é separar configuração
-    de execução: a classe ``CDRTeleparserExtractor`` apenas aplica esse contrato,
-    enquanto cada instância de ``CDRParquetSchema`` define as regras.
-    A configuração é imutável para evitar alteração acidental de regras em tempo de execução.
+    elas serão nomeadas no dataset intermediário. A classe
+    ``CDRTeleparserExtractor`` consome esse contrato durante a extração, enquanto
+    cada instância de ``CDRParquetSchema`` concentra as regras de um layout.
+
+    O dataclass é congelado e o mapeamento é uma tupla de tuplas, impedindo a
+    reatribuição dos atributos e a alteração dos pares configurados após a
+    criação do contrato.
 
     Attributes:
         name:
             Nome amigável do schema (fornecedor/layout).
         column_mapping:
-            Lista de pares ``(origem, destino)`` contendo o mapeamento de
-            colunas da entrada para o nome padronizado intermediário.
+            Tupla de pares ``(origem, destino)`` contendo o mapeamento de
+            colunas da entrada para o nome padronizado intermediário. Deve
+            conter pelo menos um par, e cada par deve ter duas strings.
         job_description:
-            Descrição textual da operação, útil para observabilidade e logs.
+            Descrição textual da operação, armazenada para uso do fluxo de
+            extração e observabilidade.
     """
 
     name: str
-    column_mapping: list[tuple[str, str]]
+    column_mapping: tuple[tuple[str, str], ...]
     job_description: str
 
     def __post_init__(self) -> None:
         """Valida a estrutura do mapeamento após a criação do dataclass.
 
-        Objetivo da operação:
-            Garantir que o schema contenha ao menos uma coluna e que cada item
-            de ``column_mapping`` siga o formato ``(origem, destino)`` com
-            valores textuais.
+        A validação garante que ``column_mapping`` contenha ao menos um item e
+        que cada item siga o formato ``(origem, destino)`` com valores textuais.
+        Listas recebidas são convertidas para tuplas a fim de preservar o
+        contrato congelado do dataclass.
+        Ela não consulta uma origem de dados nem valida a existência,
+        duplicidade ou semântica das colunas informadas.
 
         Raises:
             ValueError:
                 Quando ``column_mapping`` está vazio ou possui itens inválidos.
 
         Notes:
-            - Regra de integridade: cada item deve ser uma tupla de 2 strings.
-            - Anotação de manutenção: manter essa validação rígida evita falhas
-              silenciosas durante o ``select`` em Spark.
+            - A validação ocorre no momento da instanciação, inclusive para os
+              contratos definidos em ``PARQUET_DEFAULT_SCHEMAS``.
+            - A checagem rígida do formato evita que um contrato malformado
+              avance até a montagem da seleção de colunas no extrator.
         """
         if not self.column_mapping:
             raise ValueError(
                 f"Schema '{self.name}': column_mapping nao pode ser vazio."
             )
+        object.__setattr__(self, "column_mapping", tuple(self.column_mapping))
         for item in self.column_mapping:
             if (
                 not isinstance(item, tuple)
@@ -87,7 +102,7 @@ class CDRParquetSchema:
 PARQUET_DEFAULT_SCHEMAS: dict[str, CDRParquetSchema] = {
     "ericsson": CDRParquetSchema(
         name="Ericsson",
-        column_mapping=[
+        column_mapping=(
             ("networkCallReference", "referencia"),
             ("callingPartyNumber.digits", "numero_origem"),
             ("dateForStartOfCharge", "_data"),
@@ -118,12 +133,12 @@ PARQUET_DEFAULT_SCHEMAS: dict[str, CDRParquetSchema] = {
             ("calledSubscriberIMEI.type_allocation_code", "imei_destino_tac"),
             ("calledSubscriberIMEI.serial_number", "imei_destino_sn"),
             ("callPosition", "status_chamada"),
-        ],
+        ),
         job_description="Extraindo CDR Parquet: Ericsson",
     ),
     "lte_huawei_tim": CDRParquetSchema(
         name="LTE Huawei TIM",
-        column_mapping=[
+        column_mapping=(
             ("network-Call-Reference", "referencia"),
             ("iMS-Charging-Identifier", "referencia_sip"),
             ("calling-Party-Address-Generic", "_numero_origem_ats_auth"),
@@ -144,12 +159,12 @@ PARQUET_DEFAULT_SCHEMAS: dict[str, CDRParquetSchema] = {
             ("list-of-subscription-ID", "_info_imsi"),
             ("serviceReasonReturnCode", "_status_chamada"),
             ("user-Agent-Value", "agente_usuario"),
-        ],
+        ),
         job_description="Extraindo CDR Parquet: LTE Huawei TIM",
     ),
     "lte_ericsson_vivo": CDRParquetSchema(
         name="LTE Ericsson Vivo",
-        column_mapping=[
+        column_mapping=(
             ("networkCallReference", "referencia"),
             ("imsChargingIdentifier", "referencia_sip"),
             ("callModule", "_tipo_chamada"),
@@ -169,12 +184,12 @@ PARQUET_DEFAULT_SCHEMAS: dict[str, CDRParquetSchema] = {
             ("calledSubscriberIMEI", "imei_destino"),
             ("calledSubscriberIMSI", "imsi_destino"),
             ("callPosition", "_status_chamada")
-        ],
+        ),
         job_description="Extraindo CDR Parquet: LTE Ericsson Vivo",
     ),
     "nokia": CDRParquetSchema(
         name="Nokia",
-        column_mapping=[
+        column_mapping=(
             ("record_type", "tipo_chamada"),
             ("call_reference", "referencia"),
             ("call_reference_time", "data_hora_referencia"),
@@ -209,7 +224,7 @@ PARQUET_DEFAULT_SCHEMAS: dict[str, CDRParquetSchema] = {
             ("called_imei", "imei_destino"),
             ("cause_for_termination", "_status_chamada"),
             ("operator_profile", "perfil_prestadora"),
-        ],
+        ),
         job_description="Extraindo CDR Parquet: Nokia",
     ),
 }
