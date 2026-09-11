@@ -51,7 +51,7 @@ O `teleutils` atende dois cenários principais:
   transformação desse resultado em um dataset Parquet padronizado.
 
 Os layouts de CDR disponíveis são Ericsson, LTE Huawei TIM, LTE Ericsson Vivo,
-Nokia e Algar Hauwei. O processamento usa Spark e grava os destinos em modo
+Nokia e Algar Huawei. O processamento usa Spark e grava os destinos em modo
 `overwrite`; a saída transformada é particionada por `no_tipo_chamada`.
 
 [⬆ Voltar ao topo](#sumário)

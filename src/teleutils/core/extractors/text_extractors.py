@@ -36,7 +36,7 @@ Notes:
 
 Example:
     >>> extrator = CDRTextExtractor(spark)
-    >>> destino = extrator.extract_cdr_algar_hauwei(
+    >>> destino = extrator.extract_cdr_algar_huawei(
     ...     source_file="dados/algar_ngn.csv",
     ...     target_file="saida/algar_ngn"
     ... )
@@ -210,11 +210,11 @@ class CDRTextExtractor:
         return target_file
 
     @log_operation
-    def extract_cdr_algar_hauwei(self, source_file: str, target_file: str) -> str:
-        """Extrai registros do layout Algar Hauwei usando o contrato pré-configurado.
+    def extract_cdr_algar_huawei(self, source_file: str, target_file: str) -> str:
+        """Extrai registros do layout Algar Huawei usando o contrato pré-configurado.
 
         Args:
-            source_file: Caminho do arquivo de entrada no formato Algar Hauwei.
+            source_file: Caminho do arquivo de entrada no formato Algar Huawei.
             target_file: Diretório de saída em parquet padronizado.
 
         Returns:
@@ -225,9 +225,9 @@ class CDRTextExtractor:
 
         Example:
             >>> extrator = CDRTextExtractor(spark)
-            >>> df = extrator.extract_cdr_algar_hauwei(
-            ...     source_file="dados/algar_hauwei.csv",
-            ...     target_file="parquet/algar_hauwei_extracted"
+            >>> df = extrator.extract_cdr_algar_huawei(
+            ...     source_file="dados/algar_huawei.csv",
+            ...     target_file="parquet/algar_huawei_extracted"
             ... )
         """
-        return self.extract_cdr(source_file, target_file, self.schemas["algar_hauwei"])
+        return self.extract_cdr(source_file, target_file, self.schemas["algar_huawei"])

@@ -16,8 +16,8 @@ Há cinco fluxos de produção do mesmo contrato final:
    `CDRTransformer.transform_cdr_lte_ericsson_vivo`.
 4. Parquet Nokia: `CDRParquetExtractor.extract_cdr_nokia` →
    `CDRTransformer.transform_cdr_nokia`.
-5. Texto/CSV Algar Huawei: `CDRTextExtractor.extract_cdr_algar_hauwei` →
-   `CDRTransformer.transform_cdr_algar_hauwei`.
+5. Texto/CSV Algar Huawei: `CDRTextExtractor.extract_cdr_algar_huawei` →
+   `CDRTransformer.transform_cdr_algar_huawei`.
 
 Fluxo arquitetural:
 
@@ -398,12 +398,12 @@ Não há função exclusiva; as listas de duração e respectivas expressões s�
 construídas localmente no método. A seleção usa todas as colunas cujo nome
 começa por `_duracao`, na ordem corrente do DataFrame.
 
-## 3.5 `transform_cdr_algar_hauwei`
+## 3.5 `transform_cdr_algar_huawei`
 
 ### Descrição
 
 O único fluxo texto/CSV seleciona campos por índice zero-based, sem cabeçalho,
-com delimitador vírgula. Não há schema explícito de leitura. A grafia `hauwei`
+com delimitador vírgula. Não há schema explícito de leitura. A grafia `huawei`
 é a usada nas APIs e chaves atuais do código.
 
 ### Fluxo resumido
@@ -565,7 +565,7 @@ quatro layouts Parquet.
 **Entradas e saídas:** pares `(source_col, target_col)`; campos originais
 ausentes são representados por literal nulo tipado inicialmente como string.
 
-### `TEXT_DEFAULT_SCHEMAS["algar_hauwei"]`
+### `TEXT_DEFAULT_SCHEMAS["algar_huawei"]`
 
 **Localização:** `src/teleutils/core/extractors/schemas/text.py`.
 
@@ -729,7 +729,7 @@ pretendida não pode ser confirmada como fonte efetiva; o resultado implementado
 - O parsing Huawei TIM considera somente o primeiro elemento dos arrays JSON.
 - A partição final depende de `no_tipo_chamada`; o valor sentinela pode se
   tornar um diretório de partição quando o tipo estiver ausente.
-- O nome público `algar_hauwei` contém grafia divergente de “Huawei” e deve ser
+- O nome público `algar_huawei` contém grafia divergente de “Huawei” e deve ser
   preservado enquanto fizer parte da API.
 
 ## Possíveis melhorias

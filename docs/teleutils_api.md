@@ -119,7 +119,7 @@ Catálogos de schemas padrão. As chaves ativas são:
 | Catálogo | Chaves |
 | :-- | :-- |
 | `PARQUET_DEFAULT_SCHEMAS` | `ericsson`, `lte_huawei_tim`, `lte_ericsson_vivo`, `nokia` |
-| `TEXT_DEFAULT_SCHEMAS` | `algar_hauwei` |
+| `TEXT_DEFAULT_SCHEMAS` | `algar_huawei` |
 
 ## `teleutils.core.extractors`
 
@@ -159,12 +159,12 @@ Extrai CDRs de arquivos CSV/texto.
 - `spark: SparkSession`: sessão usada para leitura, seleção e escrita;
 - `schemas: dict[str, CDRTextSchema] | None`: catálogo opcional que substitui
   integralmente `TEXT_DEFAULT_SCHEMAS` na instância. O método específico requer
-  a chave `algar_hauwei`.
+  a chave `algar_huawei`.
 
 | Método | Entrada | Comportamento e retorno |
 | :-- | :-- | :-- |
 | `extract_cdr(source_file: str, target_file: str, schema: CDRTextSchema) -> str` | CSV/texto e `CDRTextSchema` | Lê conforme o schema, seleciona por índice, adiciona metadados e grava o intermediário. Retorna `target_file`. Pode levantar `ValueError` se o arquivo não possuir o maior índice configurado. |
-| `extract_cdr_algar_hauwei(source_file, target_file)` | CSV Algar Hauwei | Usa o schema `algar_hauwei`; retorna `target_file`. |
+| `extract_cdr_algar_huawei(source_file, target_file)` | CSV Algar Huawei | Usa o schema `algar_huawei`; retorna `target_file`. |
 
 No fluxo textual, `arquivo_origem` passa por `url_decode`. Se o schema definir
 `column_to_filter`, registros com o valor configurado são removidos.
@@ -186,7 +186,7 @@ O construtor recebe uma `SparkSession`, cria uma nova sessão com o mesmo
 | `transform_cdr_lte_huawei_tim(source_file: str, target_file: str) -> str` | Trata registros ATS/IBCF, extrai dados JSON/SIP e atribui célula, IMEI e IMSI por papel de chamada. |
 | `transform_cdr_lte_ericsson_vivo(source_file: str, target_file: str) -> str` | Separa número e autenticação, mapeia códigos, remove hífens de IMEI e decodifica células hexadecimais. |
 | `transform_cdr_nokia(source_file: str, target_file: str) -> str` | Consolida duração e datas, aplica regras UCA/FORW, imputa MCC/MNC de células e agrupa status. |
-| `transform_cdr_algar_hauwei(source_file: str, target_file: str) -> str` | Combina campos temporais do CSV e mapeia códigos de tipo e status. |
+| `transform_cdr_algar_huawei(source_file: str, target_file: str) -> str` | Combina campos temporais do CSV e mapeia códigos de tipo e status. |
 
 Todos os métodos aplicam o pipeline comum interno antes da escrita: completam
 colunas ausentes do contrato, normalizam duração/datas, normalizam números,

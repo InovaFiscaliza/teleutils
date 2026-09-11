@@ -10,7 +10,7 @@ O resultado final é o Parquet escrito por `CDRBaseTransformer._write_parquet`.
 `CDRBaseTransformer._select_transformed_columns` projeta as 35 entradas de
 `TARGET_SCHEMA`, aplica o cast configurado e usa o nome de destino como alias.
 Há cinco transformadores ativos: Ericsson, LTE Huawei TIM, LTE Ericsson Vivo,
-Nokia e Algar Hauwei.
+Nokia e Algar Huawei.
 
 | Medida | Quantidade |
 | :-- | --: |
@@ -78,7 +78,7 @@ mas refletem o comportamento real:
 - Ericsson e LTE Ericsson Vivo extraem `_data`, `_hora` e `_hora_fim`, porém os
   respectivos transformadores não criam `data_hora` nem `data_hora_fim`; o
   pipeline comum cria essas colunas nulas e as normaliza para `MIN_SAFE_DATE`.
-- O fluxo Algar Hauwei monta `data_hora_fim` com `_data_fim` e `_hora`, e não
+- O fluxo Algar Huawei monta `data_hora_fim` com `_data_fim` e `_hora`, e não
   com `_hora_fim`; a documentação não trata essa relação como hipótese.
 - No Huawei TIM, `_numero_origem_ibcf` já contém o resultado numérico da
   primeira regex e é submetida novamente a uma regex que exige `sip:`. A
@@ -193,7 +193,7 @@ incorreto no documento auditado.
 | Elemento afetado | Motivo e ponto do rastreamento | Evidência disponível | Forma recomendada de documentar |
 | :-- | :-- | :-- | :-- |
 | Precedência Nokia | O código define a ordem de `coalesce`, mas não prova a semântica de negócio da prioridade. | `transform_cdr_nokia` contém as expressões determinísticas. | Manter a ordem implementada e declarar que a justificativa de negócio requer fonte externa. |
-| CSV Algar Hauwei | Os campos têm apenas posições: não há cabeçalho ou schema de origem. | `CDRTextSchema` usa `schema=None`, `has_header=False` e índices. | Referir-se às posições, sem inventar nomes anteriores à extração. |
+| CSV Algar Huawei | Os campos têm apenas posições: não há cabeçalho ou schema de origem. | `CDRTextSchema` usa `schema=None`, `has_header=False` e índices. | Referir-se às posições, sem inventar nomes anteriores à extração. |
 | Status Nokia | O código compara `_status_chamada` a inteiros, mas não garante estaticamente o tipo físico do Parquet. | Não há cast explícito antes dos `when`. | Declarar o limite da análise estática e o tipo esperado pela expressão. |
 | Metadados de caminho | A extração depende dos segmentos `-3`, `-2` e `-1` sem validar a estrutura. | `input_file_name`, `split` e `element_at` nos extratores. | Documentar os segmentos e a premissa de hierarquia. |
 | Dados temporais Ericsson/Vivo | O código permite concluir o resultado nulo, mas não a intenção do layout. | Os campos são extraídos e não consumidos pelos transformadores específicos. | Distinguir fonte potencial de fonte efetiva; a documentação auditada já o faz. |

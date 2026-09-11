@@ -13,7 +13,7 @@ coluna.
 
 Example:
     >>> from teleutils.core.extractors.schemas.text import TEXT_DEFAULT_SCHEMAS
-    >>> schema = TEXT_DEFAULT_SCHEMAS["algar_hauwei"]
+    >>> schema = TEXT_DEFAULT_SCHEMAS["algar_huawei"]
     >>> schema.delimiter
     ','
 """
@@ -129,8 +129,8 @@ class CDRTextSchema:
 
 
 TEXT_DEFAULT_SCHEMAS: dict[str, CDRTextSchema] = {
-    "algar_hauwei": CDRTextSchema(
-        name="Algar Hauwei",
+    "algar_huawei": CDRTextSchema(
+        name="Algar Huawei",
         delimiter=",",
         schema=None,
         has_header=False,
@@ -152,6 +152,6 @@ TEXT_DEFAULT_SCHEMAS: dict[str, CDRTextSchema] = {
             "codigo_resposta_sip",
             "_status_chamada",
         ),
-        job_description="Extraindo CDR: Algar NGN",
+        job_description="Extraindo CDR: Algar Huawei",
     ),
 }
