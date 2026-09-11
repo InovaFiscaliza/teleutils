@@ -199,9 +199,7 @@ class CDRTextExtractor:
                 col_value,
                 schema.name,
             )
-            # Regra de negócio configurável por schema: remove linhas de controle
-            # específicas do fornecedor que não representam eventos válidos.
-            df = df.filter(df[col_name] != col_value)
+            df = df.filter(F.col(col_name) != F.lit(col_value))
 
         logger.info(
             "Escrevendo DataFrame extraído para parquet: %s",
