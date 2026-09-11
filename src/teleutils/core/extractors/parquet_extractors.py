@@ -27,7 +27,7 @@ Dependências relevantes:
     - teleutils._logging.log_operation
 
 Example:
-    >>> extractor = CDRTeleparserExtractor(spark)
+    >>> extractor = CDRParquetExtractor(spark)
     >>> df = extractor.extract_cdr_ericsson("/tmp/origem", "/tmp/destino")
 """
 
@@ -44,7 +44,7 @@ from teleutils.core.extractors.schemas import CDRParquetSchema, PARQUET_DEFAULT_
 logger = logging.getLogger(__name__)
 
 
-class CDRTeleparserExtractor:
+class CDRParquetExtractor:
     """Executa extração de CDR parquet com mapeamento por fornecedor.
 
     A classe centraliza a leitura de dados do Teleparser, aplica projeção de
