@@ -139,6 +139,41 @@ def _build_composite_column(
     return _concat_or_null(separator, *columns)
 
 
+def _concat_date_time(
+    df,
+    start_date="_data",
+    start_time="_hora",
+    stop_date="_data_fim",
+    stop_time="_hora_fim",
+):
+    """Concatena colunas de data e hora em um único timestamp.
+
+    Args:
+        df: DataFrame de entrada.
+        start_date: Nome da coluna contendo a data de início.
+        start_time: Nome da coluna contendo a hora de início.
+        stop_date: Nome da coluna contendo a data de término.
+        stop_time: Nome da coluna contendo a hora de término.
+
+
+    Returns:
+        DataFrame: Cópia do DataFrame de entrada com a coluna ``data_hora``
+        adicionada/atualizada, contendo o timestamp concatenado.
+    """
+    return df.withColumns(
+        {
+            "data_hora": _build_composite_column(
+                separator=" ",
+                components=(start_date, start_time),
+            ),
+            "data_hora_fim": _build_composite_column(
+                separator=" ",
+                components=(stop_date, stop_time),
+            ),
+        }
+    )
+
+
 def _format_cell_id(df, col_name, out_col, gnb_id_bits=26):
     """Formata identificadores de célula hexadecimais em MCC-MNC-área-célula.
 
@@ -300,6 +335,8 @@ class CDRTransformer(CDRBaseTransformer):
             F.when(col.isNotNull(), hours + minutes + seconds).otherwise(0).cast("int"),
         )
 
+        df = _concat_date_time(df, stop_date="_data")
+
         df = df.withColumns(
             {
                 "celula_origem": _build_composite_column(
@@ -401,6 +438,8 @@ class CDRTransformer(CDRBaseTransformer):
                         1,
                     ),
                 ),
+                # Data e hora nos CDR Tim Huawei trazem informação de fuso horário no final da string,
+                # portanto, é necessário truncar os últimos caracteres para manter apenas a parte relevante.
                 "data_hora": F.left(F.col("data_hora"), F.lit(19)),
                 "data_hora_fim": F.left(F.col("data_hora_fim"), F.lit(19)),
             }
@@ -610,6 +649,8 @@ class CDRTransformer(CDRBaseTransformer):
         """
         date_time_fmt = "yyyyMMdd HHmmss"
         df = self.spark.read.parquet(source_file)
+
+        df = _concat_date_time(df, stop_date="_data")
 
         # Extrair autenticação e prefixos adicionais dos números.
         # A autenticação está contida na coluna _numero_origem,
@@ -863,16 +904,7 @@ class CDRTransformer(CDRBaseTransformer):
         date_time_fmt = "ddMMyyyy HHmmss"
         df = self.spark.read.parquet(source_file)
 
-        df = df.withColumns(
-            {
-                "data_hora": F.nullif(
-                    F.concat_ws(" ", F.col("_data"), F.col("_hora")), F.lit("")
-                ),
-                "data_hora_fim": F.nullif(
-                    F.concat_ws(" ", F.col("_data_fim"), F.col("_hora")), F.lit("")
-                ),
-            }
-        )
+        df = _concat_date_time(df)
 
         df = df.withColumns(
             {
