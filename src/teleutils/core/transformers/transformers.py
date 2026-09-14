@@ -856,15 +856,15 @@ class CDRTransformer(CDRBaseTransformer):
         return target_file
 
     @log_operation
-    def transform_cdr_algar_huawei(self, source_file: str, target_file: str) -> str:
-        """Transforma registros do layout Algar Huawei usando o pipeline padrão.
+    def transform_cdr_ngn_huawei(self, source_file: str, target_file: str) -> str:
+        """Transforma registros do layout NGN Huawei usando o pipeline padrão.
 
         Combina os campos de data e hora extraídos, converte os códigos de tipo
         e status de chamada conhecidos para rótulos textuais e delega a
         normalização restante ao pipeline comum.
 
         Args:
-            source_file: Caminho do arquivo de entrada no formato Algar Huawei.
+            source_file: Caminho do arquivo de entrada no formato NGN Huawei.
             target_file: Diretório de saída em parquet padronizado.
 
         Returns:
