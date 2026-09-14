@@ -1,4 +1,4 @@
-"""Módulo de transformações de CDRs extraídos via Teleparser.
+"""Módulo de transformações de CDRs intermediários.
 
 Este módulo implementa transformadores específicos por fornecedor/layout de CDR
 que reutilizam o pipeline comum definido no transformador base. O foco é
@@ -56,7 +56,7 @@ def _null_if_blank(column_name: str):
 
     Returns:
         Column: Expressão Spark que resulta no valor original da coluna, ou
-        ``NULL`` quando o conteúdo (após ``trim``) for uma string vazia.
+            ``NULL`` quando o conteúdo (após ``trim``) for uma string vazia.
     """
     column = F.col(column_name)
     return F.when(
@@ -146,7 +146,7 @@ def _concat_date_time(
     stop_date="_data_fim",
     stop_time="_hora_fim",
 ):
-    """Concatena colunas de data e hora em um único timestamp.
+    """Combina colunas de data e hora em campos textuais intermediários.
 
     Args:
         df: DataFrame de entrada.
@@ -157,8 +157,10 @@ def _concat_date_time(
 
 
     Returns:
-        DataFrame: Cópia do DataFrame de entrada com a coluna ``data_hora``
-        adicionada/atualizada, contendo o timestamp concatenado.
+        DataFrame: Cópia do DataFrame de entrada com ``data_hora`` e
+        ``data_hora_fim`` adicionadas ou atualizadas. A conversão dessas
+        strings para timestamp é realizada posteriormente por
+        ``_apply_standard_pipeline``.
     """
     return df.withColumns(
         {
@@ -386,9 +388,9 @@ class CDRTransformer(CDRBaseTransformer):
         """Transforma CDR TIM LTE Huawei para o contrato padronizado do domínio.
 
         Objetivo da operação:
-            Aplicar filtros de qualidade mínima, extrair autenticação de campo
-            genérico e remover prefixos não discáveis dos números antes da
-            normalização central.
+            Extrair números e autenticação de campos JSON/SIP, remover prefixos
+            dos números ATS e preparar metadados de rede antes da normalização
+            central.
 
         Args:
             source_file: Caminho parquet com CDRs TIM LTE Huawei de entrada.
@@ -399,8 +401,13 @@ class CDRTransformer(CDRBaseTransformer):
 
         Notes:
             - Efeito colateral: grava o resultado em ``target_file``.
-            - Anotação de manutenção: a regra de remoção de prefixo pressupõe
-              metadados fixos de 2 caracteres no início do número.
+            - A regra de remoção de prefixo aplica ``substr(3, 9999)`` aos
+              números ATS sem autenticação, removendo os dois primeiros
+              caracteres da string.
+            - Anotação de manutenção: os ramos de ATS e IBCF dependem da
+              coluna ``tipo_cdr``. O contrato ``lte_huawei_tim`` da extração
+              padrão disponibiliza ``_tipo_cdr``; este método não realiza essa
+              renomeação.
             - Registros ``aTSRecord`` e ``iBCFRecord`` têm números e
               autenticação extraídos por regras distintas. Os atributos de célula, IMEI e
               IMSI são atribuídos à origem ou ao destino apenas para os papéis
@@ -445,19 +452,8 @@ class CDRTransformer(CDRBaseTransformer):
             }
         )
 
-        # Remover os 3 primeiros caracteres de `_numero_origem_ats`, mantendo apenas os demais.
-        # As colunas numero_origem e numero_destino contêm os números dos terminais
-        # precedidos de prefixos adicionais (11 ou 14) que devem ser removidos:
-        # +-----------------|---------------+
-        # | Antes           | Depois        |
-        # |-----------------|---------------|
-        # | 1440042704      | 40042704      |
-        # | 115595981241366 | 5595981241366 |
-        # | 1408000910091   | 08000910091   |
-        # +-----------------|---------------+
-        # Em situações em que o número de origem ATS são completos, por exemplo 115595981241366,
-        # os caracteres iniciais não interverem na formação, mas nas situações onde o número está
-        # incompleto, por exemplo, 1440042704, os prefixos podem ser confundicos com os CN 11 ou 14
+        # Para ATS sem autenticação, ``substr(3, 9999)`` remove os dois
+        # primeiros caracteres do número extraído antes da normalização comum.
         ats_calling_party = F.when(
             F.col("_numero_origem_ats_auth").isNotNull(),
             F.regexp_extract(F.col("_numero_origem_ats_auth"), r":\+?([0-9]+)", 1),
@@ -734,21 +730,20 @@ class CDRTransformer(CDRBaseTransformer):
         date_time_fmt = "dd/MM/yyyy HH:mm:ss"
         df = self.spark.read.parquet(source_file)
 
-        # CDRs Nokia possuem um campo de duração específico para cada tipo, apenas um com valor não nulo por registro.
-        # A expressão a seguir garante apenas uma coluna com duracao final preenchida com o valor correto, independentemente do tipo de CDR.
+        # Cada tipo de CDR pode preencher uma coluna de duração distinta; a
+        # primeira coluna não nula, na ordem do DataFrame, torna-se ``duracao``.
         duration_columns = [col for col in df.columns if col.startswith("_duracao")]
 
-        # Trata o valor sentinela "FFFFFF", presentes em CDRs Algar, em cada coluna de origem, transformando em nulo,
-        # para que o coalesce já ignore esses valores automaticamente.
+        # O sentinela ``FFFFFF`` é removido antes do ``coalesce`` para não ser
+        # escolhido como duração válida.
         cleaned_duration_cols = [
             F.when(F.col(c) == "FFFFFF", F.lit(None)).otherwise(F.col(c))
             for c in duration_columns
         ]
         df = df.withColumn("duracao", F.coalesce(*cleaned_duration_cols))
 
-        # Alguns CDRs não contém valor em data_hora_alocacao_canal, mas possuem data_hora_referencia preenchida.
-        # A expressão a seguir garante que a coluna data_hora final seja preenchida, ainda que por nulo, independentemente do tipo de CDR.
-        # Se nenhuma das datas existir, o tratamento será feito em ponto posterior no pipeline padrão.
+        # Prioriza a alocação de canal e usa a referência como alternativa;
+        # valores ausentes são normalizados pelo pipeline padrão.
         df = df.withColumn(
             "data_hora",
             F.coalesce(
@@ -756,9 +751,8 @@ class CDRTransformer(CDRBaseTransformer):
                 F.col("data_hora_referencia"),
             ),
         )
-        # A coluna data_hora_fim é derivada de forma condicional, considerando o tipo de CDR.
-        # Para CDRs do tipo UCA, a data_hora_fim é obtida a partir de data_hora_desconexao, caso exista.
-        # Valores nulos ou inválidos são normalizados para MIN_SAFE_DATE no pipeline padrão.
+        # Em UCA, a desconexão substitui o fim da chamada somente quando a
+        # coluna estiver disponível; o pipeline padrão trata valores inválidos.
         if "data_hora_desconexao" in df.columns:
             df = df.withColumn(
                 "data_hora_fim",
@@ -771,24 +765,8 @@ class CDRTransformer(CDRBaseTransformer):
                 ).otherwise(F.col("data_hora_fim")),
             )
 
-        # CDRs do tipo FORW não possuem os campos calling_number e called_number
-        # considerar os campos alternativos mapeados no extrator:
-        #
-        # +-------------------------+-------------------------------+
-        # | Antes (CDR Bruto)       | Depois (CDR Extraído)         |
-        # |-------------------------|-------------------------------|
-        # | calling_number          | _numero_origem                |
-        # | orig_calling_number     | numero_origem_original        |
-        # | called_number           | _numero_destino               |
-        # | orig_called_number      | numero_destino_original       |
-        # | forwarding_number       | numero_origem_encaminhamento  |
-        # | forwarded_to_number     | numero_destino_encaminhamento |
-        # +------------------------+--------------------------------+
-        #
-        # O script legado utiliza as colunas `orig_calling_number` e `forwarding_number` para derivar os campos numero_origem e numero_destino.
-        # Os campos utilizados por esse script (numero_origem_original e numero_destino_original) mostraram o mesmo resultados e estão mais aderentes à documentação Nokia, com erro muito pequeno em relação ao parser legado.
-        # Validar se quando a chamada é encaminhada para a caixa postal ocorre que o número de destino encaminhar para si mesmo a chamada.
-        # Em exemplo analisado onde cause_for_forwarding = `SCP initiated`, forwarding_number = `8885561993363275` e forwared_to_number = `C145561993363275`, o que pode indicar que a chamada foi encaminhada para a caixa postal do próprio número de destino.
+        # O número original supre a origem ausente. Em chamadas ``FORW``, o
+        # destino é substituído pelo número de origem do encaminhamento.
         df = df.withColumn(
             "numero_origem",
             F.coalesce(F.col("numero_origem"), F.col("numero_origem_original")),
