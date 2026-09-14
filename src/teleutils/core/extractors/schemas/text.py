@@ -129,8 +129,8 @@ class CDRTextSchema:
 
 
 TEXT_DEFAULT_SCHEMAS: dict[str, CDRTextSchema] = {
-    "algar_huawei": CDRTextSchema(
-        name="Algar Huawei",
+    "ngn_huawei": CDRTextSchema(
+        name="NGN Huawei",
         delimiter=",",
         schema=None,
         has_header=False,
@@ -152,6 +152,6 @@ TEXT_DEFAULT_SCHEMAS: dict[str, CDRTextSchema] = {
             "codigo_resposta_sip",
             "_status_chamada",
         ),
-        job_description="Extraindo CDR: Algar Huawei",
+        job_description="Extraindo CDR: NGN Huawei",
     ),
 }

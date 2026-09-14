@@ -50,7 +50,7 @@ from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 
 from teleutils._logging import log_operation
-from teleutils.core.extractors.schemas import CDRTextSchema, TEXT_DEFAULT_SCHEMAS
+from teleutils.core.extractors.schemas import TEXT_DEFAULT_SCHEMAS, CDRTextSchema
 
 logger = logging.getLogger(__name__)
 
@@ -210,11 +210,11 @@ class CDRTextExtractor:
         return target_file
 
     @log_operation
-    def extract_cdr_algar_huawei(self, source_file: str, target_file: str) -> str:
-        """Extrai registros do layout Algar Huawei usando o contrato pré-configurado.
+    def extract_cdr_ngn_huawei(self, source_file: str, target_file: str) -> str:
+        """Extrai registros do layout NGN Huawei usando o contrato pré-configurado.
 
         Args:
-            source_file: Caminho do arquivo de entrada no formato Algar Huawei.
+            source_file: Caminho do arquivo de entrada no formato NGN Huawei.
             target_file: Diretório de saída em parquet padronizado.
 
         Returns:
@@ -225,9 +225,9 @@ class CDRTextExtractor:
 
         Example:
             >>> extrator = CDRTextExtractor(spark)
-            >>> df = extrator.extract_cdr_algar_huawei(
-            ...     source_file="dados/algar_huawei.csv",
-            ...     target_file="parquet/algar_huawei_extracted"
+            >>> df = extrator.extract_cdr_ngn_huawei(
+            ...     source_file="dados/ngn_huawei.csv",
+            ...     target_file="parquet/ngn_huawei_extracted"
             ... )
         """
-        return self.extract_cdr(source_file, target_file, self.schemas["algar_huawei"])
+        return self.extract_cdr(source_file, target_file, self.schemas["ngn_huawei"])
