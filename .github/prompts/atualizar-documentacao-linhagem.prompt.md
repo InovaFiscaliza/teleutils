@@ -2,7 +2,7 @@
 description: Analisa o pipeline atual e gera ou atualiza a documentação de linhagem e transformação dos dados.
 ---
 
-Utilize a skill `documentar-linhagem-dados`.
+Utilize a skill `skill-documentar-linhagem-dados`.
 
 Analise o estado atual do código do projeto e gere ou atualize a documentação de linhagem e transformação dos dados.
 

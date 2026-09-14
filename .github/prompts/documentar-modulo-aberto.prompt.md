@@ -3,7 +3,7 @@ name: documentar-modulo-aberto
 description: Documenta o módulo Python atualmente aberto no editor, sem alterar sua lógica de negócio.
 ---
 
-Utilize a skill `documentar-modulo-python`.
+Utilize a skill `skill-documentar-modulo-python`.
 
 Analise cuidadosamente o módulo Python atualmente aberto no editor e atualize sua documentação conforme as instruções da skill.
 

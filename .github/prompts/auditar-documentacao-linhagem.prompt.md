@@ -2,7 +2,7 @@
 description: Audita a documentação de linhagem de dados comparando-a de forma independente com o código atual.
 ---
 
-Utilize a skill `auditar-linhagem-dados`.
+Utilize a skill `skill-auditar-linhagem-dados`.
 
 Realize uma auditoria independente da documentação atual de linhagem e transformação dos dados.
 

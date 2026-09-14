@@ -2,7 +2,7 @@
 description: Cria ou atualiza a documentação técnica do projeto, incluindo a documentação da API pública e o README.md.
 --- 
 
-Utilize a skill `documentar-projeto`.
+Utilize a skill `skill-documentar-projeto`.
 
 Analise o estado atual do repositório, exceto o módulo robocalls que está depreciado, e execute integralmente o fluxo definido pela skill.
 
