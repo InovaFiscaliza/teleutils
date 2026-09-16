@@ -39,7 +39,7 @@ from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 
 from teleutils._logging import log_operation
-from teleutils.core.extractors.schemas import CDRParquetSchema, PARQUET_DEFAULT_SCHEMAS
+from teleutils.core.extractors.schemas import PARQUET_DEFAULT_SCHEMAS, CDRParquetSchema
 
 logger = logging.getLogger(__name__)
 
