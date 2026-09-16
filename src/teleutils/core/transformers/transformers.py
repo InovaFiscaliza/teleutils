@@ -203,7 +203,7 @@ def _extract_cell_info(
     )
 
 
-def _format_cell_id(df, col_name, out_col, gnb_id_bits=26):
+def _format_cell_id(df, col_name, out_col, gnb_id_bits=26, output_format="default"):
     """Formata identificadores de célula hexadecimais em MCC-MNC-área-célula.
 
     Objetivo da operação:
@@ -222,6 +222,13 @@ def _format_cell_id(df, col_name, out_col, gnb_id_bits=26):
             dentro do NCGI (5G). Os bits restantes (até completar 36) são
             atribuídos ao Cell ID. Valor padrão de 26 bits segue a convenção
             usual 3GPP para NCGI de 36 bits.
+        output_format: Formato de saída desejado para o identificador de célula.
+            Pode assumir valores como ``default`` (padrão) ou outros formatos suportados pelo sistema.
+            default: Mantém o formatação padrão ``mcc-mnc-area-celula``.
+            tim: Utiliza os formatos da prestadora TIM para identificadores 3G/4G/5G:
+                3G: _not implemented_
+                4G: mcc-mnc-eci
+                5G: _not implemented_
 
     Returns:
         DataFrame: Cópia do DataFrame de entrada com a coluna ``out_col``
@@ -241,6 +248,12 @@ def _format_cell_id(df, col_name, out_col, gnb_id_bits=26):
     """
     col = F.col(col_name)
     length = F.length(col)
+
+    valid_output_formats = {"default", "tim"}
+    if output_format not in valid_output_formats:
+        raise ValueError(
+            f"Formato de saída inválido: {output_format}. Formatos válidos: {valid_output_formats}"
+        )
 
     # ---- 3G (UTRAN, 13 chars) ----
     tac_3g = F.conv(F.substring(col, 6, 4), 16, 10).cast("long")
@@ -264,6 +277,12 @@ def _format_cell_id(df, col_name, out_col, gnb_id_bits=26):
         ),  # enb_id (20 bits)
         F.lpad((ecgi_val % 256).cast("string"), 3, "0"),  # cell_id (8 bits)
     )
+    ecgi_formatted_tim = F.concat_ws(
+        "-",
+        F.substring(col, 1, 3),  # mcc
+        F.substring(col, 4, 2),  # mnc
+        ecgi_val.cast("string"),
+    )
 
     # ---- 5G (NCGI, 20 chars) ----
     # NCGI = 36 bits totais. gNB ID = 26 bits (default), Cell ID = 36 - 26 = 10 bits
@@ -283,12 +302,20 @@ def _format_cell_id(df, col_name, out_col, gnb_id_bits=26):
         ),  # cell_id (10 bits)
     )
 
-    formatted_cell_id = (
-        F.when(length == 13, ci_formatted)
-        .when(length == 16, ecgi_formatted)
-        .when(length == 20, ncgi_formatted)
-        .otherwise(col)
-    )
+    if output_format == "tim":
+        formatted_cell_id = (
+            F.when(length == 13, ci_formatted)
+            .when(length == 16, ecgi_formatted_tim)
+            .when(length == 20, ncgi_formatted)
+            .otherwise(col)
+        )
+    else:
+        formatted_cell_id = (
+            F.when(length == 13, ci_formatted)
+            .when(length == 16, ecgi_formatted)
+            .when(length == 20, ncgi_formatted)
+            .otherwise(col)
+        )
 
     return df.withColumn(
         out_col,
@@ -531,7 +558,7 @@ class CDRTransformer(CDRBaseTransformer):
             out_col_tec="_tecnologia_celula",
             out_col_cell_id="_id_celula_hex",
         )
-        df = _format_cell_id(df, "_id_celula_hex", "_id_celula")
+        df = _format_cell_id(df, "_id_celula_hex", "_id_celula", output_format="tim")
 
         df = df.withColumn(
             "_imei",
@@ -570,8 +597,12 @@ class CDRTransformer(CDRBaseTransformer):
                 "celula_destino_hex": F.when(is_terminating, F.col("_id_celula_hex")),
                 "celula_origem": F.when(is_originating, F.col("_id_celula")),
                 "celula_destino": F.when(is_terminating, F.col("_id_celula")),
-                "tecnologia_celula_origem": F.when(is_originating, F.col("_tecnologia_celula")),
-                "tecnologia_celula_destino": F.when(is_terminating, F.col("_tecnologia_celula")),
+                "tecnologia_celula_origem": F.when(
+                    is_originating, F.col("_tecnologia_celula")
+                ),
+                "tecnologia_celula_destino": F.when(
+                    is_terminating, F.col("_tecnologia_celula")
+                ),
                 "imei_origem": F.when(is_originating, F.col("_imei")),
                 "imei_destino": F.when(is_terminating, F.col("_imei")),
                 "imsi_origem": F.when(is_originating, F.col("_imsi")),
