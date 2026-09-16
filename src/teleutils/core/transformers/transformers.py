@@ -42,6 +42,10 @@ from teleutils.core.transformers.base_transformer import CDRBaseTransformer
 # embutido em campos SIP de origem de CDRs Huawei.
 _AUTH_EXTRACT_PATTERN = r"(verstat=[a-zA-Z\-]+)"
 
+# Regex utilizado para extrair o identificador de célula 3GPP embutido em campos de rede de CDRs.
+# Exemplo: 3GPP-E-UTRAN-FDD;utran-cell-id-3gpp=7240295068176515;network-provided
+_CELL_EXTRACT_PATTERN = r"3gpp=([0-9a-fA-F]+);?"
+
 
 def _null_if_blank(column_name: str):
     """Converte valores de string vazios/em branco em nulo Spark.
@@ -173,6 +177,29 @@ def _concat_date_time(
                 components=(stop_date, stop_time),
             ),
         }
+    )
+
+
+def _extract_cell_info(
+    df, col_name, out_col_tec="tecnologia_celula", out_col_cell_id="_cell_id_hex"
+):
+    """Extrai informações de célula a partir da coluna de rede.
+
+    Args:
+        df: DataFrame de entrada.
+        col_name: Nome da coluna contendo a informação de rede.
+
+    Returns:
+        DataFrame: Cópia do DataFrame de entrada com as colunas
+        as colunas especificadas em ``out_col_tec`` e ``out_col_cell_id`` adicionadas.
+    """
+    return (
+        df.withColumn("_split_info_rede", F.split(F.col(col_name), ";"))
+        .withColumn(out_col_tec, F.col("_split_info_rede").getItem(0))
+        .withColumn(
+            out_col_cell_id, F.regexp_extract(F.col(col_name), _CELL_EXTRACT_PATTERN, 1)
+        )
+        .drop("_split_info_rede")
     )
 
 
@@ -498,11 +525,11 @@ class CDRTransformer(CDRBaseTransformer):
             }
         )
 
-        df = df.withColumn(
-            "_cell_id_hex",
-            F.regexp_extract(
-                F.col("_informacao_rede"), r"utran-cell-id-3gpp=([0-9a-zA-Z]+);", 1
-            ),
+        df = _extract_cell_info(
+            df,
+            "_informacao_rede",
+            out_col_tec="tecnologia_celula",
+            out_col_cell_id="_cell_id_hex",
         )
         df = _format_cell_id(df, "_cell_id_hex", "_cell_id")
 
