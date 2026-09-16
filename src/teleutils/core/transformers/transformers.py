@@ -181,7 +181,7 @@ def _concat_date_time(
 
 
 def _extract_cell_info(
-    df, col_name, out_col_tec="tecnologia_celula", out_col_cell_id="_cell_id_hex"
+    df, col_name, out_col_tec="_tecnologia_celula", out_col_cell_id="_id_celula_hex"
 ):
     """Extrai informações de célula a partir da coluna de rede.
 
@@ -528,10 +528,10 @@ class CDRTransformer(CDRBaseTransformer):
         df = _extract_cell_info(
             df,
             "_informacao_rede",
-            out_col_tec="tecnologia_celula",
-            out_col_cell_id="_cell_id_hex",
+            out_col_tec="_tecnologia_celula",
+            out_col_cell_id="_id_celula_hex",
         )
-        df = _format_cell_id(df, "_cell_id_hex", "_cell_id")
+        df = _format_cell_id(df, "_id_celula_hex", "_id_celula")
 
         df = df.withColumn(
             "_imei",
@@ -566,10 +566,12 @@ class CDRTransformer(CDRBaseTransformer):
 
         df = df.withColumns(
             {
-                "celula_origem_hex": F.when(is_originating, F.col("_cell_id_hex")),
-                "celula_destino_hex": F.when(is_terminating, F.col("_cell_id_hex")),
-                "celula_origem": F.when(is_originating, F.col("_cell_id")),
-                "celula_destino": F.when(is_terminating, F.col("_cell_id")),
+                "celula_origem_hex": F.when(is_originating, F.col("_id_celula_hex")),
+                "celula_destino_hex": F.when(is_terminating, F.col("_id_celula_hex")),
+                "celula_origem": F.when(is_originating, F.col("_id_celula")),
+                "celula_destino": F.when(is_terminating, F.col("_id_celula")),
+                "tecnologia_celula_origem": F.when(is_originating, F.col("_tecnologia_celula")),
+                "tecnologia_celula_destino": F.when(is_terminating, F.col("_tecnologia_celula")),
                 "imei_origem": F.when(is_originating, F.col("_imei")),
                 "imei_destino": F.when(is_terminating, F.col("_imei")),
                 "imsi_origem": F.when(is_originating, F.col("_imsi")),
