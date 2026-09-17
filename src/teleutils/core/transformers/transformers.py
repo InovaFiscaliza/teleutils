@@ -26,6 +26,7 @@ Example:
     >>> transformer = CDRTransformer(spark)
     >>> df = transformer.transform_cdr_nokia("/tmp/in", "/tmp/out")
 """
+
 from __future__ import annotations
 
 from functools import reduce
@@ -46,6 +47,27 @@ _AUTH_EXTRACT_PATTERN = r"(verstat=[a-zA-Z\-]+)"
 # Regex utilizado para extrair o identificador de célula 3GPP embutido em campos de rede de CDRs.
 # Exemplo: 3GPP-E-UTRAN-FDD;utran-cell-id-3gpp=7240295068176515;network-provided
 _CELL_EXTRACT_PATTERN = r"3gpp=([0-9a-fA-F]+);?"
+
+# Formatos de saída válidos para transformações de CDRs.
+_VALID_OUTPUT_FORMATS = {"default", "tim"}
+
+
+def _check_output_format(
+    output_format: str, valid_output_formats: set[str] = _VALID_OUTPUT_FORMATS
+):
+    """Verifica se o formato de saída fornecido é válido.
+
+    Args:
+        output_format: Formato de saída a ser verificado.
+        valid_output_formats: Conjunto de formatos de saída válidos.
+
+    Raises:
+        ValueError: Se o formato de saída não estiver no conjunto de válidos.
+    """
+    if output_format not in valid_output_formats:
+        raise ValueError(
+            f"Formato de saída inválido: {output_format}. Formatos válidos: {valid_output_formats}"
+        )
 
 
 def _null_if_blank(column_name: str):
@@ -273,11 +295,7 @@ def _format_cell_id(df, col_name, out_col, gnb_id_bits=26, output_format="defaul
     col = F.col(col_name)
     length = F.length(col)
 
-    valid_output_formats = {"default", "tim"}
-    if output_format not in valid_output_formats:
-        raise ValueError(
-            f"Formato de saída inválido: {output_format}. Formatos válidos: {valid_output_formats}"
-        )
+    _check_output_format(output_format)
 
     # ---- 3G (UTRAN, 13 chars) ----
     tac_3g = F.conv(F.substring(col, 6, 4), 16, 10).cast("long")
@@ -389,7 +407,9 @@ class CDRTransformer(CDRBaseTransformer):
         super().__init__(spark)
 
     @log_operation
-    def transform_cdr_ericsson(self, source_file: str, target_file: str) -> str:
+    def transform_cdr_ericsson(
+        self, source_file: str, target_file: str, output_format: str = "default"
+    ) -> str:
         """Transforma CDR Ericsson para o contrato padronizado do domínio.
 
         Objetivo da operação:
@@ -409,6 +429,9 @@ class CDRTransformer(CDRBaseTransformer):
             - Anotação de manutenção: se o formato de duração mudar na origem,
               este cálculo deve ser revisado antes do pipeline comum.
         """
+
+        _check_output_format(output_format)
+
         date_time_fmt = "yy-MM-dd HH:mm:ss"
         df = self.spark.read.parquet(source_file)
 
@@ -424,6 +447,14 @@ class CDRTransformer(CDRBaseTransformer):
 
         df = _concat_date_time(df, stop_date="_data")
 
+        # Células da TIM não devem ter valores preenchidos com zeros à esquerda para lac e ci/sac.
+        if output_format == "tim":
+            padded_origin_cells = ()
+            padded_destination_cells = ()
+        else:
+            padded_origin_cells = ("celula_origem_lac", "celula_origem_ci_sac")
+            padded_destination_cells = ("celula_destino_lac", "celula_destino_ci_sac")
+
         df = df.withColumns(
             {
                 "celula_origem": _build_composite_column(
@@ -434,7 +465,7 @@ class CDRTransformer(CDRBaseTransformer):
                         "celula_origem_lac",
                         "celula_origem_ci_sac",
                     ),
-                    ("celula_origem_lac", "celula_origem_ci_sac"),
+                    padded_origin_cells,
                 ),
                 "celula_destino": _build_composite_column(
                     "-",
@@ -444,7 +475,7 @@ class CDRTransformer(CDRBaseTransformer):
                         "celula_destino_lac",
                         "celula_destino_ci_sac",
                     ),
-                    ("celula_destino_lac", "celula_destino_ci_sac"),
+                    padded_destination_cells,
                 ),
                 "imsi_origem": _build_composite_column(
                     "",
