@@ -26,10 +26,10 @@ Example:
     >>> transformer = CDRTransformer(spark)
     >>> df = transformer.transform_cdr_nokia("/tmp/in", "/tmp/out")
 """
+from __future__ import annotations
 
 from functools import reduce
 from operator import or_
-from typing import Optional
 
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
@@ -184,8 +184,8 @@ def _concat_date_time(
 def _extract_cell_info(
     df,
     col_name,
-    out_col_tec: Optional[str] = "_tecnologia_celula",
-    out_col_cell_id: Optional[str] = "_id_celula_hex",
+    out_col_tec: str | None = "_tecnologia_celula",
+    out_col_cell_id: str | None = "_id_celula_hex",
 ):
     """Extrai informações de célula a partir da coluna de rede.
 
