@@ -29,6 +29,7 @@ Example:
 
 from functools import reduce
 from operator import or_
+from typing import Optional
 
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
@@ -181,26 +182,49 @@ def _concat_date_time(
 
 
 def _extract_cell_info(
-    df, col_name, out_col_tec="_tecnologia_celula", out_col_cell_id="_id_celula_hex"
+    df,
+    col_name,
+    out_col_tec: Optional[str] = "_tecnologia_celula",
+    out_col_cell_id: Optional[str] = "_id_celula_hex",
 ):
     """Extrai informações de célula a partir da coluna de rede.
 
     Args:
         df: DataFrame de entrada.
         col_name: Nome da coluna contendo a informação de rede.
+        out_col_tec: Nome da coluna de saída para a tecnologia da célula, ou
+            ``None`` para não gerar essa coluna.
+        out_col_cell_id: Nome da coluna de saída para o id hexadecimal da
+            célula, ou ``None`` para não gerar essa coluna.
 
     Returns:
         DataFrame: Cópia do DataFrame de entrada com as colunas
         as colunas especificadas em ``out_col_tec`` e ``out_col_cell_id`` adicionadas.
+
+    Raises:
+        ValueError: Se ``df`` ou ``col_name`` não forem informados, ou se
+            ``col_name`` não existir entre as colunas de ``df``.
     """
-    return (
-        df.withColumn("_split_info_rede", F.split(F.col(col_name), ";"))
-        .withColumn(out_col_tec, F.col("_split_info_rede").getItem(0))
-        .withColumn(
-            out_col_cell_id, F.regexp_extract(F.col(col_name), _CELL_EXTRACT_PATTERN, 1)
+    if df is None:
+        raise ValueError("O parâmetro 'df' é obrigatório e não foi informado.")
+    if not col_name:
+        raise ValueError("O parâmetro 'col_name' é obrigatório e não foi informado.")
+    if col_name not in df.columns:
+        raise ValueError(
+            f"A coluna de origem '{col_name}' não existe no DataFrame. "
+            f"Colunas disponíveis: {df.columns}"
         )
-        .drop("_split_info_rede")
-    )
+
+    network_info = F.col(col_name)
+    new_columns = {}
+    if out_col_tec is not None:
+        new_columns[out_col_tec] = F.split(network_info, ";").getItem(0)
+    if out_col_cell_id is not None:
+        new_columns[out_col_cell_id] = F.regexp_extract(
+            network_info, _CELL_EXTRACT_PATTERN, 1
+        )
+
+    return df.withColumns(new_columns)
 
 
 def _format_cell_id(df, col_name, out_col, gnb_id_bits=26, output_format="default"):
