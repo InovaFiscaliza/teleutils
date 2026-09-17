@@ -739,6 +739,21 @@ class CDRTransformer(CDRBaseTransformer):
 
         df = _concat_date_time(df, stop_date="_data")
 
+        # Tecnologia das células de origem e destino.
+        # ID das células já existe no DataFrame original, portanto não precisamos extraí-lo novamente.
+        df = _extract_cell_info(
+            df,
+            "_informacao_rede_origem",
+            out_col_tec="tecnologia_celula_origem",
+            out_col_cell_id=None,
+        )
+        df = _extract_cell_info(
+            df,
+            "_informacao_rede_destino",
+            out_col_tec="tecnologia_celula_destino",
+            out_col_cell_id=None,
+        )
+
         # Extrair autenticação e prefixos adicionais dos números.
         # A autenticação está contida na coluna _numero_origem,
         # por exemplo: 551136128860;verstat=TN-Validation-Passe
