@@ -290,12 +290,12 @@ def _format_cell_id(df, col_name, out_col, gnb_id_bits=26, output_format="defaul
         F.lpad(ci_3g.cast("string"), 5, "0"),  # ci (16 bits)
     )
     ci_formatted_tim = F.concat_ws(
-            "-",
-            F.substring(col, 1, 3),  # mcc
-            F.substring(col, 4, 2),  # mnc
-            tac_3g.cast("string"),  # tac (16 bits)
-            ci_3g.cast("string"),  # ci (16 bits)
-        )
+        "-",
+        F.substring(col, 1, 3),  # mcc
+        F.substring(col, 4, 2),  # mnc
+        tac_3g.cast("string"),  # tac (16 bits)
+        ci_3g.cast("string"),  # ci (16 bits)
+    )
 
     # ---- 4G (ECGI, 16 chars) ----
     ecgi_val = F.conv(F.substring(col, 10, 7), 16, 10).cast("long")
