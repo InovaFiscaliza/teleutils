@@ -35,8 +35,8 @@ from __future__ import annotations
 
 import logging
 
-from pyspark.sql import SparkSession
-from pyspark.sql import functions as F
+from pyspark.sql import SparkSession # type: ignore
+from pyspark.sql import functions as F # type: ignore
 
 from teleutils._logging import log_operation
 from teleutils.core.extractors.schemas import PARQUET_DEFAULT_SCHEMAS, CDRParquetSchema
@@ -89,7 +89,6 @@ class CDRParquetExtractor:
         """
         self.spark = spark
         self.schemas = schemas if schemas is not None else PARQUET_DEFAULT_SCHEMAS
-        # self._sc = spark.sparkContext
 
     def extract_cdr(
         self,
