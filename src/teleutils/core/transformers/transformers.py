@@ -49,7 +49,7 @@ _AUTH_EXTRACT_PATTERN = r"(verstat=[a-zA-Z\-]+)"
 _CELL_EXTRACT_PATTERN = r"3gpp=([0-9a-fA-F]+);?"
 
 # Formatos de saída válidos para transformações de CDRs.
-_VALID_OUTPUT_FORMATS = {"default", "tim"}
+_VALID_OUTPUT_FORMATS = {"default", "smp_ericsson_gsm_tim"}
 
 
 def _check_output_format(
@@ -351,7 +351,7 @@ def _format_cell_id(df, col_name, out_col, gnb_id_bits=26, output_format="defaul
         ),  # cell_id (10 bits)
     )
 
-    if output_format == "tim":
+    if output_format == "smp_ericsson_gsm_tim":
         formatted_cell_id = (
             F.when(length == 13, ci_formatted_tim)
             .when(length == 16, ecgi_formatted_tim)
@@ -407,8 +407,35 @@ class CDRTransformer(CDRBaseTransformer):
         super().__init__(spark)
 
     @log_operation
+    def transform(
+        self,
+        source_file: str,
+        target_file: str,
+        cdr_schema: str,
+        output_format: str = "default",
+    ) -> str:
+        """Transforma CDR genérico para o contrato padronizado do domínio.
+
+        Args:
+            source_file: Caminho parquet com CDRs de entrada.
+            target_file: Caminho parquet de saída transformada.
+
+        Returns:
+            str: Caminho do parquet transformado em ``target_file``.
+        """
+
+        _check_output_format(output_format)
+
+        transformer = globals().get(f"transform_{cdr_schema}")
+        if transformer is None:
+            raise ValueError(
+                f"Transformador para o schema '{cdr_schema}' não encontrado."
+            )
+        return transformer(self, source_file, target_file, output_format=output_format)
+
+    @log_operation
     def transform_smp_ericsson_gsm(
-        self, source_file: str, target_file: str, output_format: str = "default"
+        self, source_file: str, target_file: str, **kwargs
     ) -> str:
         """Transforma CDR SMP GSM Ericsson para o contrato padronizado do domínio.
 
@@ -430,7 +457,7 @@ class CDRTransformer(CDRBaseTransformer):
               este cálculo deve ser revisado antes do pipeline comum.
         """
 
-        _check_output_format(output_format)
+        output_format = kwargs.get("output_format", "csv")
 
         date_time_fmt = "yy-MM-dd HH:mm:ss"
         df = self.spark.read.parquet(source_file)
@@ -500,7 +527,9 @@ class CDRTransformer(CDRBaseTransformer):
         return target_file
 
     @log_operation
-    def transform_smp_gsm_nokia(self, source_file: str, target_file: str) -> str:
+    def transform_smp_gsm_nokia(
+        self, source_file: str, target_file: str, **kwargs
+    ) -> str:
         """Transforma CDR SMP GSM Nokia para o contrato padronizado do domínio.
 
         Objetivo da operação:
@@ -663,7 +692,9 @@ class CDRTransformer(CDRBaseTransformer):
         return target_file
 
     @log_operation
-    def transform_smp_huawei_volte_tim(self, source_file: str, target_file: str) -> str:
+    def transform_smp_huawei_volte_tim(
+        self, source_file: str, target_file: str, **kwargs
+    ) -> str:
         """Transforma CDR SMP Huawei VoLTE TIM para o contrato padronizado do domínio.
 
         Objetivo da operação:
@@ -902,7 +933,7 @@ class CDRTransformer(CDRBaseTransformer):
 
     @log_operation
     def transform_smp_ericsson_volte_vivo(
-        self, source_file: str, target_file: str
+        self, source_file: str, target_file: str, **kwargs
     ) -> str:
         """Transforma CDR SMP Ericsson VoLTE Vivo para o contrato padronizado do domínio.
 
@@ -993,7 +1024,9 @@ class CDRTransformer(CDRBaseTransformer):
         return target_file
 
     @log_operation
-    def transform_stfc_huawei_ngn(self, source_file: str, target_file: str) -> str:
+    def transform_stfc_huawei_ngn(
+        self, source_file: str, target_file: str, **kwargs
+    ) -> str:
         """Transforma registros do layout STFC Huawei NGN usando o pipeline padrão.
 
         Combina os campos de data e hora extraídos, converte os códigos de tipo
