@@ -407,10 +407,10 @@ class CDRTransformer(CDRBaseTransformer):
         super().__init__(spark)
 
     @log_operation
-    def transform_cdr_ericsson(
+    def transform_smp_ericsson_gsm(
         self, source_file: str, target_file: str, output_format: str = "default"
     ) -> str:
-        """Transforma CDR Ericsson para o contrato padronizado do domínio.
+        """Transforma CDR SMP GSM Ericsson para o contrato padronizado do domínio.
 
         Objetivo da operação:
             Converter a duração no formato ``HH:mm:ss`` para segundos inteiros
@@ -500,8 +500,171 @@ class CDRTransformer(CDRBaseTransformer):
         return target_file
 
     @log_operation
-    def transform_cdr_lte_huawei_tim(self, source_file: str, target_file: str) -> str:
-        """Transforma CDR TIM LTE Huawei para o contrato padronizado do domínio.
+    def transform_smp_gsm_nokia(self, source_file: str, target_file: str) -> str:
+        """Transforma CDR SMP GSM Nokia para o contrato padronizado do domínio.
+
+        Objetivo da operação:
+            Consolidar campos variantes de duração/data e ajustar números para
+            cenários de encaminhamento antes do pipeline padrão.
+
+        Args:
+            source_file: Caminho parquet com CDRs Nokia de entrada.
+            target_file: Caminho parquet de saída transformada.
+
+        Returns:
+            str: Caminho do parquet transformado em ``target_file``.
+
+        Notes:
+            - Regra de negócio: múltiplos campos ``_duracao*`` são reduzidos a
+              uma única duração por registro via ``coalesce``; valores
+              ``"FFFFFF"`` são tratados como nulos antes da redução.
+            - Regra de negócio: para chamadas ``FORW``, o destino é derivado do
+              campo ``numero_origem_encaminhamento``.
+            - ``data_hora`` usa ``data_hora_alocacao_canal`` quando disponível
+              e recorre a ``data_hora_referencia``. Para chamadas ``UCA``,
+              ``data_hora_fim`` pode usar ``data_hora_desconexao`` quando essa
+              coluna está presente no DataFrame.
+            - Como o layout não fornece MCC/MNC, as células usam ``DEFAULT_MCC``
+              e MNC conforme ``prestadora``: Claro recebe ``CLARO_MNC`` e Algar
+              recebe ``ALGAR_MNC``. Outros valores de prestadora resultam em MNC
+              nulo e, consequentemente, em célula composta nula.
+            - ``_status_chamada`` é agrupado em faixas de códigos hexadecimais
+              antes da aplicação do pipeline comum.
+            - Efeito colateral: grava o resultado em ``target_file``.
+            - Anotação de manutenção: divergências residuais com parser legado
+              devem ser monitoradas em homologações futuras.
+        """
+        date_time_fmt = "dd/MM/yyyy HH:mm:ss"
+        df = self.spark.read.parquet(source_file)
+
+        # Cada tipo de CDR pode preencher uma coluna de duração distinta; a
+        # primeira coluna não nula, na ordem do DataFrame, torna-se ``duracao``.
+        duration_columns = [col for col in df.columns if col.startswith("_duracao")]
+
+        # O sentinela ``FFFFFF`` é removido antes do ``coalesce`` para não ser
+        # escolhido como duração válida.
+        cleaned_duration_cols = [
+            F.when(F.col(c) == "FFFFFF", F.lit(None)).otherwise(F.col(c))
+            for c in duration_columns
+        ]
+        df = df.withColumn("duracao", F.coalesce(*cleaned_duration_cols))
+
+        # Prioriza a alocação de canal e usa a referência como alternativa;
+        # valores ausentes são normalizados pelo pipeline padrão.
+        df = df.withColumn(
+            "data_hora",
+            F.coalesce(
+                F.col("data_hora_alocacao_canal"),
+                F.col("data_hora_referencia"),
+            ),
+        )
+        # Em UCA, a desconexão substitui o fim da chamada somente quando a
+        # coluna estiver disponível; o pipeline padrão trata valores inválidos.
+        if "data_hora_desconexao" in df.columns:
+            df = df.withColumn(
+                "data_hora_fim",
+                F.when(
+                    F.col("tipo_chamada") == "UCA",
+                    F.coalesce(
+                        F.col("data_hora_desconexao"),
+                        F.col("data_hora_fim"),
+                    ),
+                ).otherwise(F.col("data_hora_fim")),
+            )
+
+        # O número original supre a origem ausente. Em chamadas ``FORW``, o
+        # destino é substituído pelo número de origem do encaminhamento.
+        df = df.withColumn(
+            "numero_origem",
+            F.coalesce(F.col("numero_origem"), F.col("numero_origem_original")),
+        ).withColumn(
+            "numero_destino",
+            F.when(
+                F.col("tipo_chamada") == "FORW", F.col("numero_origem_encaminhamento")
+            ).otherwise(
+                F.col("numero_destino"),
+            ),
+        )
+
+        # CDRs Nokia não possuem campos de MCC/MNC; o MNC é imputado pela prestadora.
+        nokia_mnc = F.when(F.col("prestadora") == "claro", CLARO_MNC).when(
+            F.col("prestadora") == "algar", ALGAR_MNC
+        )
+        df = (
+            df.withColumn("_nokia_mnc", nokia_mnc)
+            .withColumns(
+                {
+                    "celula_origem": _build_composite_column(
+                        "-",
+                        (
+                            DEFAULT_MCC,
+                            F.col("_nokia_mnc"),
+                            "celula_origem_lac",
+                            "celula_origem_ci",
+                        ),
+                        ("celula_origem_lac", "celula_origem_ci"),
+                    ),
+                    "celula_destino": _build_composite_column(
+                        "-",
+                        (
+                            DEFAULT_MCC,
+                            F.col("_nokia_mnc"),
+                            "celula_destino_lac",
+                            "celula_destino_ci",
+                        ),
+                        ("celula_destino_lac", "celula_destino_ci"),
+                    ),
+                }
+            )
+            .drop("_nokia_mnc")
+        )
+
+        # Agrupar os valores de _status_chamada em faixas de códigos de status, conforme documentação Nokia:
+        # +-----------------+---------------------+
+        # | _status_chamada | descrição           |
+        # +-----------------+---------------------+
+        # | 0000H - 03FFH   | normal clearing     |
+        # | 0400H - 07FFH   | internal congestion |
+        # | 0800H - 0BFFH   | external congestion |
+        # | 0C00H - 0FFFH   | subscriber errors   |
+        # | 1000H -         | event codes         |
+        # +-----------------+---------------------+
+        df = df.withColumn(
+            "status_chamada",
+            F.when(
+                (F.col("_status_chamada") >= F.lit(int("0000", 16)))
+                & (F.col("_status_chamada") <= F.lit(int("03FF", 16))),
+                F.lit("normal clearing"),
+            )
+            .when(
+                (F.col("_status_chamada") >= F.lit(int("0400", 16)))
+                & (F.col("_status_chamada") <= F.lit(int("07FF", 16))),
+                F.lit("internal congestion"),
+            )
+            .when(
+                (F.col("_status_chamada") >= F.lit(int("0800", 16)))
+                & (F.col("_status_chamada") <= F.lit(int("0BFF", 16))),
+                F.lit("external congestion"),
+            )
+            .when(
+                (F.col("_status_chamada") >= F.lit(int("0C00", 16)))
+                & (F.col("_status_chamada") <= F.lit(int("0FFF", 16))),
+                F.lit("subscriber errors"),
+            )
+            .when(
+                F.col("_status_chamada") >= F.lit(int("1000", 16)), F.lit("event codes")
+            )
+            .otherwise(F.lit(None)),
+        )
+
+        df = self._apply_standard_pipeline(df, date_time_fmt)
+
+        self._write_parquet(df, target_file)
+        return target_file
+
+    @log_operation
+    def transform_smp_huawei_volte_tim(self, source_file: str, target_file: str) -> str:
+        """Transforma CDR SMP Huawei VoLTE TIM para o contrato padronizado do domínio.
 
         Objetivo da operação:
             Extrair números e autenticação de campos JSON/SIP, remover prefixos
@@ -509,7 +672,7 @@ class CDRTransformer(CDRBaseTransformer):
             central.
 
         Args:
-            source_file: Caminho parquet com CDRs TIM LTE Huawei de entrada.
+            source_file: Caminho parquet com CDRs SMP Huawei VoLTE TIM de entrada.
             target_file: Caminho parquet de saída transformada.
 
         Returns:
@@ -521,7 +684,7 @@ class CDRTransformer(CDRBaseTransformer):
               números ATS sem autenticação, removendo os dois primeiros
               caracteres da string.
             - Anotação de manutenção: os ramos de ATS e IBCF dependem da
-              coluna ``tipo_cdr``. O contrato ``lte_huawei_tim`` da extração
+              coluna ``tipo_cdr``. O contrato ``smp_huawei_volte_tim`` da extração
               padrão disponibiliza ``_tipo_cdr``; este método não realiza essa
               renomeação.
             - Registros ``aTSRecord`` e ``iBCFRecord`` têm números e
@@ -738,17 +901,17 @@ class CDRTransformer(CDRBaseTransformer):
         return target_file
 
     @log_operation
-    def transform_cdr_lte_ericsson_vivo(
+    def transform_smp_ericsson_volte_vivo(
         self, source_file: str, target_file: str
     ) -> str:
-        """Transforma CDR Vivo LTE Ericsson para o contrato padronizado do domínio.
+        """Transforma CDR SMP Ericsson VoLTE Vivo para o contrato padronizado do domínio.
 
         Objetivo da operação:
             Executar o pré-processamento específico da Vivo LTE Ericsson para separar
             metadados embutidos e, em seguida, aplicar a normalização padrão.
 
         Args:
-            source_file: Caminho parquet com CDRs Vivo LTE Ericsson de entrada.
+            source_file: Caminho parquet com CDRs SMP Ericsson VoLTE Vivo de entrada.
             target_file: Caminho parquet de saída transformada.
 
         Returns:
@@ -830,178 +993,15 @@ class CDRTransformer(CDRBaseTransformer):
         return target_file
 
     @log_operation
-    def transform_cdr_nokia(self, source_file: str, target_file: str) -> str:
-        """Transforma CDR Nokia para o contrato padronizado do domínio.
-
-        Objetivo da operação:
-            Consolidar campos variantes de duração/data e ajustar números para
-            cenários de encaminhamento antes do pipeline padrão.
-
-        Args:
-            source_file: Caminho parquet com CDRs Nokia de entrada.
-            target_file: Caminho parquet de saída transformada.
-
-        Returns:
-            str: Caminho do parquet transformado em ``target_file``.
-
-        Notes:
-            - Regra de negócio: múltiplos campos ``_duracao*`` são reduzidos a
-              uma única duração por registro via ``coalesce``; valores
-              ``"FFFFFF"`` são tratados como nulos antes da redução.
-            - Regra de negócio: para chamadas ``FORW``, o destino é derivado do
-              campo ``numero_origem_encaminhamento``.
-            - ``data_hora`` usa ``data_hora_alocacao_canal`` quando disponível
-              e recorre a ``data_hora_referencia``. Para chamadas ``UCA``,
-              ``data_hora_fim`` pode usar ``data_hora_desconexao`` quando essa
-              coluna está presente no DataFrame.
-            - Como o layout não fornece MCC/MNC, as células usam ``DEFAULT_MCC``
-              e MNC conforme ``prestadora``: Claro recebe ``CLARO_MNC`` e Algar
-              recebe ``ALGAR_MNC``. Outros valores de prestadora resultam em MNC
-              nulo e, consequentemente, em célula composta nula.
-            - ``_status_chamada`` é agrupado em faixas de códigos hexadecimais
-              antes da aplicação do pipeline comum.
-            - Efeito colateral: grava o resultado em ``target_file``.
-            - Anotação de manutenção: divergências residuais com parser legado
-              devem ser monitoradas em homologações futuras.
-        """
-        date_time_fmt = "dd/MM/yyyy HH:mm:ss"
-        df = self.spark.read.parquet(source_file)
-
-        # Cada tipo de CDR pode preencher uma coluna de duração distinta; a
-        # primeira coluna não nula, na ordem do DataFrame, torna-se ``duracao``.
-        duration_columns = [col for col in df.columns if col.startswith("_duracao")]
-
-        # O sentinela ``FFFFFF`` é removido antes do ``coalesce`` para não ser
-        # escolhido como duração válida.
-        cleaned_duration_cols = [
-            F.when(F.col(c) == "FFFFFF", F.lit(None)).otherwise(F.col(c))
-            for c in duration_columns
-        ]
-        df = df.withColumn("duracao", F.coalesce(*cleaned_duration_cols))
-
-        # Prioriza a alocação de canal e usa a referência como alternativa;
-        # valores ausentes são normalizados pelo pipeline padrão.
-        df = df.withColumn(
-            "data_hora",
-            F.coalesce(
-                F.col("data_hora_alocacao_canal"),
-                F.col("data_hora_referencia"),
-            ),
-        )
-        # Em UCA, a desconexão substitui o fim da chamada somente quando a
-        # coluna estiver disponível; o pipeline padrão trata valores inválidos.
-        if "data_hora_desconexao" in df.columns:
-            df = df.withColumn(
-                "data_hora_fim",
-                F.when(
-                    F.col("tipo_chamada") == "UCA",
-                    F.coalesce(
-                        F.col("data_hora_desconexao"),
-                        F.col("data_hora_fim"),
-                    ),
-                ).otherwise(F.col("data_hora_fim")),
-            )
-
-        # O número original supre a origem ausente. Em chamadas ``FORW``, o
-        # destino é substituído pelo número de origem do encaminhamento.
-        df = df.withColumn(
-            "numero_origem",
-            F.coalesce(F.col("numero_origem"), F.col("numero_origem_original")),
-        ).withColumn(
-            "numero_destino",
-            F.when(
-                F.col("tipo_chamada") == "FORW", F.col("numero_origem_encaminhamento")
-            ).otherwise(
-                F.col("numero_destino"),
-            ),
-        )
-
-        # CDRs Nokia não possuem campos de MCC/MNC; o MNC é imputado pela prestadora.
-        nokia_mnc = F.when(F.col("prestadora") == "claro", CLARO_MNC).when(
-            F.col("prestadora") == "algar", ALGAR_MNC
-        )
-        df = (
-            df.withColumn("_nokia_mnc", nokia_mnc)
-            .withColumns(
-                {
-                    "celula_origem": _build_composite_column(
-                        "-",
-                        (
-                            DEFAULT_MCC,
-                            F.col("_nokia_mnc"),
-                            "celula_origem_lac",
-                            "celula_origem_ci",
-                        ),
-                        ("celula_origem_lac", "celula_origem_ci"),
-                    ),
-                    "celula_destino": _build_composite_column(
-                        "-",
-                        (
-                            DEFAULT_MCC,
-                            F.col("_nokia_mnc"),
-                            "celula_destino_lac",
-                            "celula_destino_ci",
-                        ),
-                        ("celula_destino_lac", "celula_destino_ci"),
-                    ),
-                }
-            )
-            .drop("_nokia_mnc")
-        )
-
-        # Agrupar os valores de _status_chamada em faixas de códigos de status, conforme documentação Nokia:
-        # +-----------------+---------------------+
-        # | _status_chamada | descrição           |
-        # +-----------------+---------------------+
-        # | 0000H - 03FFH   | normal clearing     |
-        # | 0400H - 07FFH   | internal congestion |
-        # | 0800H - 0BFFH   | external congestion |
-        # | 0C00H - 0FFFH   | subscriber errors   |
-        # | 1000H -         | event codes         |
-        # +-----------------+---------------------+
-        df = df.withColumn(
-            "status_chamada",
-            F.when(
-                (F.col("_status_chamada") >= F.lit(int("0000", 16)))
-                & (F.col("_status_chamada") <= F.lit(int("03FF", 16))),
-                F.lit("normal clearing"),
-            )
-            .when(
-                (F.col("_status_chamada") >= F.lit(int("0400", 16)))
-                & (F.col("_status_chamada") <= F.lit(int("07FF", 16))),
-                F.lit("internal congestion"),
-            )
-            .when(
-                (F.col("_status_chamada") >= F.lit(int("0800", 16)))
-                & (F.col("_status_chamada") <= F.lit(int("0BFF", 16))),
-                F.lit("external congestion"),
-            )
-            .when(
-                (F.col("_status_chamada") >= F.lit(int("0C00", 16)))
-                & (F.col("_status_chamada") <= F.lit(int("0FFF", 16))),
-                F.lit("subscriber errors"),
-            )
-            .when(
-                F.col("_status_chamada") >= F.lit(int("1000", 16)), F.lit("event codes")
-            )
-            .otherwise(F.lit(None)),
-        )
-
-        df = self._apply_standard_pipeline(df, date_time_fmt)
-
-        self._write_parquet(df, target_file)
-        return target_file
-
-    @log_operation
-    def transform_cdr_ngn_huawei(self, source_file: str, target_file: str) -> str:
-        """Transforma registros do layout NGN Huawei usando o pipeline padrão.
+    def transform_stfc_huawei_ngn(self, source_file: str, target_file: str) -> str:
+        """Transforma registros do layout STFC Huawei NGN usando o pipeline padrão.
 
         Combina os campos de data e hora extraídos, converte os códigos de tipo
         e status de chamada conhecidos para rótulos textuais e delega a
         normalização restante ao pipeline comum.
 
         Args:
-            source_file: Caminho do arquivo de entrada no formato NGN Huawei.
+            source_file: Caminho do arquivo de entrada no formato STFC Huawei NGN.
             target_file: Diretório de saída em parquet padronizado.
 
         Returns:
