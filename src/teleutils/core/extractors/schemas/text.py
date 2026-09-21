@@ -22,7 +22,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from pyspark.sql import types as T
+from pyspark.sql import types as T  # type: ignore
 
 
 @dataclass(frozen=True)
@@ -129,7 +129,7 @@ class CDRTextSchema:
 
 
 TEXT_DEFAULT_SCHEMAS: dict[str, CDRTextSchema] = {
-    "ngn_huawei": CDRTextSchema(
+    "stfc_huawei_ngn": CDRTextSchema(
         name="NGN Huawei",
         delimiter=",",
         schema=None,
@@ -152,9 +152,9 @@ TEXT_DEFAULT_SCHEMAS: dict[str, CDRTextSchema] = {
             "codigo_resposta_sip",
             "_status_chamada",
         ),
-        job_description="Extraindo CDR: NGN Huawei",
+        job_description="Extraindo CDR: STFC Huawei NGN",
     ),
-    "fcdr_vivo": CDRTextSchema(
+    "stfc_fcdr_vivo": CDRTextSchema(
         name="FCDR Vivo",
         delimiter=";",
         schema=None,
@@ -174,6 +174,6 @@ TEXT_DEFAULT_SCHEMAS: dict[str, CDRTextSchema] = {
             "referencia",
             "numero_origem",
         ),
-        job_description="Extraindo CDR: FCDR Vivo",
+        job_description="Extraindo CDR: STFC FCDR Vivo",
     ),
 }
