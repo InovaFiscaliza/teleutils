@@ -13,7 +13,7 @@ coluna.
 
 Example:
     >>> from teleutils.core.extractors.schemas.text import TEXT_DEFAULT_SCHEMAS
-    >>> schema = TEXT_DEFAULT_SCHEMAS["algar_huawei"]
+    >>> schema = TEXT_DEFAULT_SCHEMAS["stfc_huawei_ngn"]
     >>> schema.delimiter
     ','
 """

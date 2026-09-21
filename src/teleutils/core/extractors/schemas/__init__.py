@@ -14,8 +14,8 @@ Exports:
 
 Example:
     >>> from teleutils.core.extractors.schemas import PARQUET_DEFAULT_SCHEMAS
-    >>> PARQUET_DEFAULT_SCHEMAS["ericsson"].name
-    'Ericsson'
+    >>> PARQUET_DEFAULT_SCHEMAS["smp_ericsson_gsm"].name
+    'SMP Ericsson GSM'
 """
 
 from teleutils.core.extractors.schemas.parquet import (

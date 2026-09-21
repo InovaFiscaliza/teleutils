@@ -81,7 +81,9 @@ class CDRTextExtractor:
     """
 
     def __init__(
-        self, spark: SparkSession, schemas: dict[str, CDRTextSchema] | None = None
+        self,
+        spark: SparkSession,
+        schemas: dict[str, CDRTextSchema] = TEXT_DEFAULT_SCHEMAS,
     ) -> None:
         """Inicializa o extrator com uma sessão Spark ativa.
 
@@ -96,13 +98,10 @@ class CDRTextExtractor:
             a inicialização.
         """
         self.spark = spark
-        self.schemas = schemas if schemas is not None else TEXT_DEFAULT_SCHEMAS
-        # SparkContext armazenado uma única vez, evitando chamadas repetidas
-        # self._sc = spark.sparkContext
+        self.schemas = schemas
 
-    def extract_cdr(
-        self, source_file: str, target_file: str, schema: CDRTextSchema
-    ) -> str:
+    @log_operation
+    def extract_cdr(self, source_file: str, target_file: str, cdr_schema: str) -> str:
         """Lê, seleciona, renomeia, filtra e persiste registros de um layout CDR.
 
         Fluxo de processamento:
@@ -117,7 +116,7 @@ class CDRTextExtractor:
         Args:
             source_file: Caminho do arquivo CSV de entrada.
             target_file: Diretório de saída em formato parquet.
-            schema: Configuração de mapeamento aplicável ao formato de origem.
+            cdr_schema: Chave do contrato de mapeamento aplicável ao formato de origem.
                 Define as opções de leitura, as posições selecionadas, os nomes
                 de saída e o filtro opcional.
 
@@ -125,9 +124,10 @@ class CDRTextExtractor:
             str: Caminho do diretório Parquet persistido em ``target_file``.
 
         Raises:
-            ValueError: Se algum índice requerido não existir no arquivo lido,
-                geralmente indicando incompatibilidade entre o layout do arquivo
-                e as opções de delimitador ou cabeçalho.
+            ValueError: Se ``cdr_schema`` não for uma chave válida de
+                ``self.schemas`` ou se algum índice requerido não existir no
+                arquivo lido, geralmente indicando incompatibilidade entre o
+                layout do arquivo e as opções de delimitador ou cabeçalho.
 
         Notes:
             A seleção de colunas usa posições, e não nomes de origem, porque os
@@ -138,7 +138,14 @@ class CDRTextExtractor:
             ``schema.column_names``. A condição de desigualdade do Spark não
             mantém valores nulos na coluna filtrada.
         """
-        # self._sc.setJobDescription(schema.job_description)
+
+        if cdr_schema not in self.schemas:
+            raise ValueError(
+                f"Schema '{cdr_schema}' não encontrado. "
+                f"Schemas disponíveis: {list(self.schemas)}"
+            )
+
+        schema = self.schemas[cdr_schema]
 
         logger.info(
             "Lendo arquivo CSV: %s com delimitador '%s' e header=%s",
@@ -230,4 +237,4 @@ class CDRTextExtractor:
             ...     target_file="parquet/ngn_huawei_extracted"
             ... )
         """
-        return self.extract_cdr(source_file, target_file, self.schemas["ngn_huawei"])
+        return self.extract_cdr(source_file, target_file, "stfc_huawei_ngn")

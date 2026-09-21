@@ -35,8 +35,8 @@ from __future__ import annotations
 
 import logging
 
-from pyspark.sql import SparkSession # type: ignore
-from pyspark.sql import functions as F # type: ignore
+from pyspark.sql import SparkSession  # type: ignore
+from pyspark.sql import functions as F  # type: ignore
 
 from teleutils._logging import log_operation
 from teleutils.core.extractors.schemas import PARQUET_DEFAULT_SCHEMAS, CDRParquetSchema
@@ -70,7 +70,7 @@ class CDRParquetExtractor:
     def __init__(
         self,
         spark: SparkSession,
-        schemas: dict[str, CDRParquetSchema] | None = None,
+        schemas: dict[str, CDRParquetSchema] = PARQUET_DEFAULT_SCHEMAS,
     ) -> None:
         """Inicializa o extrator com sessão Spark ativa e schemas de mapeamento.
 
@@ -88,13 +88,14 @@ class CDRParquetExtractor:
               modificar esta classe.
         """
         self.spark = spark
-        self.schemas = schemas if schemas is not None else PARQUET_DEFAULT_SCHEMAS
+        self.schemas = schemas
 
+    @log_operation
     def extract_cdr(
         self,
         source_file: str,
         target_file: str,
-        schema: CDRParquetSchema,
+        cdr_schema: str,
         unique: bool = False,
     ) -> str:
         """Executa extração genérica conforme schema de mapeamento informado.
@@ -127,7 +128,14 @@ class CDRParquetExtractor:
             - Anotação de manutenção: qualquer mudança no padrão de diretórios
               de origem impacta a extração de metadados via ``input_file_name``.
         """
-        # self._sc.setJobDescription(schema.job_description)
+
+        if cdr_schema not in self.schemas:
+            raise ValueError(
+                f"Schema '{cdr_schema}' não encontrado. "
+                f"Schemas disponíveis: {list(self.schemas)}"
+            )
+
+        schema = self.schemas[cdr_schema]
 
         logger.info("Lendo arquivo parquet: %s", source_file)
         if isinstance(source_file, list):
@@ -155,9 +163,7 @@ class CDRParquetExtractor:
         for source_col, target_col in schema.column_mapping:
             if source_col in df.columns:
                 source_expr = (
-                    F.col(f"`{source_col}`")
-                    if "." in source_col
-                    else F.col(source_col)
+                    F.col(f"`{source_col}`") if "." in source_col else F.col(source_col)
                 )
             else:
                 source_expr = F.lit(None).cast("string")
@@ -191,7 +197,7 @@ class CDRParquetExtractor:
         return target_file
 
     @log_operation
-    def extract_cdr_ericsson(self, source_file: str, target_file: str) -> str:
+    def extract_smp_ericsson_gsm(self, source_file: str, target_file: str) -> str:
         """Extrai CDR Ericsson para parquet intermediário.
 
         Args:
@@ -204,50 +210,14 @@ class CDRParquetExtractor:
         Notes:
             Delega integralmente para ``extract_cdr`` com schema Ericsson.
         """
-        return self.extract_cdr(source_file, target_file, self.schemas["ericsson"])
-
-    @log_operation
-    def extract_cdr_lte_huawei_tim(self, source_file: str, target_file: str) -> str:
-        """Extrai CDR TIM Huawei com remoção de duplicatas.
-
-        Args:
-            source_file: Caminho do parquet de entrada LTE Huawei TIM.
-            target_file: Caminho do parquet intermediário de saída.
-
-        Returns:
-            str: Caminho do parquet persistido em ``target_file``.
-
-        Notes:
-            - Regra de negócio: ``unique=True`` para reduzir duplicidade de
-              registros observada neste layout.
-            - Ponto de manutenção: validar periodicamente o impacto dessa
-              deduplicação em cenários de retentativa de ingestão.
-        """
-        df = self.extract_cdr(
-            source_file, target_file, self.schemas["lte_huawei_tim"], unique=True
+        return self.extract_cdr(
+            source_file,
+            target_file,
+            "smp_ericsson_gsm",
         )
-        return df
 
     @log_operation
-    def extract_cdr_lte_ericsson_vivo(self, source_file: str, target_file: str) -> str:
-        """Extrai CDR LTE Ericsson Vivo para parquet intermediário.
-
-        Args:
-            source_file: Caminho do parquet de entrada LTE Ericsson Vivo.
-            target_file: Caminho do parquet intermediário de saída.
-
-        Returns:
-            str: Caminho do parquet persistido em ``target_file``.
-
-        Notes:
-            Delega para ``extract_cdr`` com schema LTE Ericsson Vivo sem ajustes
-            adicionais de tolerância ou deduplicação.
-        """
-        df = self.extract_cdr(source_file, target_file, self.schemas["lte_ericsson_vivo"])
-        return df
-
-    @log_operation
-    def extract_cdr_nokia(self, source_file: str, target_file: str) -> str:
+    def extract_smp_gsm_nokia(self, source_file: str, target_file: str) -> str:
         """Extrai CDR Nokia com tolerância a colunas ausentes.
 
         Args:
@@ -263,9 +233,55 @@ class CDRParquetExtractor:
             - Anotação de manutenção: sempre revisar logs de colunas ausentes
               para identificar mudanças de layout na origem.
         """
-        df = self.extract_cdr(
+        return self.extract_cdr(
             source_file,
             target_file,
-            self.schemas["nokia"],
+            "smp_gsm_nokia",
         )
-        return df
+
+    @log_operation
+    def extract_smp_huawei_volte_tim(self, source_file: str, target_file: str) -> str:
+        """Extrai CDR TIM Huawei com remoção de duplicatas.
+
+        Args:
+            source_file: Caminho do parquet de entrada LTE Huawei TIM.
+            target_file: Caminho do parquet intermediário de saída.
+
+        Returns:
+            str: Caminho do parquet persistido em ``target_file``.
+
+        Notes:
+            - Regra de negócio: ``unique=True`` para reduzir duplicidade de
+              registros observada neste layout.
+            - Ponto de manutenção: validar periodicamente o impacto dessa
+              deduplicação em cenários de retentativa de ingestão.
+        """
+        return self.extract_cdr(
+            source_file,
+            target_file,
+            "smp_huawei_volte_tim",
+            unique=True,
+        )
+
+    @log_operation
+    def extract_smp_ericsson_volte_vivo(
+        self, source_file: str, target_file: str
+    ) -> str:
+        """Extrai CDR LTE Ericsson Vivo para parquet intermediário.
+
+        Args:
+            source_file: Caminho do parquet de entrada LTE Ericsson Vivo.
+            target_file: Caminho do parquet intermediário de saída.
+
+        Returns:
+            str: Caminho do parquet persistido em ``target_file``.
+
+        Notes:
+            Delega para ``extract_cdr`` com schema LTE Ericsson Vivo sem ajustes
+            adicionais de tolerância ou deduplicação.
+        """
+        return self.extract_cdr(
+            source_file,
+            target_file,
+            "smp_ericsson_volte_vivo",
+        )

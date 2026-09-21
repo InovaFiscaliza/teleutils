@@ -22,9 +22,9 @@ Example:
     >>> from teleutils.core.extractors.schemas.parquet import (
     ...     PARQUET_DEFAULT_SCHEMAS,
     ... )
-    >>> schema = PARQUET_DEFAULT_SCHEMAS["ericsson"]
+    >>> schema = PARQUET_DEFAULT_SCHEMAS["smp_ericsson_gsm"]
     >>> schema.name
-    'Ericsson'
+    'SMP Ericsson GSM'
 """
 
 from __future__ import annotations
@@ -138,7 +138,7 @@ PARQUET_DEFAULT_SCHEMAS: dict[str, CDRParquetSchema] = {
         ),
         job_description="Extraindo CDR Parquet: SMP Ericsson GSM",
     ),
-    "gsm_nokia": CDRParquetSchema(
+    "smp_gsm_nokia": CDRParquetSchema(
         name="Nokia",
         column_mapping=(
             ("record_type", "tipo_chamada"),
