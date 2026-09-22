@@ -53,11 +53,12 @@ class CDRTextSchema:
     """
 
     name: str
-    delimiter: str
+    delimiter: str | None
     schema: T.StructType | None
     has_header: bool
     column_to_filter: tuple[str, str] | None
     column_indices: tuple[int, ...]
+    column_sizes: tuple[int, ...]
     column_names: tuple[str, ...]
     job_description: str
 
@@ -136,6 +137,7 @@ TEXT_DEFAULT_SCHEMAS: dict[str, CDRTextSchema] = {
         has_header=False,
         column_to_filter=None,
         column_indices=(0, 1, 3, 4, 5, 6, 7, 8, 9, 17, 18, 19, 21, 22),
+        column_sizes=(),
         column_names=(
             "referencia",
             "bilhetador",
@@ -161,6 +163,7 @@ TEXT_DEFAULT_SCHEMAS: dict[str, CDRTextSchema] = {
         has_header=False,
         column_to_filter=None,
         column_indices=(0, 1, 2, 22, 24, 25, 27, 28, 33, 34, 68, 78),
+        column_sizes=(),
         column_names=(
             "bilhetador",
             "_tipo_cdr",
@@ -176,5 +179,31 @@ TEXT_DEFAULT_SCHEMAS: dict[str, CDRTextSchema] = {
             "numero_origem",
         ),
         job_description="Extraindo CDR: STFC FCDR Vivo",
+    ),
+    "stfc_tropico_oi": CDRTextSchema(
+        name="Tropico Oi",
+        delimiter=None,
+        schema=None,
+        has_header=False,
+        column_to_filter=None,
+        column_indices=(1, 2, 9, 45, 79, 97, 142, 147, 153, 159, 173, 175, 191, 205),
+        column_sizes=(1, 7, 25, 16, 18, 24, 3, 6, 6, 6, 1, 4, 7, 7),
+        column_names=(
+            "_tipo_linha",
+            "nu_referencia",
+            "nu_referencia",
+            "nu_origem",
+            "nu_destino",
+            "nu_destino_original",
+            "no_resultado_chamada",
+            "dh_chamada",
+            "dh_chamada",
+            "qt_duracao_segundos",
+            "no_tipo_chamada",
+            "no_bilhetador",
+            "no_rota_entrada",
+            "no_rota_saida",
+        ),
+        job_description="Extraindo CDR: STFC Tropico Oi",
     ),
 }
