@@ -101,7 +101,12 @@ class CDRTextExtractor:
         self.schemas = schemas
 
     @log_operation
-    def extract(self, source_file: str, target_file: str, cdr_schema: str) -> str:
+    def extract(
+        self,
+        source_file: str,
+        target_file: str,
+        cdr_schema: str,
+    ) -> str:
         """Lê, seleciona, renomeia, filtra e persiste registros de um layout CDR.
 
         Fluxo de processamento:
@@ -153,61 +158,81 @@ class CDRTextExtractor:
             schema.delimiter,
             schema.has_header,
         )
-        df = self.spark.read.csv(
-            source_file,
-            sep=schema.delimiter,
-            header=schema.has_header,
-            schema=schema.schema,
-            inferSchema=False,
-            ignoreLeadingWhiteSpace=True,
-            ignoreTrailingWhiteSpace=True,
-        )
 
-        # Valida se todos os índices solicitados existem no DataFrame lido.
-        # Falhar cedo com mensagem clara é melhor do que erros crípticos do Spark.
-        logger.info("Validando índices de coluna para o esquema '%s'", schema.name)
-        max_index = max(schema.column_indices)
-        if max_index >= len(df.columns):
-            raise ValueError(
-                f"Schema '{schema.name}' requer coluna no índice {max_index}, "
-                f"mas o arquivo possui apenas {len(df.columns)} colunas.\n"
-                f"Verifique se o delimitador '{schema.delimiter}' está correto "
-                f"para o arquivo: {source_file}\n"
-                f"Índices solicitados: {schema.column_indices}\n"
-                f"Colunas disponíveis: {list(enumerate(df.columns))}\n"
-                f"Configuração do schema: {schema!r}"
+        # Leitura de arquivo de largura fixa (fixed-width) quando column_sizes está definido.
+        # Leitura com rdd pois arquivos Tropico Oi possuem caracteres inválidos no nome e dá erro na leitura direta com spark.read.text.
+        if schema.column_sizes:
+            rdd = self.spark.sparkContext.textFile(source_file)
+            df_raw = rdd.map(lambda x: (x,)).toDF(["value"])
+            columns_expressions = [
+                F.trim(
+                    F.regexp_replace(F.substring(F.col("value"), indice, size), "-", "")
+                ).alias(name)
+                for indice, size, name in zip(
+                    schema.column_indices, schema.column_sizes, schema.column_names
+                )
+            ]
+            df = df_raw.select(*columns_expressions)
+        # Leitura de arquivo CSV padrão quando column_sizes não está definido.
+        else:
+            df = self.spark.read.csv(
+                source_file,
+                sep=schema.delimiter,
+                header=schema.has_header,
+                schema=schema.schema,
+                inferSchema=False,
+                ignoreLeadingWhiteSpace=True,
+                ignoreTrailingWhiteSpace=True,
             )
 
-        logger.info(
-            "Selecionando e renomeando colunas conforme o esquema '%s'", schema.name
-        )
-        # A seleção por índice preserva compatibilidade com layouts sem cabeçalho
-        # estável, onde nomes de coluna originais não são confiáveis.
-        columns_to_keep = [
-            F.col(df.columns[index]).alias(column_name)
-            for index, column_name in zip(
-                schema.column_indices,
-                schema.column_names,
+            # Valida se todos os índices solicitados existem no DataFrame lido.
+            # Falhar cedo com mensagem clara é melhor do que erros crípticos do Spark.
+            logger.info("Validando índices de coluna para o esquema '%s'", schema.name)
+            max_index = max(schema.column_indices)
+            if max_index >= len(df.columns):
+                raise ValueError(
+                    f"Schema '{schema.name}' requer coluna no índice {max_index}, "
+                    f"mas o arquivo possui apenas {len(df.columns)} colunas.\n"
+                    f"Verifique se o delimitador '{schema.delimiter}' está correto "
+                    f"para o arquivo: {source_file}\n"
+                    f"Índices solicitados: {schema.column_indices}\n"
+                    f"Colunas disponíveis: {list(enumerate(df.columns))}\n"
+                    f"Configuração do schema: {schema!r}"
+                )
+
+            logger.info(
+                "Selecionando e renomeando colunas conforme o esquema '%s'", schema.name
             )
-        ]
-        df = df.select(
-            *columns_to_keep,
-            F.element_at(F.split(F.input_file_name(), "/"), -3).alias("prestadora"),
-            F.element_at(F.split(F.input_file_name(), "/"), -2).alias("tipo_cdr"),
-            F.url_decode(F.element_at(F.split(F.input_file_name(), "/"), -1)).alias(
-                "arquivo_origem"
-            ),
+            # A seleção por índice preserva compatibilidade com layouts sem cabeçalho
+            # estável, onde nomes de coluna originais não são confiáveis.
+            columns_to_keep = [
+                F.col(df.columns[index]).alias(column_name)
+                for index, column_name in zip(
+                    schema.column_indices,
+                    schema.column_names,
+                )
+            ]
+            df = df.select(*columns_to_keep)
+
+        df = df.withColumns(
+            {
+                "prestadora": F.element_at(F.split(F.input_file_name(), "/"), -3),
+                "tipo_cdr": F.element_at(F.split(F.input_file_name(), "/"), -2),
+                "arquivo_origem": F.url_decode(
+                    F.element_at(F.split(F.input_file_name(), "/"), -1)
+                ),
+            }
         )
 
-        if schema.column_to_filter is not None:
-            col_name, col_value = schema.column_to_filter
+        if schema.lines_to_keep is not None:
+            col_name, col_value = schema.lines_to_keep
             logger.info(
                 "Aplicando filtro: %s = '%s' para o esquema '%s'",
                 col_name,
                 col_value,
                 schema.name,
             )
-            df = df.filter(F.col(col_name) != F.lit(col_value))
+            df = df.filter(F.col(col_name) == F.lit(col_value))
 
         logger.info(
             "Escrevendo DataFrame extraído para parquet: %s",

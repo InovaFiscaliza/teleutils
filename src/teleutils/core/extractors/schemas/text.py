@@ -41,7 +41,7 @@ class CDRTextSchema:
             Spark produza as colunas sem um schema explícito.
         has_header: Indica se a primeira linha do arquivo deve ser tratada como
             cabeçalho pela leitura CSV.
-        column_to_filter: Par ``(nome_da_coluna, valor)`` usado pelo extrator
+        lines_to_keep: Par ``(nome_da_coluna, valor)`` usado pelo extrator
             para remover registros cujo valor seja igual ao configurado, ou
             ``None`` quando nenhum filtro deve ser aplicado.
         column_indices: Posições, baseadas em zero, das colunas de origem a
@@ -56,7 +56,7 @@ class CDRTextSchema:
     delimiter: str | None
     schema: T.StructType | None
     has_header: bool
-    column_to_filter: tuple[str, str] | None
+    lines_to_keep: tuple[str, str] | None
     column_indices: tuple[int, ...]
     column_sizes: tuple[int, ...]
     column_names: tuple[str, ...]
@@ -72,7 +72,7 @@ class CDRTextSchema:
 
         Raises:
             ValueError: Se ``schema`` não for ``None`` nem um ``StructType``;
-                se ``column_to_filter`` não for ``None`` nem uma tupla de duas
+                se ``lines_to_keep`` não for ``None`` nem uma tupla de duas
                 strings; se sua coluna não estiver em ``column_names``; se os
                 índices e nomes tiverem tamanhos distintos; se não houver
                 índices; se houver índice negativo; ou se o maior índice não
@@ -90,21 +90,21 @@ class CDRTextSchema:
                 f"Schema '{self.name}': schema deve ser None ou um StructType. "
                 f"Recebido: {type(self.schema).__name__}"
             )
-        if self.column_to_filter is not None:
+        if self.lines_to_keep is not None:
             if (
-                not isinstance(self.column_to_filter, tuple)
-                or len(self.column_to_filter) != 2
-                or not all(isinstance(value, str) for value in self.column_to_filter)
+                not isinstance(self.lines_to_keep, tuple)
+                or len(self.lines_to_keep) != 2
+                or not all(isinstance(value, str) for value in self.lines_to_keep)
             ):
                 raise ValueError(
-                    f"Schema '{self.name}': column_to_filter deve ser None ou uma "
-                    f"tupla de duas strings. Recebido: {self.column_to_filter!r}"
+                    f"Schema '{self.name}': lines_to_keep deve ser None ou uma "
+                    f"tupla de duas strings. Recebido: {self.lines_to_keep!r}"
                 )
-            column_name, _ = self.column_to_filter
+            column_name, _ = self.lines_to_keep
             if column_name not in self.column_names:
                 raise ValueError(
                     f"Schema '{self.name}': coluna '{column_name}' em "
-                    f"column_to_filter não está presente em column_names: "
+                    f"lines_to_keep não está presente em column_names: "
                     f"{self.column_names}"
                 )
         if len(self.column_indices) != len(self.column_names):
@@ -135,7 +135,7 @@ TEXT_DEFAULT_SCHEMAS: dict[str, CDRTextSchema] = {
         delimiter=",",
         schema=None,
         has_header=False,
-        column_to_filter=None,
+        lines_to_keep=None,
         column_indices=(0, 1, 3, 4, 5, 6, 7, 8, 9, 17, 18, 19, 21, 22),
         column_sizes=(),
         column_names=(
@@ -161,7 +161,7 @@ TEXT_DEFAULT_SCHEMAS: dict[str, CDRTextSchema] = {
         delimiter=";",
         schema=None,
         has_header=False,
-        column_to_filter=None,
+        lines_to_keep=None,
         column_indices=(0, 1, 2, 22, 24, 25, 27, 28, 33, 34, 68, 78),
         column_sizes=(),
         column_names=(
@@ -185,11 +185,11 @@ TEXT_DEFAULT_SCHEMAS: dict[str, CDRTextSchema] = {
         delimiter=None,
         schema=None,
         has_header=False,
-        column_to_filter=None,
+        lines_to_keep=(("_tipo_registro", "#")),
         column_indices=(1, 2, 9, 45, 79, 97, 142, 147, 153, 159, 173, 175, 191, 205),
         column_sizes=(1, 7, 25, 16, 18, 24, 3, 6, 6, 6, 1, 4, 7, 7),
         column_names=(
-            "_tipo_linha",
+            "_tipo_registro",
             "nu_referencia",
             "nu_referencia",
             "nu_origem",
