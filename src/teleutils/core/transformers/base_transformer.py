@@ -260,7 +260,7 @@ class CDRBaseTransformer:
 
         if missing_columns:
             logger.warning(
-                "Colunas ausentes no DataFrame: %s. Criando-as como NULL.",
+                f"Colunas ausentes no DataFrame: %s. Criando-as com valor padrão {NULL_SENTINEL_VALUE}.",
                 missing_columns,
             )
 
