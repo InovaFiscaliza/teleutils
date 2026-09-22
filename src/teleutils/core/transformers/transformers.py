@@ -475,6 +475,9 @@ class CDRTransformer(CDRBaseTransformer):
         df = _concat_date_time(df, stop_date="_data")
 
         # Células da TIM não devem ter valores preenchidos com zeros à esquerda para lac e ci/sac.
+        padded_origin_cells: tuple[str, ...]
+        padded_destination_cells: tuple[str, ...]
+
         if output_format == "tim":
             padded_origin_cells = ()
             padded_destination_cells = ()
