@@ -184,23 +184,26 @@ def _concat_date_time(
 
 
     Returns:
-        DataFrame: Cópia do DataFrame de entrada com ``data_hora`` e
-        ``data_hora_fim`` adicionadas ou atualizadas. A conversão dessas
+        DataFrame: Cópia do DataFrame de entrada com ``data_hora`` adicionada
+        ou atualizada. ``data_hora_fim`` também é adicionada quando as colunas
+        de origem ``_data_fim`` e ``_hora_fim`` existem. A conversão dessas
         strings para timestamp é realizada posteriormente por
         ``_apply_standard_pipeline``.
     """
-    return df.withColumns(
-        {
-            "data_hora": _build_composite_column(
-                separator=" ",
-                components=(start_date, start_time),
-            ),
-            "data_hora_fim": _build_composite_column(
-                separator=" ",
-                components=(stop_date, stop_time),
-            ),
-        }
-    )
+    columns = {
+        "data_hora": _build_composite_column(
+            separator=" ",
+            components=(start_date, start_time),
+        )
+    }
+
+    if stop_date in df.columns and stop_time in df.columns:
+        columns["data_hora_fim"] = _build_composite_column(
+            separator=" ",
+            components=(stop_date, stop_time),
+        )
+
+    return df.withColumns(columns)
 
 
 def _extract_cell_info(
