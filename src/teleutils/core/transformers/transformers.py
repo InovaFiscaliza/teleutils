@@ -1176,3 +1176,76 @@ class CDRTransformer(CDRBaseTransformer):
         self._write_parquet(df, target_file)
 
         return target_file
+
+    @log_operation
+    def transform_stfc_tropico_oi(self, source_file: str, target_file: str) -> str:
+        date_time_fmt = "ddMMyy HHmmss"
+        df = self.spark.read.parquet(source_file)
+
+        df = df.withColumn(
+            "_resultado_chamada",
+            F.abs(F.col("_resultado_chamada").cast(T.IntegerType())),
+        )
+
+        df = df.withColumns(
+            {
+                "tipo_chamada": F.when(F.col("_tipo_chamada") == 0, F.lit("Interna"))
+                .when(F.col("_tipo_chamada") == 1, F.lit("Saída"))
+                .when(F.col("_tipo_chamada") == 2, F.lit("Entrada"))
+                .otherwise(F.lit(None).cast(T.StringType())),
+                "resultado_chamada": F.when(
+                    F.col("_resultado_chamada") == "10",
+                    F.lit("Chamada completada com tarifação"),
+                )
+                .when(
+                    F.col("_resultado_chamada") == "20",
+                    F.lit("Chamada completada sem tarifação"),
+                )
+                .when(F.col("_resultado_chamada") == "31", F.lit("Não responde"))
+                .when(F.col("_resultado_chamada") == "32", F.lit("linha ocupada"))
+                .when(
+                    F.col("_resultado_chamada") == "43",
+                    F.lit("Congestionamento a frente"),
+                )
+                .when(
+                    F.col("_resultado_chamada") == "44",
+                    F.lit("Congestionamento a frente"),
+                )
+                .when(F.col("_resultado_chamada") == "48", F.lit("Falha tecnica"))
+                .when(F.col("_resultado_chamada") == "49", F.lit("Falha tecnica"))
+                .when(
+                    F.col("_resultado_chamada") == "50",
+                    F.lit("Desistencia pela origem"),
+                )
+                .when(
+                    F.col("_resultado_chamada") == "51",
+                    F.lit("Assinante com Defeito ou Fora de Serviço"),
+                )
+                .when(
+                    F.col("_resultado_chamada") == "52",
+                    F.lit("Acesso Barrado ou chamada rejeitada"),
+                )
+                .when(
+                    F.col("_resultado_chamada") == "53",
+                    F.lit("Evento não especificado"),
+                )
+                .when(
+                    F.col("_resultado_chamada") == "54",
+                    F.lit("Assinante com número mudado"),
+                )
+                .when(
+                    F.col("_resultado_chamada") == "55",
+                    F.lit("Chamada não tarifada, sem o sinal de atendimento"),
+                )
+                .when(
+                    F.col("_resultado_chamada") == "56",
+                    F.lit("Acesso inesistente ou número vago"),
+                )
+                .otherwise(F.lit(None).cast(T.StringType())),
+            }
+        )
+
+        df = self._apply_standard_pipeline(df, date_time_fmt)
+        self._write_parquet(df, target_file)
+
+        return target_file
