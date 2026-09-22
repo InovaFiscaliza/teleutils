@@ -1095,7 +1095,7 @@ class CDRTransformer(CDRBaseTransformer):
         return target_file
 
     @log_operation
-    def transform_stfc_vivo_fcdr(
+    def transform_stfc_fcdr_vivo(
         self, source_file: str, target_file: str, **kwargs
     ) -> str:
         """Transforma registros do layout STFC Vivo FCDR usando o pipeline padrão.
@@ -1178,9 +1178,13 @@ class CDRTransformer(CDRBaseTransformer):
         return target_file
 
     @log_operation
-    def transform_stfc_tropico_oi(self, source_file: str, target_file: str) -> str:
+    def transform_stfc_tropico_oi(
+        self, source_file: str, target_file: str, **kwargs
+    ) -> str:
         date_time_fmt = "ddMMyy HHmmss"
         df = self.spark.read.parquet(source_file)
+
+        df = _concat_date_time(df)
 
         df = df.withColumn(
             "_resultado_chamada",
