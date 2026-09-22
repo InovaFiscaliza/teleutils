@@ -193,7 +193,7 @@ TEXT_DEFAULT_SCHEMAS: dict[str, CDRTextSchema] = {
             "referencia",
             "origem",
             "destino",
-            "resultado_chamada",
+            "_status_chamada",
             "_data",
             "_hora",
             "duracao",

@@ -563,7 +563,7 @@ class CDRTransformer(CDRBaseTransformer):
               e MNC conforme ``prestadora``: Claro recebe ``CLARO_MNC`` e Algar
               recebe ``ALGAR_MNC``. Outros valores de prestadora resultam em MNC
               nulo e, consequentemente, em célula composta nula.
-            - ``_status_chamada`` é agrupado em faixas de códigos hexadecimais
+            - ``_resultado_chamada`` é agrupado em faixas de códigos hexadecimais
               antes da aplicação do pipeline comum.
             - Efeito colateral: grava o resultado em ``target_file``.
             - Anotação de manutenção: divergências residuais com parser legado
@@ -654,40 +654,41 @@ class CDRTransformer(CDRBaseTransformer):
             .drop("_nokia_mnc")
         )
 
-        # Agrupar os valores de _status_chamada em faixas de códigos de status, conforme documentação Nokia:
-        # +-----------------+---------------------+
-        # | _status_chamada | descrição           |
-        # +-----------------+---------------------+
-        # | 0000H - 03FFH   | normal clearing     |
-        # | 0400H - 07FFH   | internal congestion |
-        # | 0800H - 0BFFH   | external congestion |
-        # | 0C00H - 0FFFH   | subscriber errors   |
-        # | 1000H -         | event codes         |
-        # +-----------------+---------------------+
+        # Agrupar os valores de _resultado_chamada em faixas de códigos de status, conforme documentação Nokia:
+        # +--------------------+---------------------+
+        # | _resultado_chamada | descrição           |
+        # +--------------------+---------------------+
+        # | 0000H - 03FFH      | normal clearing     |
+        # | 0400H - 07FFH      | internal congestion |
+        # | 0800H - 0BFFH      | external congestion |
+        # | 0C00H - 0FFFH      | subscriber errors   |
+        # | 1000H -            | event codes         |
+        # +--------------------+---------------------+
         df = df.withColumn(
-            "status_chamada",
+            "resultado_chamada",
             F.when(
-                (F.col("_status_chamada") >= F.lit(int("0000", 16)))
-                & (F.col("_status_chamada") <= F.lit(int("03FF", 16))),
+                (F.col("_resultado_chamada") >= F.lit(int("0000", 16)))
+                & (F.col("_resultado_chamada") <= F.lit(int("03FF", 16))),
                 F.lit("normal clearing"),
             )
             .when(
-                (F.col("_status_chamada") >= F.lit(int("0400", 16)))
-                & (F.col("_status_chamada") <= F.lit(int("07FF", 16))),
+                (F.col("_resultado_chamada") >= F.lit(int("0400", 16)))
+                & (F.col("_resultado_chamada") <= F.lit(int("07FF", 16))),
                 F.lit("internal congestion"),
             )
             .when(
-                (F.col("_status_chamada") >= F.lit(int("0800", 16)))
-                & (F.col("_status_chamada") <= F.lit(int("0BFF", 16))),
+                (F.col("_resultado_chamada") >= F.lit(int("0800", 16)))
+                & (F.col("_resultado_chamada") <= F.lit(int("0BFF", 16))),
                 F.lit("external congestion"),
             )
             .when(
-                (F.col("_status_chamada") >= F.lit(int("0C00", 16)))
-                & (F.col("_status_chamada") <= F.lit(int("0FFF", 16))),
+                (F.col("_resultado_chamada") >= F.lit(int("0C00", 16)))
+                & (F.col("_resultado_chamada") <= F.lit(int("0FFF", 16))),
                 F.lit("subscriber errors"),
             )
             .when(
-                F.col("_status_chamada") >= F.lit(int("1000", 16)), F.lit("event codes")
+                F.col("_resultado_chamada") >= F.lit(int("1000", 16)),
+                F.lit("event codes"),
             )
             .otherwise(F.lit(None)),
         )
@@ -732,8 +733,8 @@ class CDRTransformer(CDRBaseTransformer):
               comum. O IMSI é obtido apenas do primeiro objeto do JSON em ``_info_imsi``
               quando seu tipo é ``eND-USER-IMSI``.
             - ``codigo_resposta_sip`` é preenchido somente para valores de
-              ``_status_chamada`` maiores ou iguais a 200; a mesma coluna é então
-              classificada em faixas e códigos específicos para compor ``status_chamada``.
+              ``_resultado_chamada`` maiores ou iguais a 200; a mesma coluna é então
+              classificada em faixas e códigos específicos para compor ``resultado_chamada``.
         """
         date_time_fmt = "yyyy-MM-dd HH:mm:ss"
         df = self.spark.read.parquet(source_file)
@@ -873,60 +874,67 @@ class CDRTransformer(CDRBaseTransformer):
         )
 
         df = df.withColumn(
-            "_status_chamada",
+            "_resultado_chamada",
             F.when(
                 is_ibcf,
                 F.regexp_extract(
-                    F.col("_status_chamada"), r"SIP;cause=([0-9]+);", 1
+                    F.col("_resultado_chamada"), r"SIP;cause=([0-9]+);", 1
                 ).cast(T.IntegerType()),
-            ).otherwise(F.col("_status_chamada").cast(T.IntegerType())),
+            ).otherwise(F.col("_resultado_chamada").cast(T.IntegerType())),
         ).withColumn(
             "codigo_resposta_sip",
             F.when(
-                F.col("_status_chamada")
+                F.col("_resultado_chamada")
                 >= 200,  # códigos de resposta SIP válidos são >= 200
-                F.col("_status_chamada"),
+                F.col("_resultado_chamada"),
             ).otherwise(F.lit(None).cast(T.IntegerType())),
         )
 
         df = df.withColumn(
-            "status_chamada",
+            "resultado_chamada",
             F.when(
-                (F.col("_status_chamada") <= -300) & (F.col("_status_chamada") > -400),
+                (F.col("_resultado_chamada") <= -300)
+                & (F.col("_resultado_chamada") > -400),
                 F.lit("Redirection"),
             )
             .when(
-                (F.col("_status_chamada") <= -200) & (F.col("_status_chamada") > -300),
+                (F.col("_resultado_chamada") <= -200)
+                & (F.col("_resultado_chamada") > -300),
                 F.lit("Final Response"),
             )
-            .when(F.col("_status_chamada") == -3, F.lit("End of REGISTER dialog"))
-            .when(F.col("_status_chamada") == -2, F.lit("End of SUBSCRIBE dialog"))
-            .when(F.col("_status_chamada") == -1, F.lit("Successful transaction"))
-            .when(F.col("_status_chamada") == 0, F.lit("Normal end of session"))
-            .when(F.col("_status_chamada") == 1, F.lit("Unspecified error"))
-            .when(F.col("_status_chamada") == 2, F.lit("Unsuccessful session setup"))
-            .when(F.col("_status_chamada") == 3, F.lit("Internal error"))
-            .when(F.col("_status_chamada") == 4, F.lit("Session timer timeout"))
-            .when(F.col("_status_chamada") == 5, F.lit("CAC_REJECT"))
-            .when(F.col("_status_chamada") == 200, F.lit("Normal end of session"))
+            .when(F.col("_resultado_chamada") == -3, F.lit("End of REGISTER dialog"))
+            .when(F.col("_resultado_chamada") == -2, F.lit("End of SUBSCRIBE dialog"))
+            .when(F.col("_resultado_chamada") == -1, F.lit("Successful transaction"))
+            .when(F.col("_resultado_chamada") == 0, F.lit("Normal end of session"))
+            .when(F.col("_resultado_chamada") == 1, F.lit("Unspecified error"))
+            .when(F.col("_resultado_chamada") == 2, F.lit("Unsuccessful session setup"))
+            .when(F.col("_resultado_chamada") == 3, F.lit("Internal error"))
+            .when(F.col("_resultado_chamada") == 4, F.lit("Session timer timeout"))
+            .when(F.col("_resultado_chamada") == 5, F.lit("CAC_REJECT"))
+            .when(F.col("_resultado_chamada") == 200, F.lit("Normal end of session"))
             .when(
-                (F.col("_status_chamada") > 200) & (F.col("_status_chamada") < 300),
+                (F.col("_resultado_chamada") > 200)
+                & (F.col("_resultado_chamada") < 300),
                 F.lit("Final Response"),
             )
             .when(
-                (F.col("_status_chamada") >= 300) & (F.col("_status_chamada") < 400),
+                (F.col("_resultado_chamada") >= 300)
+                & (F.col("_resultado_chamada") < 400),
                 F.lit("Redirection"),
             )
             .when(
-                (F.col("_status_chamada") >= 400) & (F.col("_status_chamada") < 500),
+                (F.col("_resultado_chamada") >= 400)
+                & (F.col("_resultado_chamada") < 500),
                 F.lit("Request failure"),
             )
             .when(
-                (F.col("_status_chamada") >= 500) & (F.col("_status_chamada") < 600),
+                (F.col("_resultado_chamada") >= 500)
+                & (F.col("_resultado_chamada") < 600),
                 F.lit("Server failure"),
             )
             .when(
-                (F.col("_status_chamada") >= 600) & (F.col("_status_chamada") < 700),
+                (F.col("_resultado_chamada") >= 600)
+                & (F.col("_resultado_chamada") < 700),
                 F.lit("Global failure"),
             )
             .otherwise(F.lit(None).cast(T.StringType())),
@@ -958,7 +966,7 @@ class CDRTransformer(CDRBaseTransformer):
             - A coluna ``_numero_origem_original`` é dividida em ``;``: o
               primeiro trecho substitui ``numero_origem`` e o segundo é usado
               como ``_autenticacao``.
-            - Os códigos de ``_tipo_chamada`` e ``_status_chamada`` conhecidos
+            - Os códigos de ``_tipo_chamada`` e ``_resultado_chamada`` conhecidos
               são convertidos para rótulos textuais. Hífens de IMEIs são
               removidos antes do pipeline comum.
             - ``_format_cell_id`` converte separadamente os identificadores
@@ -1001,17 +1009,17 @@ class CDRTransformer(CDRBaseTransformer):
                 .otherwise(F.col("_tipo_chamada")),
             )
             .withColumn(
-                "status_chamada",
+                "resultado_chamada",
                 F.when(
-                    F.col("_status_chamada") == "1",
+                    F.col("_resultado_chamada") == "1",
                     "callHasReachedCongestionOrBusyState",
                 )
                 .when(
-                    F.col("_status_chamada") == "2",
+                    F.col("_resultado_chamada") == "2",
                     "callHasOnlyReachedThroughConnection",
                 )
-                .when(F.col("_status_chamada") == "3", "b-AnswerHasBeenReceived")
-                .otherwise(F.col("_status_chamada")),
+                .when(F.col("_resultado_chamada") == "3", "b-AnswerHasBeenReceived")
+                .otherwise(F.col("_resultado_chamada")),
             )
             .withColumns(
                 {
@@ -1050,7 +1058,7 @@ class CDRTransformer(CDRBaseTransformer):
             - ``data_hora`` resulta da combinação de ``_data`` com ``_hora``;
               ``data_hora_fim`` combina ``_data_fim`` com a mesma coluna
               ``_hora``.
-            - Códigos não previstos em ``_tipo_chamada`` e ``_status_chamada``
+            - Códigos não previstos em ``_tipo_chamada`` e ``_resultado_chamada``
               recebem o rótulo ``"unknown"``.
             - Efeito colateral: grava o resultado em ``target_file``.
         """
@@ -1070,11 +1078,13 @@ class CDRTransformer(CDRBaseTransformer):
                 .when(F.col("_tipo_chamada") == "04", F.lit("tandem"))
                 .when(F.col("_tipo_chamada") == "05", F.lit("new_service"))
                 .otherwise(F.lit("unknown")),
-                "status_chamada": F.when(
-                    F.col("_status_chamada") == "00", F.lit("caller party on-hook")
+                "resultado_chamada": F.when(
+                    F.col("_resultado_chamada") == "00", F.lit("caller party on-hook")
                 )
-                .when(F.col("_status_chamada") == "01", F.lit("called party on-hook"))
-                .when(F.col("_status_chamada") == "02", F.lit("abnormal"))
+                .when(
+                    F.col("_resultado_chamada") == "01", F.lit("called party on-hook")
+                )
+                .when(F.col("_resultado_chamada") == "02", F.lit("abnormal"))
                 .otherwise(F.lit("unknown")),
             }
         )
@@ -1105,7 +1115,7 @@ class CDRTransformer(CDRBaseTransformer):
             - ``data_hora`` resulta da combinação de ``_data`` com ``_hora``;
               ``data_hora_fim`` combina ``_data_fim`` com a mesma coluna
               ``_hora``.
-            - Códigos não previstos em ``_tipo_chamada`` e ``_status_chamada``
+            - Códigos não previstos em ``_tipo_chamada`` e ``_resultado_chamada``
               recebem o rótulo ``"unknown"``.
             - Efeito colateral: grava o resultado em ``target_file``.
         """
@@ -1116,7 +1126,8 @@ class CDRTransformer(CDRBaseTransformer):
         df = _concat_date_time(df)
 
         df = df.withColumn(
-            "_status_chamada", F.abs(F.col("_status_chamada").cast(T.IntegerType()))
+            "_resultado_chamada",
+            F.abs(F.col("_resultado_chamada").cast(T.IntegerType())),
         )
 
         df = df.withColumns(
@@ -1125,32 +1136,36 @@ class CDRTransformer(CDRBaseTransformer):
                 .when(F.col("_tipo_chamada") == "S", F.lit("Saída"))
                 .when(F.col("_tipo_chamada") == "T", F.lit("Transporte"))
                 .otherwise(F.lit(None).cast(T.StringType())),
-                "status_chamada": F.when(
-                    F.col("_status_chamada") == 0,
+                "resultado_chamada": F.when(
+                    F.col("_resultado_chamada") == 0,
                     F.lit("Desconexão prematura do assinante A"),
                 )
-                .when(F.col("_status_chamada") == 1, F.lit("Normal"))
-                .when(F.col("_status_chamada") == 2, F.lit("Linha ocupada"))
-                .when(F.col("_status_chamada") == 3, F.lit("Número Mudado"))
-                .when(F.col("_status_chamada") == 4, F.lit("Congestionamento interno"))
+                .when(F.col("_resultado_chamada") == 1, F.lit("Normal"))
+                .when(F.col("_resultado_chamada") == 2, F.lit("Linha ocupada"))
+                .when(F.col("_resultado_chamada") == 3, F.lit("Número Mudado"))
                 .when(
-                    F.col("_status_chamada") == 5,
+                    F.col("_resultado_chamada") == 4, F.lit("Congestionamento interno")
+                )
+                .when(
+                    F.col("_resultado_chamada") == 5,
                     F.lit("Assinante Livre, sem Tarifação"),
                 )
                 .when(
-                    F.col("_status_chamada") == 6,
+                    F.col("_resultado_chamada") == 6,
                     F.lit("Assinante livre, com Dupla Desconexão"),
                 )
                 .when(
-                    F.col("_status_chamada") == 7,
+                    F.col("_resultado_chamada") == 7,
                     F.lit("Número inexistente, nível vago"),
                 )
                 .when(
-                    (F.col("_status_chamada") >= 8) & (F.col("_status_chamada") <= 15),
+                    (F.col("_resultado_chamada") >= 8)
+                    & (F.col("_resultado_chamada") <= 15),
                     F.lit("Congestionamento interno"),
                 )
                 .when(
-                    (F.col("_status_chamada") >= 20) & (F.col("_status_chamada") <= 25),
+                    (F.col("_resultado_chamada") >= 20)
+                    & (F.col("_resultado_chamada") <= 25),
                     F.lit("Congestionamento (outros tipos)"),
                 )
                 .otherwise(F.lit(None).cast(T.StringType())),

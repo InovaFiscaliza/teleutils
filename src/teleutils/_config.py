@@ -96,7 +96,7 @@ TARGET_SCHEMA = {
     "numero_destino_valido": ("ic_destino_valido", T.BooleanType()),
     "numero_destino": ("nu_destino_original", T.StringType()),
     # 3. Status & Resultado da Chamada (O que aconteceu com a ligação)
-    "status_chamada": ("no_resultado_chamada", T.StringType()),
+    "resultado_chamada": ("no_resultado_chamada", T.StringType()),
     "codigo_resposta_sip": ("co_resposta_sip", T.StringType()),
     "autenticacao": ("no_autenticacao", T.StringType()),
     # 4. Roteamento & Rede Telecom (Por onde a chamada passou)
