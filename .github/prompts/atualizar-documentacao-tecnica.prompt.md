@@ -1,6 +1,6 @@
 ---
 description: Cria ou atualiza a documentação técnica do projeto, incluindo a documentação da API pública e o README.md.
---- 
+---
 
 Utilize a skill `skill-documentar-projeto`.
 

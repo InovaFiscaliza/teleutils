@@ -125,7 +125,7 @@ class CDRBaseTransformer:
 
         return df.withColumns(
             {
-                    # Converte duração nula ou não conversível para zero.
+                # Converte duração nula ou não conversível para zero.
                 "duracao": F.coalesce(
                     F.col("duracao").cast(T.IntegerType()),
                     F.lit(0).cast(T.IntegerType()),

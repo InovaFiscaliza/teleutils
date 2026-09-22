@@ -57,7 +57,7 @@ DEFAULT_MCC = F.lit("724")
 ALGAR_MNC = F.lit("34")
 CLARO_MNC = F.lit("05")
 
-# Valor sentinela para preenchimentos de campos nulos necessários para desduplicação de registros, 
+# Valor sentinela para preenchimentos de campos nulos necessários para desduplicação de registros,
 # evitando que registros distintos sejam erroneamente considerados duplicados
 NULL_SENTINEL_VALUE = F.lit("__NULL__").cast(T.StringType())
 
@@ -77,7 +77,7 @@ PRIMARY_KEY_COLUMNS = [
     "no_resultado_chamada",
     "no_rota_entrada",
     "no_rota_saida",
-    "no_bilhetador"
+    "no_bilhetador",
 ]
 
 TARGET_SCHEMA = {

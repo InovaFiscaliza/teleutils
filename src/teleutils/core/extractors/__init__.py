@@ -7,13 +7,13 @@ de extração; ele oferece um ponto único de importação para as classes públ
 e restringe sua exportação explícita por meio de ``__all__``.
 
 Exports:
-	CDRTextExtractor: Extrator de layouts CDR em arquivos texto/CSV.
-	CDRParquetExtractor: Extrator de layouts CDR em arquivos Parquet do
-		Teleparser.
+        CDRTextExtractor: Extrator de layouts CDR em arquivos texto/CSV.
+        CDRParquetExtractor: Extrator de layouts CDR em arquivos Parquet do
+                Teleparser.
 
 Example:
-	>>> from teleutils.core.extractors import CDRTextExtractor
-	>>> extrator = CDRTextExtractor(spark)
+        >>> from teleutils.core.extractors import CDRTextExtractor
+        >>> extrator = CDRTextExtractor(spark)
 """
 
 from teleutils.core.extractors.parquet_extractors import CDRParquetExtractor
