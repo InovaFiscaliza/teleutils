@@ -1083,3 +1083,81 @@ class CDRTransformer(CDRBaseTransformer):
         self._write_parquet(df, target_file)
 
         return target_file
+
+    @log_operation
+    def transform_stfc_vivo_fcdr(
+        self, source_file: str, target_file: str, **kwargs
+    ) -> str:
+        """Transforma registros do layout STFC Vivo FCDR usando o pipeline padrão.
+
+        Combina os campos de data e hora extraídos, converte os códigos de tipo
+        e status de chamada conhecidos para rótulos textuais e delega a
+        normalização restante ao pipeline comum.
+
+        Args:
+            source_file: Caminho do arquivo de entrada no formato STFC Vivo FCDR.
+            target_file: Diretório de saída em parquet padronizado.
+
+        Returns:
+            str: Caminho do parquet transformado em ``target_file``.
+
+        Notes:
+            - ``data_hora`` resulta da combinação de ``_data`` com ``_hora``;
+              ``data_hora_fim`` combina ``_data_fim`` com a mesma coluna
+              ``_hora``.
+            - Códigos não previstos em ``_tipo_chamada`` e ``_status_chamada``
+              recebem o rótulo ``"unknown"``.
+            - Efeito colateral: grava o resultado em ``target_file``.
+        """
+
+        date_time_fmt = "ddMMyy HHmmss"
+        df = self.spark.read.parquet(source_file)
+
+        df = _concat_date_time(df)
+
+        df = df.withColumn(
+            "_status_chamada", F.abs(F.col("_status_chamada").cast(T.IntegerType()))
+        )
+
+        df = df.withColumns(
+            {
+                "tipo_chamada": F.when(F.col("_tipo_chamada") == "E", F.lit("Entrada"))
+                .when(F.col("_tipo_chamada") == "S", F.lit("Saída"))
+                .when(F.col("_tipo_chamada") == "T", F.lit("Transporte"))
+                .otherwise(F.lit(None).cast(T.StringType())),
+                "status_chamada": F.when(
+                    F.col("_status_chamada") == 0,
+                    F.lit("Desconexão prematura do assinante A"),
+                )
+                .when(F.col("_status_chamada") == 1, F.lit("Normal"))
+                .when(F.col("_status_chamada") == 2, F.lit("Linha ocupada"))
+                .when(F.col("_status_chamada") == 3, F.lit("Número Mudado"))
+                .when(F.col("_status_chamada") == 4, F.lit("Congestionamento interno"))
+                .when(
+                    F.col("_status_chamada") == 5,
+                    F.lit("Assinante Livre, sem Tarifação"),
+                )
+                .when(
+                    F.col("_status_chamada") == 6,
+                    F.lit("Assinante livre, com Dupla Desconexão"),
+                )
+                .when(
+                    F.col("_status_chamada") == 7,
+                    F.lit("Número inexistente, nível vago"),
+                )
+                .when(
+                    (F.col("_status_chamada") >= 8) & (F.col("_status_chamada") <= 15),
+                    F.lit("Congestionamento interno"),
+                )
+                .when(
+                    (F.col("_status_chamada") >= 20) & (F.col("_status_chamada") <= 25),
+                    F.lit("Congestionamento (outros tipos)"),
+                )
+                .otherwise(F.lit(None).cast(T.StringType())),
+            }
+        )
+
+        df = self._apply_standard_pipeline(df, date_time_fmt)
+        self._write_parquet(df, target_file)
+
+        return target_file

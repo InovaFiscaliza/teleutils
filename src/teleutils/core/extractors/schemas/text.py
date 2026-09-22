@@ -164,7 +164,7 @@ TEXT_DEFAULT_SCHEMAS: dict[str, CDRTextSchema] = {
         column_names=(
             "bilhetador",
             "_tipo_cdr",
-            "tipo_chamada",
+            "_tipo_chamada",
             "numero_destino",
             "_status_chamada",
             "_hora",
