@@ -101,7 +101,7 @@ class CDRTextExtractor:
         self.schemas = schemas
 
     @log_operation
-    def extract_cdr(self, source_file: str, target_file: str, cdr_schema: str) -> str:
+    def extract(self, source_file: str, target_file: str, cdr_schema: str) -> str:
         """Lê, seleciona, renomeia, filtra e persiste registros de um layout CDR.
 
         Fluxo de processamento:
@@ -237,4 +237,4 @@ class CDRTextExtractor:
             ...     target_file="parquet/ngn_huawei_extracted"
             ... )
         """
-        return self.extract_cdr(source_file, target_file, "stfc_huawei_ngn")
+        return self.extract(source_file, target_file, "stfc_huawei_ngn")
