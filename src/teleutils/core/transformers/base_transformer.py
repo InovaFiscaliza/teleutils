@@ -123,18 +123,28 @@ class CDRBaseTransformer:
                 MIN_SAFE_DATE,
             )
 
-        return df.withColumns(
+        def normalize_duration(column_name):
+            return F.coalesce(
+                F.col(column_name).cast(T.IntegerType()),
+                F.lit(0).cast(T.IntegerType()),
+            )
+
+        df = df.withColumns(
             {
                 # Converte duração nula ou não conversível para zero.
-                "duracao": F.coalesce(
-                    F.col("duracao").cast(T.IntegerType()),
-                    F.lit(0).cast(T.IntegerType()),
-                ),
+                "duracao": normalize_duration("duracao"),
                 # Datas nulas, inválidas ou anteriores ao limite viram MIN_SAFE_DATE.
                 "data_hora": normalize_timestamp("data_hora"),
-                "data_hora_fim": normalize_timestamp("data_hora_fim"),
                 "data_hora_referencia": normalize_timestamp("data_hora_referencia"),
             }
+        )
+
+        return df.withColumn(
+            "data_hora_fim",
+            F.when(
+                F.col("data_hora_fim").isNotNull(),
+                normalize_timestamp("data_hora_fim"),
+            ).otherwise(F.col("data_hora") + F.make_interval(secs=F.col("duracao"))),
         )
 
     def _format_numbers(self, df):
