@@ -30,7 +30,6 @@ Notes:
         processamento.
 """
 
-from pyspark.sql import functions as F
 from pyspark.sql import types as T
 
 # Marcador textual utilizado pelo classificador de robocalls para identificar
@@ -48,18 +47,18 @@ MAX_RECORDS_PER_FILE = 1000000
 # rotinas analíticas de detecção de padrões potencialmente abusivos.
 SHORT_CALL_THRESHOLD = 6
 
-# Define a data limite como um literal do Spark para o Catalyst otimizar a comparação
-MIN_SAFE_DATE = F.lit("1901-01-01 00:00:00").cast(T.TimestampNTZType())
+# Data limite aplicada às colunas temporais durante as transformações.
+MIN_SAFE_DATE = "1901-01-01 00:00:00"
 
 # Código MCC/MNC para preenchimento em caso de ausência de informação de operadora, utilizado em transformações
 # de CDRs para manter consistência de dados e evitar valores nulos em campos críticos
-DEFAULT_MCC = F.lit("724")
-ALGAR_MNC = F.lit("34")
-CLARO_MNC = F.lit("05")
+DEFAULT_MCC = "724"
+ALGAR_MNC = "34"
+CLARO_MNC = "05"
 
 # Valor sentinela para preenchimentos de campos nulos necessários para desduplicação de registros,
 # evitando que registros distintos sejam erroneamente considerados duplicados
-NULL_SENTINEL_VALUE = F.lit("__NULL__").cast(T.StringType())
+NULL_SENTINEL_VALUE = "__NULL__"
 
 # Chave primária para desduplicação de registros, composta por campos críticos que identificam unicamente uma chamada
 PRIMARY_KEY_COLUMNS = [

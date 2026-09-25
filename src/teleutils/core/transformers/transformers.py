@@ -406,6 +406,9 @@ class CDRTransformer(CDRBaseTransformer):
         """
 
         super().__init__(spark)
+        self.default_mcc = F.lit(DEFAULT_MCC)
+        self.algar_mnc = F.lit(ALGAR_MNC)
+        self.claro_mnc = F.lit(CLARO_MNC)
 
     @log_operation
     def transform(
@@ -620,8 +623,8 @@ class CDRTransformer(CDRBaseTransformer):
         )
 
         # CDRs Nokia não possuem campos de MCC/MNC; o MNC é imputado pela prestadora.
-        nokia_mnc = F.when(F.col("prestadora") == "claro", CLARO_MNC).when(
-            F.col("prestadora") == "algar", ALGAR_MNC
+        nokia_mnc = F.when(F.col("prestadora") == "claro", self.claro_mnc).when(
+            F.col("prestadora") == "algar", self.algar_mnc
         )
         df = (
             df.withColumn("_nokia_mnc", nokia_mnc)
@@ -630,7 +633,7 @@ class CDRTransformer(CDRBaseTransformer):
                     "celula_origem": _build_composite_column(
                         "-",
                         (
-                            DEFAULT_MCC,
+                            self.default_mcc,
                             F.col("_nokia_mnc"),
                             "celula_origem_lac",
                             "celula_origem_ci",
@@ -640,7 +643,7 @@ class CDRTransformer(CDRBaseTransformer):
                     "celula_destino": _build_composite_column(
                         "-",
                         (
-                            DEFAULT_MCC,
+                            self.default_mcc,
                             F.col("_nokia_mnc"),
                             "celula_destino_lac",
                             "celula_destino_ci",

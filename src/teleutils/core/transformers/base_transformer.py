@@ -88,6 +88,8 @@ class CDRBaseTransformer:
 
         self.spark = spark.newSession()
         self.spark.conf.set("spark.sql.timestampType", "TIMESTAMP_NTZ")
+        self.min_safe_date = F.lit(MIN_SAFE_DATE).cast(T.TimestampNTZType())
+        self.null_sentinel_value = F.lit(NULL_SENTINEL_VALUE).cast(T.StringType())
 
     def _format_date_time(self, df, date_time_fmt: str = "yyyy-MM-dd HH-mm-ss"):
         """Padroniza campos temporais e normaliza duração.
@@ -120,7 +122,7 @@ class CDRBaseTransformer:
         def normalize_timestamp(column_name):
             return F.greatest(
                 F.try_to_timestamp(F.col(column_name), timestamp_format),
-                MIN_SAFE_DATE,
+                self.min_safe_date,
             )
 
         def normalize_duration(column_name):
@@ -307,11 +309,11 @@ class CDRBaseTransformer:
 
         for source_column, data_type in primary_key_columns.items():
             if isinstance(data_type, T.TimestampNTZType):
-                default_value = MIN_SAFE_DATE
+                default_value = self.min_safe_date
             elif isinstance(data_type, T.NumericType):
                 default_value = F.lit(0).cast(data_type)
             else:
-                default_value = NULL_SENTINEL_VALUE
+                default_value = self.null_sentinel_value
 
             columns_to_fill[source_column] = F.coalesce(
                 F.col(source_column).cast(data_type),
