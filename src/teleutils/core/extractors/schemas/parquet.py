@@ -103,7 +103,7 @@ class CDRParquetSchema:
 
 PARQUET_DEFAULT_SCHEMAS: dict[str, CDRParquetSchema] = {
     "smp_ericsson_gsm": CDRParquetSchema(
-        name="Ericsson",
+        name="Ericsson GSM",
         column_mapping=(
             ("networkCallReference", "referencia"),
             ("callingPartyNumber.digits", "numero_origem"),
@@ -138,8 +138,8 @@ PARQUET_DEFAULT_SCHEMAS: dict[str, CDRParquetSchema] = {
         ),
         job_description="Extraindo CDR Parquet: SMP Ericsson GSM",
     ),
-    "smp_gsm_nokia": CDRParquetSchema(
-        name="Nokia",
+    "smp_nokia_gsm": CDRParquetSchema(
+        name="Nokia GSM",
         column_mapping=(
             ("record_type", "tipo_chamada"),
             ("call_reference", "referencia"),
@@ -179,7 +179,7 @@ PARQUET_DEFAULT_SCHEMAS: dict[str, CDRParquetSchema] = {
         job_description="Extraindo CDR Parquet: SMP Nokia GSM",
     ),
     "smp_huawei_volte_tim": CDRParquetSchema(
-        name="LTE Huawei TIM",
+        name="Huawei VoLTE TIM",
         column_mapping=(
             ("network-Call-Reference", "referencia"),
             ("iMS-Charging-Identifier", "referencia_sip"),
@@ -208,7 +208,7 @@ PARQUET_DEFAULT_SCHEMAS: dict[str, CDRParquetSchema] = {
         job_description="Extraindo CDR Parquet: SMP Huawei VoLTE TIM",
     ),
     "smp_ericsson_volte_vivo": CDRParquetSchema(
-        name="LTE Ericsson Vivo",
+        name="Ericsson VoLTE Vivo",
         column_mapping=(
             ("networkCallReference", "referencia"),
             ("imsChargingIdentifier", "referencia_sip"),

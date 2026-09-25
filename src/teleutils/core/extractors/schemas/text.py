@@ -131,7 +131,7 @@ class CDRTextSchema:
 
 TEXT_DEFAULT_SCHEMAS: dict[str, CDRTextSchema] = {
     "stfc_huawei_ngn": CDRTextSchema(
-        name="NGN Huawei",
+        name="Huawei NGN",
         delimiter=",",
         schema=None,
         has_header=False,
