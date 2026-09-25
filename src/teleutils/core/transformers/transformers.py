@@ -778,12 +778,20 @@ class CDRTransformer(CDRBaseTransformer):
             F.col("_numero_origem_ats_auth").isNotNull(),
             F.regexp_extract(F.col("_numero_origem_ats_auth"), r":\+?([0-9]+)", 1),
         ).otherwise(F.col("_numero_origem_ats").substr(3, 9999))
+
         raw_ats_calling_party = F.when(
             F.col("_numero_origem_ats_auth").isNotNull(),
             F.col("_numero_origem_ats_auth"),
         ).otherwise(F.col("_numero_origem_ats"))
+
         ibcf_calling_party = F.regexp_extract(
             F.col("_numero_origem_ibcf"), r"sip:\+?([0-9]+)", 1
+        )
+
+        ats_called_party = F.regexp_replace(
+            F.col("_numero_destino_ats").substr(3, 9999),
+            "(.)(.)",
+            "$2$1",
         )
 
         df = df.withColumns(
@@ -796,7 +804,7 @@ class CDRTransformer(CDRBaseTransformer):
                 ).otherwise(F.col("_numero_origem_ibcf")),
                 "numero_destino": F.when(
                     is_ats,
-                    F.col("_numero_destino_ats").substr(3, 9999),
+                    ats_called_party,
                 ).otherwise(
                     F.regexp_extract(
                         F.col("_numero_destino_ibcf"), r"sip:\+?([0-9]+)", 1
