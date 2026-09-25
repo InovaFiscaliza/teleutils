@@ -9,6 +9,11 @@
   "mounts": [
     {
       "type": "bind",
+      "source": "${localEnv:HOME}/.jupyter",
+      "target": "/home/devuser/.jupyter"
+    },
+    {
+      "type": "bind",
       "source": "${localEnv:HOME}/.ssh",
       "target": "/home/devuser/.ssh"
     }
