@@ -49,7 +49,7 @@ _AUTH_EXTRACT_PATTERN = r"(verstat=[a-zA-Z\-]+)"
 _CELL_EXTRACT_PATTERN = r"3gpp=([0-9a-fA-F]+);?"
 
 # Formatos de saída válidos para transformações de CDRs.
-_VALID_OUTPUT_FORMATS = {"default", "smp_ericsson_gsm_tim"}
+_VALID_OUTPUT_FORMATS = {"default", "smp_ericsson_gsm_tim", "smp_huawei_volte_tim"}
 
 
 def _check_output_format(
@@ -303,45 +303,51 @@ def _format_cell_id(df, col_name, out_col, gnb_id_bits=26, output_format="defaul
     # ---- 3G (UTRAN, 13 chars) ----
     tac_3g = F.conv(F.substring(col, 6, 4), 16, 10).cast("long")
     ci_3g = F.conv(F.substring(col, 10, 4), 16, 10).cast("long")
-    ci_formatted = F.concat_ws(
-        "-",
-        F.substring(col, 1, 3),  # mcc
-        F.substring(col, 4, 2),  # mnc
-        F.lpad(tac_3g.cast("string"), 5, "0"),  # tac (16 bits)
-        F.lpad(ci_3g.cast("string"), 5, "0"),  # ci (16 bits)
-    )
-    ci_formatted_tim = F.concat_ws(
-        "-",
-        F.substring(col, 1, 3),  # mcc
-        F.substring(col, 4, 2),  # mnc
-        tac_3g.cast("string"),  # tac (16 bits)
-        ci_3g.cast("string"),  # ci (16 bits)
-    )
+
+    if output_format == "smp_ericsson_gsm_tim":
+        ci_formatted = F.concat_ws(
+            "-",
+            F.substring(col, 1, 3),  # mcc
+            F.substring(col, 4, 2),  # mnc
+            tac_3g.cast("string"),  # tac (16 bits)
+            ci_3g.cast("string"),  # ci (16 bits)
+        )
+    else:
+        ci_formatted = F.concat_ws(
+            "-",
+            F.substring(col, 1, 3),  # mcc
+            F.substring(col, 4, 2),  # mnc
+            F.lpad(tac_3g.cast("string"), 5, "0"),  # tac (16 bits)
+            F.lpad(ci_3g.cast("string"), 5, "0"),  # ci (16 bits)
+        )
 
     # ---- 4G (ECGI, 16 chars) ----
     ecgi_val = F.conv(F.substring(col, 10, 7), 16, 10).cast("long")
-    ecgi_formatted = F.concat_ws(
-        "-",
-        F.substring(col, 1, 3),  # mcc
-        F.substring(col, 4, 2),  # mnc
-        F.lpad(
-            (ecgi_val / 256).cast("long").cast("string"), 7, "0"
-        ),  # enb_id (20 bits)
-        F.lpad((ecgi_val % 256).cast("string"), 3, "0"),  # cell_id (8 bits)
-    )
-    ecgi_formatted_tim = F.concat_ws(
-        "-",
-        F.substring(col, 1, 3),  # mcc
-        F.substring(col, 4, 2),  # mnc
-        ecgi_val.cast("string"),
-    )
+
+    if output_format == "smp_huawei_volte_tim":
+        ecgi_formatted = F.concat_ws(
+            "-",
+            F.substring(col, 1, 3),  # mcc
+            F.substring(col, 4, 2),  # mnc
+            ecgi_val.cast("string"),
+        )
+    else:
+        ecgi_formatted = F.concat_ws(
+            "-",
+            F.substring(col, 1, 3),  # mcc
+            F.substring(col, 4, 2),  # mnc
+            F.lpad(
+                (ecgi_val / 256).cast("long").cast("string"), 7, "0"
+            ),  # enb_id (20 bits)
+            F.lpad((ecgi_val % 256).cast("string"), 3, "0"),  # cell_id (8 bits)
+        )
 
     # ---- 5G (NCGI, 20 chars) ----
     # NCGI = 36 bits totais. gNB ID = 26 bits (default), Cell ID = 36 - 26 = 10 bits
     cell_id_bits = 36 - gnb_id_bits  # 10
     cell_id_mask = (1 << cell_id_bits) - 1  # 0x3FF = 1023
-
     ncgi_val = F.conv(F.substring(col, 12, 9), 16, 10).cast("long")
+
     ncgi_formatted = F.concat_ws(
         "-",
         F.substring(col, 1, 3),  # mcc
@@ -354,20 +360,12 @@ def _format_cell_id(df, col_name, out_col, gnb_id_bits=26, output_format="defaul
         ),  # cell_id (10 bits)
     )
 
-    if output_format == "smp_ericsson_gsm_tim":
-        formatted_cell_id = (
-            F.when(length == 13, ci_formatted_tim)
-            .when(length == 16, ecgi_formatted_tim)
-            .when(length == 20, ncgi_formatted)
-            .otherwise(col)
-        )
-    else:
-        formatted_cell_id = (
-            F.when(length == 13, ci_formatted)
-            .when(length == 16, ecgi_formatted)
-            .when(length == 20, ncgi_formatted)
-            .otherwise(col)
-        )
+    formatted_cell_id = (
+        F.when(length == 13, ci_formatted)
+        .when(length == 16, ecgi_formatted)
+        .when(length == 20, ncgi_formatted)
+        .otherwise(col)
+    )
 
     return df.withColumn(
         out_col,
@@ -826,7 +824,9 @@ class CDRTransformer(CDRBaseTransformer):
             out_col_tec="_tecnologia_celula",
             out_col_cell_id="_id_celula_hex",
         )
-        df = _format_cell_id(df, "_id_celula_hex", "_id_celula", output_format="tim")
+        df = _format_cell_id(
+            df, "_id_celula_hex", "_id_celula", output_format="smp_huawei_volte_tim"
+        )
 
         df = df.withColumn(
             "_imei",
