@@ -744,6 +744,11 @@ class CDRTransformer(CDRBaseTransformer):
         is_originating = F.col("tipo_chamada") == "oRIGINATING-ROLE"
         is_terminating = F.col("tipo_chamada") == "tERMINATING-ROLE"
 
+        # Números de origem ATS estão com os dígitos invertidos 2 a 2.
+        # Por exemplo, o número "11551899781480F2" seria invertido para "115581998741082F".
+        # 11-55-18-99-78-14-80-F2
+        #  ↓  ↓  ↓  ↓  ↓  ↓  ↓  ↓
+        # 11-55-81-99-87-41-08-2F
         df = df.withColumns(
             {
                 "_numero_origem_ats": F.when(
@@ -769,8 +774,8 @@ class CDRTransformer(CDRBaseTransformer):
             }
         )
 
-        # Para ATS sem autenticação, ``substr(3, 9999)`` remove os dois
-        # primeiros caracteres do número extraído antes da normalização comum.
+        # Números de origem ATS sem autenticação trazem prefixos "11" ou "14".
+        # ``substr(3, 9999)`` remove os prefixos antes da normalização para evitar confundi-los com CN.
         ats_calling_party = F.when(
             F.col("_numero_origem_ats_auth").isNotNull(),
             F.regexp_extract(F.col("_numero_origem_ats_auth"), r":\+?([0-9]+)", 1),
