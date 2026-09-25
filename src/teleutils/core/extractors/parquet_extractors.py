@@ -170,15 +170,13 @@ class CDRParquetExtractor:
 
             select_expr.append(source_expr.alias(target_col))
 
-        df = (
-            df.select(*select_expr)
-            .withColumn(
-                "prestadora", F.element_at(F.split(F.input_file_name(), "/"), -3)
-            )
-            .withColumn("tipo_cdr", F.element_at(F.split(F.input_file_name(), "/"), -2))
-            .withColumn(
-                "arquivo_origem", F.element_at(F.split(F.input_file_name(), "/"), -1)
-            )
+        df = df.select(*select_expr).withColumns(
+            {
+                "esquema": F.lit(cdr_schema),
+                "prestadora": F.element_at(F.split(F.input_file_name(), "/"), -3),
+                "tipo_cdr": F.element_at(F.split(F.input_file_name(), "/"), -2),
+                "arquivo_origem": F.element_at(F.split(F.input_file_name(), "/"), -1),
+            }
         )
 
         if unique:

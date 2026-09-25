@@ -216,6 +216,7 @@ class CDRTextExtractor:
 
         df = df.withColumns(
             {
+                "esquema": F.lit(cdr_schema),
                 "prestadora": F.element_at(F.split(F.input_file_name(), "/"), -3),
                 "tipo_cdr": F.element_at(F.split(F.input_file_name(), "/"), -2),
                 "arquivo_origem": F.url_decode(

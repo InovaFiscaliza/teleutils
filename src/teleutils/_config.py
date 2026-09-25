@@ -121,6 +121,7 @@ TARGET_SCHEMA = {
     "porta_ip_destino": ("nu_porta_ip_destino", T.IntegerType()),
     "agente_usuario": ("no_agente_usuario", T.StringType()),
     # 6. Metadados do Arquivo & Regras de Negócio (Para auditoria e particionamento)
+    "esquema": ("no_esquema", T.StringType()),
     "tipo_cdr": ("no_tipo_cdr", T.StringType()),
     "arquivo_origem": ("no_arquivo_origem", T.StringType()),
     "tipo_chamada": ("no_tipo_chamada", T.StringType()),
