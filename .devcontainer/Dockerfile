@@ -1,4 +1,4 @@
-FROM python:3.9-slim-bookworm
+FROM debian:bookworm-slim
 
 # Java é obrigatório para o PySpark rodar (a JVM por baixo do capô)
 RUN apt-get update && apt-get install -y --no-install-recommends \
