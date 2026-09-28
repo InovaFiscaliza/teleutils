@@ -19,4 +19,4 @@ Example:
 from teleutils.core.extractors.parquet_extractors import CDRParquetExtractor
 from teleutils.core.extractors.text_extractors import CDRTextExtractor
 
-__all__ = ["CDRTextExtractor", "CDRParquetExtractor"]
+__all__ = ["CDRParquetExtractor", "CDRTextExtractor"]
