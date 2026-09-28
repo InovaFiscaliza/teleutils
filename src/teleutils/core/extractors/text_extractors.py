@@ -165,22 +165,13 @@ class CDRTextExtractor:
         )
 
         # Leitura de arquivo de largura fixa (fixed-width) quando column_sizes está definido.
-        # Leitura com rdd pois arquivos Tropico Oi possuem caracteres inválidos no nome e dá erro na leitura direta com spark.read.text.
-        if schema.column_sizes:
+        # Leitura com rdd é necessária quando os arquivos possuem caracteres inválidos no nome e dá erro na leitura direta com spark.read.csv.
+
+        if schema.read_rdd:
             if isinstance(source_file, list):
                 source_file = ",".join(source_file)
             rdd = self.spark.sparkContext.textFile(source_file)
-            df_raw = rdd.map(lambda x: (x,)).toDF(["value"])
-            columns_expressions = [
-                F.trim(
-                    F.regexp_replace(F.substring(F.col("value"), indice, size), "-", "")
-                ).alias(name)
-                for indice, size, name in zip(
-                    schema.column_indices, schema.column_sizes, schema.column_names
-                )
-            ]
-            df = df_raw.select(*columns_expressions)
-        # Leitura de arquivo CSV padrão quando column_sizes não está definido.
+            df = rdd.map(lambda x: (x,)).toDF(["value"])
         else:
             df = self.spark.read.csv(
                 source_file,
@@ -191,7 +182,19 @@ class CDRTextExtractor:
                 ignoreLeadingWhiteSpace=True,
                 ignoreTrailingWhiteSpace=True,
             )
-
+        # Processamento de arquivos de largura fixa (fixed-width) quando column_sizes está definido.
+        if schema.column_sizes:
+            columns_expressions = [
+                F.trim(
+                    F.regexp_replace(F.substring(F.col("value"), indice, size), "-", "")
+                ).alias(name)
+                for indice, size, name in zip(
+                    schema.column_indices, schema.column_sizes, schema.column_names
+                )
+            ]
+            df = df.select(*columns_expressions)
+        # Leitura de arquivo CSV padrão quando column_sizes não está definido.
+        else:
             # Valida se todos os índices solicitados existem no DataFrame lido.
             # Falhar cedo com mensagem clara é melhor do que erros crípticos do Spark.
             logger.info("Validando índices de coluna para o esquema '%s'", schema.name)
