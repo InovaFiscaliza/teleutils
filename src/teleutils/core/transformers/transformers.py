@@ -740,55 +740,50 @@ class CDRTransformer(CDRBaseTransformer):
         date_time_fmt = "yyyy-MM-dd HH:mm:ss"
         df = self.spark.read.parquet(source_file)
 
+        df = df.withColumns(
+            # Data e hora nos CDR Tim Huawei trazem informação de fuso horário no final da string,
+            # portanto, é necessário truncar os últimos caracteres para manter apenas a parte relevante.
+            {
+                "data_hora": F.left(F.col("data_hora"), F.lit(19)),
+                "data_hora_fim": F.left(F.col("data_hora_fim"), F.lit(19)),
+            }
+        )
+
         is_ats = F.col("tipo_cdr") == "aTSRecord"
         is_ibcf = F.col("tipo_cdr") == "iBCFRecord"
+
         is_originating = F.col("tipo_chamada") == "oRIGINATING-ROLE"
         is_terminating = F.col("tipo_chamada") == "tERMINATING-ROLE"
+
+        # Regex para extrair o número de telefone do URI SIP.
+        sip_extract_pattern = r"sip:([0-9]+)[@;]"
 
         # Números de origem ATS estão com os dígitos invertidos 2 a 2.
         # Por exemplo, o número "11551899781480F2" seria invertido para "115581998741082F".
         # 11-55-18-99-78-14-80-F2
         #  ↓  ↓  ↓  ↓  ↓  ↓  ↓  ↓
         # 11-55-81-99-87-41-08-2F
-        df = df.withColumns(
-            {
-                "_numero_origem_ats": F.when(
-                    is_ats,
-                    F.regexp_replace(
-                        F.get_json_object(F.col("_numero_origem"), "$[0].tEL-URI"),
-                        "(.)(.)",
-                        "$2$1",
-                    ),
-                ),
-                "_numero_origem_ibcf": F.when(
-                    is_ibcf,
-                    F.regexp_extract(
-                        F.get_json_object(F.col("_numero_origem"), "$[0].sIP-URI"),
-                        r"sip:([0-9]+)[@;]",
-                        1,
-                    ),
-                ),
-                # Data e hora nos CDR Tim Huawei trazem informação de fuso horário no final da string,
-                # portanto, é necessário truncar os últimos caracteres para manter apenas a parte relevante.
-                "data_hora": F.left(F.col("data_hora"), F.lit(19)),
-                "data_hora_fim": F.left(F.col("data_hora_fim"), F.lit(19)),
-            }
-        )
-
-        # Números de origem ATS sem autenticação trazem prefixos "11" ou "14".
+        # Além disso trazem prefixo 11 ou 14 que podem ser confundidos como os respectivos CN.
         # ``substr(3, 9999)`` remove os prefixos antes da normalização para evitar confundi-los com CN.
-        ats_calling_party = F.when(
-            F.col("_numero_origem_ats_auth").isNotNull(),
-            F.regexp_extract(F.col("_numero_origem_ats_auth"), r":\+?([0-9]+)", 1),
-        ).otherwise(F.col("_numero_origem_ats").substr(3, 9999))
-
-        raw_ats_calling_party = F.when(
-            F.col("_numero_origem_ats_auth").isNotNull(),
-            F.col("_numero_origem_ats_auth"),
-        ).otherwise(F.col("_numero_origem_ats"))
-
-        ibcf_calling_party = F.regexp_extract(
-            F.col("_numero_origem_ibcf"), r"sip:\+?([0-9]+)", 1
+        extract_ats_calling_party = F.get_json_object(
+            F.col("_numero_origem_ats_ibcf"), "$[0].tEL-URI"
+        )
+        ats_calling_party = F.regexp_replace(
+            extract_ats_calling_party.substr(3, 9999),
+            "(.)(.)",
+            "$2$1",
+        )
+        ibfc_calling_party = F.regexp_extract(
+            F.get_json_object(F.col("_numero_origem_ats_ibcf"), "$[0].sIP-URI"),
+            sip_extract_pattern,
+            1,
+        )
+        df = df.withColumn(
+            "numero_origem",
+            F.when(is_ats, ats_calling_party).when(is_ibcf, ibfc_calling_party),
+        ).withColumn(
+            "_numero_origem_original",
+            F.when(is_ats, extract_ats_calling_party).otherwise(F.col("numero_origem")),
         )
 
         ats_called_party = F.regexp_replace(
@@ -796,37 +791,35 @@ class CDRTransformer(CDRBaseTransformer):
             "(.)(.)",
             "$2$1",
         )
+        ibfc_called_party = F.regexp_extract(
+            F.col("_numero_destino_ibcf"),
+            sip_extract_pattern,
+            1,
+        )
+        df = df.withColumn(
+            "numero_destino",
+            F.when(is_ats, ats_called_party).when(is_ibcf, ibfc_called_party),
+        ).withColumn(
+            "_numero_destino_original",
+            F.when(is_ats, F.col("_numero_destino_ats")).otherwise(
+                F.col("numero_destino")
+            ),
+        )
 
-        df = df.withColumns(
-            {
-                "numero_origem": F.when(is_ats, ats_calling_party).otherwise(
-                    ibcf_calling_party
+        df = df.withColumn(
+            "_autenticacao",
+            F.when(
+                is_ats,
+                F.regexp_extract(
+                    F.col("_numero_origem_auth"),
+                    _AUTH_EXTRACT_PATTERN,
+                    0,
                 ),
-                "_numero_origem_original": F.when(
-                    is_ats, raw_ats_calling_party
-                ).otherwise(F.col("_numero_origem_ibcf")),
-                "numero_destino": F.when(
-                    is_ats,
-                    ats_called_party,
-                ).otherwise(
-                    F.regexp_extract(
-                        F.col("_numero_destino_ibcf"), r"sip:\+?([0-9]+)", 1
-                    )
-                ),
-                "_numero_destino_original": F.when(
-                    is_ats, F.col("_numero_destino_ats")
-                ).otherwise(F.col("_numero_destino_ibcf")),
-                "_autenticacao": F.when(
-                    is_ats,
-                    F.regexp_extract(
-                        F.col("_numero_origem_ats_auth"),
-                        _AUTH_EXTRACT_PATTERN,
-                        0,
-                    ),
-                ).otherwise(
-                    F.regexp_extract(F.col("_numero_origem"), _AUTH_EXTRACT_PATTERN, 0)
-                ),
-            }
+            ).otherwise(
+                F.regexp_extract(
+                    F.col("_numero_origem_ats_ibcf"), _AUTH_EXTRACT_PATTERN, 0
+                )
+            ),
         )
 
         df = _extract_cell_info(

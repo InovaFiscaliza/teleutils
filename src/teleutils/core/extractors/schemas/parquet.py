@@ -183,8 +183,8 @@ PARQUET_DEFAULT_SCHEMAS: dict[str, CDRParquetSchema] = {
         column_mapping=(
             ("network-Call-Reference", "referencia"),
             ("iMS-Charging-Identifier", "referencia_sip"),
-            ("calling-Party-Address-Generic", "_numero_origem_ats_auth"),
-            ("list-Of-Calling-Party-Address", "_numero_origem"),
+            ("calling-Party-Address-Generic", "_numero_origem_auth"),
+            ("list-Of-Calling-Party-Address", "_numero_origem_ats_ibcf"),
             ("called-Party-Address_tEL-URI", "_numero_destino_ats"),
             ("called-Party-Address_sIP-URI", "_numero_destino_ibcf"),
             ("serviceRequestTimeStamp", "data_hora"),
