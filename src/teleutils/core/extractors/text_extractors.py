@@ -167,6 +167,8 @@ class CDRTextExtractor:
         # Leitura de arquivo de largura fixa (fixed-width) quando column_sizes está definido.
         # Leitura com rdd pois arquivos Tropico Oi possuem caracteres inválidos no nome e dá erro na leitura direta com spark.read.text.
         if schema.column_sizes:
+            if isinstance(source_file, list):
+                source_file = ",".join(source_file)
             rdd = self.spark.sparkContext.textFile(source_file)
             df_raw = rdd.map(lambda x: (x,)).toDF(["value"])
             columns_expressions = [
