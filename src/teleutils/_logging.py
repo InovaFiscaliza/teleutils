@@ -21,8 +21,13 @@ def log_operation(method: Callable) -> Callable:
 
     @wraps(method)
     def wrapper(self, source_file: str, *args, **kwargs):
+        if isinstance(source_file, list):
+            source_file_log = source_file[0] + "... "
+        else:
+            source_file_log = source_file
+
         logger = logging.getLogger(self.__class__.__module__)
-        logger.info("Iniciando operação [%s]: %s", method.__name__, source_file)
+        logger.info("Iniciando operação [%s]: %s", method.__name__, source_file_log)
         try:
             result = method(self, source_file, *args, **kwargs)
             logger.info(

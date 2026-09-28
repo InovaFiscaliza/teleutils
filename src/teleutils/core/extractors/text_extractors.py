@@ -152,9 +152,14 @@ class CDRTextExtractor:
 
         schema = self.schemas[cdr_schema]
 
+        if isinstance(source_file, list):
+            source_file_log = source_file[0] + "... "
+        else:
+            source_file_log = source_file
+
         logger.info(
-            "Lendo arquivo CSV: %s com delimitador '%s' e header=%s",
-            source_file,
+            "Lendo arquivo(s) CSV: %s com delimitador '%s' e header=%s",
+            source_file_log,
             schema.delimiter,
             schema.has_header,
         )
