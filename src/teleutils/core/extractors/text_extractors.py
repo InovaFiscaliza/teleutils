@@ -156,7 +156,6 @@ class CDRTextExtractor:
             source_file_log = source_file[0] + "... "
         else:
             source_file_log = source_file
-
         logger.info(
             "Lendo arquivo(s) CSV: %s com delimitador '%s' e header=%s",
             source_file_log,
@@ -166,7 +165,6 @@ class CDRTextExtractor:
 
         # Leitura de arquivo de largura fixa (fixed-width) quando column_sizes está definido.
         # Leitura com rdd é necessária quando os arquivos possuem caracteres inválidos no nome e dá erro na leitura direta com spark.read.csv.
-
         if schema.read_rdd:
             if isinstance(source_file, list):
                 source_file = ",".join(source_file)

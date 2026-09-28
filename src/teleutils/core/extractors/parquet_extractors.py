@@ -137,7 +137,12 @@ class CDRParquetExtractor:
 
         schema = self.schemas[cdr_schema]
 
-        logger.info("Lendo arquivo parquet: %s", source_file)
+        if isinstance(source_file, list):
+            source_file_log = source_file[0] + "... "
+        else:
+            source_file_log = source_file
+        logger.info("Lendo arquivo(s) parquet: %s", source_file_log)
+
         if isinstance(source_file, list):
             df = self.spark.read.option("mergeSchema", "true").parquet(*source_file)
         else:
