@@ -49,7 +49,12 @@ _AUTH_EXTRACT_PATTERN = r"(verstat=[a-zA-Z\-]+)"
 _CELL_EXTRACT_PATTERN = r"3gpp=([0-9a-fA-F]+);?"
 
 # Formatos de saída válidos para transformações de CDRs.
-_VALID_OUTPUT_FORMATS = {"default", "smp_ericsson_gsm_tim", "smp_huawei_volte_tim"}
+_VALID_OUTPUT_FORMATS = {
+    "default",
+    "smp_ericsson_gsm_tim",
+    "smp_huawei_volte_tim",
+    "smp_nokia_algar",
+}
 
 
 def _check_output_format(
@@ -304,7 +309,7 @@ def _format_cell_id(df, col_name, out_col, gnb_id_bits=26, output_format="defaul
     tac_3g = F.conv(F.substring(col, 6, 4), 16, 10).cast("long")
     ci_3g = F.conv(F.substring(col, 10, 4), 16, 10).cast("long")
 
-    if output_format == "smp_ericsson_gsm_tim":
+    if output_format in ("smp_ericsson_gsm_tim", "smp_nokia_algar"):
         ci_formatted = F.concat_ws(
             "-",
             F.substring(col, 1, 3),  # mcc
@@ -347,7 +352,6 @@ def _format_cell_id(df, col_name, out_col, gnb_id_bits=26, output_format="defaul
     cell_id_bits = 36 - gnb_id_bits  # 10
     cell_id_mask = (1 << cell_id_bits) - 1  # 0x3FF = 1023
     ncgi_val = F.conv(F.substring(col, 12, 9), 16, 10).cast("long")
-
     ncgi_formatted = F.concat_ws(
         "-",
         F.substring(col, 1, 3),  # mcc
