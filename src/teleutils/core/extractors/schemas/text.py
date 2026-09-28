@@ -114,6 +114,12 @@ class CDRTextSchema:
                 f"{len(self.column_indices)} elemento(s), mas column_names tem "
                 f"{len(self.column_names)}. Devem ter o mesmo tamanho."
             )
+        if self.column_sizes and len(self.column_sizes) != len(self.column_indices):
+            raise ValueError(
+                f"Schema '{self.name}': column_sizes tem "
+                f"{len(self.column_indices)} elemento(s), mas column_names tem "
+                f"{len(self.column_names)}. Devem ter o mesmo tamanho."
+            )
         if not self.column_indices:
             raise ValueError(
                 f"Schema '{self.name}': column_indices não pode ser vazio."
