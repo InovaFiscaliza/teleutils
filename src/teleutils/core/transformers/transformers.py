@@ -1269,3 +1269,115 @@ class CDRTransformer(CDRBaseTransformer):
         self._write_parquet(df, target_file)
 
         return target_file
+
+    @log_operation
+    def transform_stfc_axe_claro(
+        self, source_file: str, target_file: str, **kwargs
+    ) -> str:
+        date_time_fmt = "yyMMdd HHmmss"
+        df = self.spark.read.parquet(source_file)
+
+        df = _concat_date_time(
+            df,
+            start_date="_data",
+            start_time="_hora",
+            stop_date="_data",
+            stop_time="_hora_fim",
+        )
+
+        df = df.withColumn(
+            "tipo_chamada",
+            F.when(F.col("_tipo_chamada") == "01", F.lit("Chamada POTS efetiva"))
+            .when(F.col("_tipo_chamada") == "02", F.lit("Chamada POTS inefetiva"))
+            .when(F.col("_tipo_chamada") == "03", F.lit("Chamada RDSI efetiva"))
+            .when(F.col("_tipo_chamada") == "04", F.lit("Chamada RDSI inefetiva"))
+            .when(
+                F.col("_tipo_chamada") == "05", F.lit("Chamada redirecionada efetiva")
+            )
+            .when(
+                F.col("_tipo_chamada") == "06", F.lit("Chamada redirecionada inefetiva")
+            )
+            .when(F.col("_tipo_chamada") == "07", F.lit("Procedimento de assinante"))
+            .when(
+                F.col("_tipo_chamada") == "08", F.lit("Evento não relativo a chamada")
+            )
+            .when(
+                F.col("_tipo_chamada") == "09", F.lit("Comando de serviço de assinante")
+            )
+            .when(F.col("_tipo_chamada") == "0A", F.lit("Chamada RDSI-E efetiva"))
+            .when(F.col("_tipo_chamada") == "0B", F.lit("Chamada RDSI-E inefetiva"))
+            .otherwise(F.lit(None).cast(T.StringType())),
+        )
+
+        df = df.withColumn(
+            "_resultado_chamada", F.col("_resultado_chamada").cast(T.IntegerType())
+        ).withColumn(
+            "resultado_chamada",
+            F.when(
+                F.col("_resultado_chamada") == 1, F.lit("Assinante Livre com Tarifação")
+            )
+            .when(F.col("_resultado_chamada") == 2, F.lit("Assinante Ocupado"))
+            .when(
+                F.col("_resultado_chamada") == 3, F.lit("Assinante com Número Mudado")
+            )
+            .when(F.col("_resultado_chamada") == 4, F.lit("Reserva"))
+            .when(
+                F.col("_resultado_chamada") == 5, F.lit("Assinante Livre com Tarifação")
+            )
+            .when(
+                F.col("_resultado_chamada") == 6,
+                F.lit("Assinante Livre Com Tarifação Retenção Ass. B"),
+            )
+            .when(F.col("_resultado_chamada") == 7, F.lit("Número inexistente"))
+            .when(F.col("_resultado_chamada") == 8, F.lit("Número com defeito"))
+            .when(
+                (F.col("_resultado_chamada") >= 9)
+                & (F.col("_resultado_chamada") <= 19),
+                F.lit("Reserva"),
+            )
+            .when(
+                F.col("_resultado_chamada") == 20,
+                F.lit("Temporização na Entrada  ( CO0 )"),
+            )
+            .when(
+                F.col("_resultado_chamada") == 21,
+                F.lit("Falha  de Sinalização na Entrada  ( CO0 )"),
+            )
+            .when(
+                (F.col("_resultado_chamada") >= 22)
+                & (F.col("_resultado_chamada") <= 23),
+                F.lit("Reserva"),
+            )
+            .when(
+                F.col("_resultado_chamada") == 24,
+                F.lit("Congestionamento no Destino ( CO2 )"),
+            )
+            .when(F.col("_resultado_chamada") == 25, F.lit("Reserva"))
+            .when(
+                F.col("_resultado_chamada") == 26,
+                F.lit("Congestionamento Interno   ( CO1 )"),
+            )
+            .when(
+                F.col("_resultado_chamada") == 27,
+                F.lit("Falha Interna na Central   ( CO1 )"),
+            )
+            .when(
+                F.col("_resultado_chamada") == 28,
+                F.lit("Temporização na Saída   ( CO3 )"),
+            )
+            .when(
+                F.col("_resultado_chamada") == 29,
+                F.lit("Falha de Sinalização na Saída (CO3 )"),
+            )
+            .when(
+                (F.col("_resultado_chamada") >= 30)
+                & (F.col("_resultado_chamada") <= 99),
+                F.lit("Reserva"),
+            )
+            .otherwise(F.lit("Desconexão Prematura")),
+        )
+
+        df = self._apply_standard_pipeline(df, date_time_fmt)
+        self._write_parquet(df, target_file)
+
+        return target_file
