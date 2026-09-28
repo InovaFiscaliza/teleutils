@@ -54,7 +54,7 @@ class CDRTextSchema:
 
     name: str
     delimiter: str | None
-    schema: T.StructType | None
+    schema: T.StructType | str | None
     has_header: bool
     lines_to_keep: tuple[str, str] | None
     column_indices: tuple[int, ...]
@@ -86,7 +86,7 @@ class CDRTextSchema:
         """
         object.__setattr__(self, "column_indices", tuple(self.column_indices))
         object.__setattr__(self, "column_names", tuple(self.column_names))
-        if self.schema is not None and not isinstance(self.schema, T.StructType):
+        if self.schema is not None and not isinstance(self.schema, (T.StructType, str)):
             raise ValueError(
                 f"Schema '{self.name}': schema deve ser None ou um StructType. "
                 f"Recebido: {type(self.schema).__name__}"
@@ -129,7 +129,11 @@ class CDRTextSchema:
                 f"Schema '{self.name}': índices negativos não são permitidos. "
                 f"Recebido: {self.column_indices}"
             )
-        if self.schema is not None and max(self.column_indices) >= len(self.schema):
+        if (
+            self.schema is not None
+            and isinstance(self.schema, T.StructType)
+            and max(self.column_indices) >= len(self.schema)
+        ):
             raise ValueError(
                 f"Schema '{self.name}': schema possui {len(self.schema)} campo(s), "
                 f"mas column_indices requer o índice {max(self.column_indices)}."
@@ -215,10 +219,10 @@ TEXT_DEFAULT_SCHEMAS: dict[str, CDRTextSchema] = {
     "stfc_axe_claro": CDRTextSchema(
         name="AXE Claro",
         delimiter=None,
-        schema=None,
+        schema="value string",
         has_header=False,
         lines_to_keep=None,
-        column_indices=(1, 12, 14, 35, 59, 61, 67, 73, 79, 91, 102, 141),
+        column_indices=(2, 13, 15, 36, 60, 62, 68, 74, 80, 92, 103, 142),
         column_sizes=(8, 2, 18, 24, 2, 6, 6, 6, 6, 4, 4, 8),
         column_names=(
             "bilhetador",
@@ -235,6 +239,5 @@ TEXT_DEFAULT_SCHEMAS: dict[str, CDRTextSchema] = {
             "referencia",
         ),
         job_description="Extraindo CDR: STFC AXE Claro",
-        read_rdd=True,
     ),
 }
