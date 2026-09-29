@@ -1378,3 +1378,27 @@ class CDRTransformer(CDRBaseTransformer):
         self._write_parquet(df, target_file)
 
         return target_file
+
+    @log_operation
+    def transform_stfc_pcl_claro(
+        self, source_file: str, target_file: str, **kwargs
+    ) -> str:
+        date_time_fmt = "yyyyMMdd HHmmss"
+        df = self.spark.read.parquet(source_file)
+
+        df = _concat_date_time(df)
+
+        # Tipos de chamada PCL/Claro não estão documentados
+        df = df.withColumn("tipo_chamada", F.col("_tipo_chamada").cast(T.StringType()))
+
+        df = df.withColumn(
+            "resultado_chamada",
+            F.when(
+                F.col("_resultado_chamada") == "3", F.lit("b-AnswerHasBeenReceived")
+            ).otherwise(F.lit(None).cast(T.StringType())),
+        )
+
+        df = self._apply_standard_pipeline(df, date_time_fmt)
+        self._write_parquet(df, target_file)
+
+        return target_file
