@@ -240,4 +240,29 @@ TEXT_DEFAULT_SCHEMAS: dict[str, CDRTextSchema] = {
         ),
         job_description="Extraindo CDR: STFC AXE Claro",
     ),
+    "stfc_pcl_claro": CDRTextSchema(
+        name="PCL Claro",
+        delimiter=None,
+        schema="value string",
+        has_header=False,
+        lines_to_keep=None,
+        column_indices=(5, 24, 32, 90, 98, 110, 116, 138, 297, 313, 499, 519, 550),
+        column_sizes=(3, 8, 2, 8, 6, 6, 22, 28, 8, 8, 10, 10, 1),
+        column_names=(
+            "tecnologia_fornecedor",
+            "bilhetador",
+            "_tipo_chamada",
+            "_data",
+            "_hora",
+            "duracao",
+            "numero_origem",
+            "numero_destino",
+            "rota_entrada",
+            "rota_saida",
+            "referencia_sip",  # Nokia
+            "referencia",  # Ericsson
+            "_resultado_chamada",
+        ),
+        job_description="Extraindo CDR: STFC PCL Claro",
+    ),
 }
