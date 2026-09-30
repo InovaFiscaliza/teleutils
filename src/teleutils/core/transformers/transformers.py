@@ -1402,3 +1402,82 @@ class CDRTransformer(CDRBaseTransformer):
         self._write_parquet(df, target_file)
 
         return target_file
+
+    @log_operation
+    def transform_stfc_tropico_claro(
+        self, source_file: str, target_file: str, **kwargs
+    ) -> str:
+        date_time_fmt = "ddMMyyyy HHmmss"
+        df = self.spark.read.parquet(source_file)
+
+        df = _concat_date_time(df)
+
+        # Tipos de chamada PCL/Claro não estão documentados
+        df = df.withColumn(
+            "tipo_chamada",
+            F.when(F.col("_tipo_chamada") == "04", F.lit("tandem"))
+            .otherwise(F.lit(None).cast(T.StringType()))
+            .cast(T.StringType()),
+        )
+
+        df = df.withColumn(
+            "resultado_chamada",
+            F.when(
+                F.col("_resultado_chamada") == "003",
+                F.lit("chamada com atendimento e desligamento lado A ou B"),
+            )
+            .when(
+                F.col("_resultado_chamada") == "006",
+                F.lit("chamada com atendimento e desligamento lado A ou B"),
+            )
+            .when(
+                F.col("_resultado_chamada") == "013", F.lit("assinante B não atendeu")
+            )
+            .when(F.col("_resultado_chamada") == "014", F.lit("assinante B ocupado"))
+            .when(F.col("_resultado_chamada") == "015", F.lit("número mudado"))
+            .when(
+                F.col("_resultado_chamada") == "016",
+                F.lit("assinante B fora de serviço"),
+            )
+            .when(F.col("_resultado_chamada") == "017", F.lit("unknown destination"))
+            .when(F.col("_resultado_chamada") == "018", F.lit("denied acess"))
+            .when(F.col("_resultado_chamada") == "019", F.lit("route failure"))
+            .when(F.col("_resultado_chamada") == "020", F.lit("congestion"))
+            .when(F.col("_resultado_chamada") == "021", F.lit("tecnical fail"))
+            .when(F.col("_resultado_chamada") == "022", F.lit("dest congestion"))
+            .when(F.col("_resultado_chamada") == "023", F.lit("signal"))
+            .when(F.col("_resultado_chamada") == "024", F.lit("controller restart"))
+            .when(
+                F.col("_resultado_chamada") == "025", F.lit("application intervation")
+            )
+            .when(
+                F.col("_resultado_chamada") == "026",
+                F.lit("calling party idle timeout"),
+            )
+            .when(F.col("_resultado_chamada") == "027", F.lit("calling party abandon"))
+            .when(F.col("_resultado_chamada") == "028", F.lit("internal error"))
+            .when(F.col("_resultado_chamada") == "029", F.lit("unmapped event"))
+            .when(
+                F.col("_resultado_chamada") == "030",
+                F.lit("error application intervation"),
+            )
+            .when(F.col("_resultado_chamada") == "031", F.lit("demais causas"))
+            .when(F.col("_resultado_chamada") == "032", F.lit("normal disconnection"))
+            .when(F.col("_resultado_chamada") == "033", F.lit("erro atuação aplicação"))
+            .when(
+                F.col("_resultado_chamada") == "102",
+                F.lit("chamada que não atingiu a fase de conversação"),
+            )
+            .when(
+                F.col("_resultado_chamada") == "104",
+                F.lit("chamada que não atingiu a fase de conversação"),
+            )
+            .when(F.col("_resultado_chamada") == "201", F.lit("fatia da chamada"))
+            .when(F.col("_resultado_chamada") == "202", F.lit("fatia da chamada"))
+            .otherwise(F.lit("unknown")),
+        )
+
+        df = self._apply_standard_pipeline(df, date_time_fmt)
+        self._write_parquet(df, target_file)
+
+        return target_file
