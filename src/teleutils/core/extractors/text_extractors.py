@@ -106,6 +106,9 @@ class CDRTextExtractor:
         source_file: str,
         target_file: str,
         cdr_schema: str,
+        *,
+        operator: str = "",
+        cdr_type: str = "",
     ) -> str:
         """Lê, seleciona, renomeia, filtra e persiste registros de um layout CDR.
 
@@ -222,11 +225,19 @@ class CDRTextExtractor:
             ]
             df = df.select(*columns_to_keep)
 
+        if operator:
+            operator_expression = F.lit(operator)
+        else:
+            operator_expression = F.element_at(F.split(F.input_file_name(), "/"), -3)
+        if cdr_type:
+            cdr_type_expression = F.lit(cdr_type)
+        else:
+            cdr_type_expression = F.element_at(F.split(F.input_file_name(), "/"), -2)
         df = df.withColumns(
             {
                 "esquema": F.lit(cdr_schema),
-                "prestadora": F.element_at(F.split(F.input_file_name(), "/"), -3),
-                "tipo_cdr": F.element_at(F.split(F.input_file_name(), "/"), -2),
+                "prestadora": operator_expression,
+                "tipo_cdr": cdr_type_expression,
                 "arquivo_origem": F.url_decode(
                     F.element_at(F.split(F.input_file_name(), "/"), -1)
                 ),
