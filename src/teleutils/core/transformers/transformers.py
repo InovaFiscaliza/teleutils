@@ -1481,3 +1481,30 @@ class CDRTransformer(CDRBaseTransformer):
         self._write_parquet(df, target_file)
 
         return target_file
+
+    @log_operation
+    def transform_stfc_pit_claro(
+        self, source_file: str, target_file: str, **kwargs
+    ) -> str:
+        date_time_fmt = "yyyyMMddHHmmss"
+        df = self.spark.read.parquet(source_file)
+
+        df = df.withColumns(
+            {
+                "data_hora": F.substring(F.col("_data_hora"), 1, 14),
+                "data_hora_fim": F.substring(F.col("_data_hora_fim"), 1, 14),
+            }
+        )
+
+        # Tipos de chamada Originada/Terminada são baseados na prestadora de origem
+        df = df.withColumn(
+            "tipo_chamada",
+            F.when(F.col("_prestadora_origem") == "BRAEBT", F.lit("Originating"))
+            .otherwise(F.lit("Terminating").cast(T.StringType()))
+            .cast(T.StringType()),
+        )
+
+        df = self._apply_standard_pipeline(df, date_time_fmt)
+        self._write_parquet(df, target_file)
+
+        return target_file
