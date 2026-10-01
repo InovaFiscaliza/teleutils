@@ -24,7 +24,10 @@ from dataclasses import dataclass
 
 from pyspark.sql import types as T  # type: ignore
 
-from teleutils.core.extractors.schemas._claro import stfc_pit_claro_schema
+from teleutils.core.extractors.schemas._claro import (
+    stfc_pit_claro_schema,
+    stfc_ss8bf_claro_schema,
+)
 
 
 @dataclass(frozen=True)
@@ -341,5 +344,27 @@ TEXT_DEFAULT_SCHEMAS: dict[str, CDRTextSchema] = {
             "_prestadora_origem",
         ),
         job_description="Extraindo CDR: STFC Pit Claro",
+    ),
+    "stfc_ss8bf_claro": CDRTextSchema(
+        name="SS8BF Claro",
+        delimiter=",",
+        schema=stfc_ss8bf_claro_schema,
+        has_header=False,
+        lines_to_keep=(("_data_hora", "is not null")),
+        column_indices=(2, 3, 4, 5, 10, 11, 17, 63, 125, 126),
+        column_sizes=(),
+        column_names=(
+            "_data_hora",
+            "duracao",
+            "bilhetador",
+            "_referencia",
+            "numero_destino",
+            "numero_origem",
+            "resultado_chamada",
+            "_sigame",
+            "rota_entrada",
+            "rota_saida",
+        ),
+        job_description="Extraindo CDR: STFC SS8BF Claro",
     ),
 }
