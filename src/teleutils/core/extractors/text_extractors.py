@@ -246,13 +246,19 @@ class CDRTextExtractor:
 
         if schema.lines_to_keep is not None:
             col_name, col_value = schema.lines_to_keep
+            if col_value == "is not null":
+                filter_expression = F.col(col_name).isNotNull()
+            elif col_value == "is null":
+                filter_expression = F.col(col_name).isNull()
+            else:
+                filter_expression = F.col(col_name) == F.lit(col_value)
             logger.info(
                 "Aplicando filtro: %s = '%s' para o esquema '%s'",
                 col_name,
                 col_value,
                 schema.name,
             )
-            df = df.filter(F.col(col_name) == F.lit(col_value))
+            df = df.filter(filter_expression)
 
         logger.info(
             "Escrevendo DataFrame extraído para parquet: %s",
