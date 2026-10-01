@@ -1508,3 +1508,91 @@ class CDRTransformer(CDRBaseTransformer):
         self._write_parquet(df, target_file)
 
         return target_file
+
+    @log_operation
+    def transform_stfc_ss8bf_claro(
+        self, source_file: str, target_file: str, **kwargs
+    ) -> str:
+        date_time_fmt = "yyyy-MM-dd'T'HH:mm:ss"
+        df = self.spark.read.parquet(source_file)
+
+        df = df.withColumns(
+            {
+                "data_hora": F.substring(F.col("_data_hora"), 1, 19),
+                "data_hora_referencia": F.substring(F.col("_referencia"), 1, 19),
+                "referencia": F.substring(F.col("_referencia"), 52, 8),
+            }
+        )
+
+        # Tipos de chamada Originada/Terminada são baseados na prestadora de origem
+        df = df.withColumn(
+            "resultado_chamada",
+            F.when(F.col("_resultado_chamada") == "0", "Call was completed")
+            .when(
+                F.col("_resultado_chamada") == "1",
+                "Call was not completed due to called party busy",
+            )
+            .when(
+                F.col("_resultado_chamada") == "2",
+                "Call was not completed due to invalid dialed number",
+            )
+            .when(
+                F.col("_resultado_chamada") == "3",
+                "Call was not completed due to lack of available lines/trunks to complete the call",
+            )
+            .when(
+                F.col("_resultado_chamada") == "4",
+                "Call was not completed due to calling party aborting the call prior to answer",
+            )
+            .when(
+                F.col("_resultado_chamada") == "5",
+                "Call was not completed due to called party not answering the call",
+            )
+            .when(
+                F.col("_resultado_chamada") == "6",
+                "Call was not completed due to a network problem",
+            )
+            .when(
+                F.col("_resultado_chamada") == "7",
+                "Call was not completed due to unknown reasons",
+            )
+            .when(
+                F.col("_resultado_chamada") == "8",
+                "Call was not completed due to no subscriber account",
+            )
+            .when(
+                F.col("_resultado_chamada") == "9",
+                "Call was not completed due to unauthorized subscriber",
+            )
+            .cast(T.StringType()),
+        )
+
+        forwarding = F.col("_numero_encaminhado").isNotNull().cast("boolean")
+        originating = F.col("_identificador_origem")
+        terminating = F.col("_identificador_destino")
+
+        df = df.withColumn(
+            "tipo_chamada",
+            F.when(
+                originating == "900",
+                "Originating",
+            )
+            .when(
+                (originating == "901") & terminating.isin("902", "903") & forwarding,
+                "Forwarding",
+            )
+            .when(
+                (originating == "901") & (terminating == "902") & (forwarding == False),
+                "Terminating",
+            )
+            .when(
+                (originating == "901") & (terminating == "903") & (forwarding == False),
+                "Transit",
+            )
+            .otherwise("Unknown"),
+        )
+
+        df = self._apply_standard_pipeline(df, date_time_fmt)
+        self._write_parquet(df, target_file)
+
+        return target_file
