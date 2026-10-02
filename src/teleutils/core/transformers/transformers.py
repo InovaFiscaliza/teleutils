@@ -1268,6 +1268,42 @@ class CDRTransformer(CDRBaseTransformer):
         return target_file
 
     @log_operation
+    def transform_stfc_7n_oi(self, source_file: str, target_file: str, **kwargs) -> str:
+        date_time_fmt = "ddMMyyyy HHmmss"
+        df = self.spark.read.parquet(source_file)
+
+        df = _concat_date_time(df)
+
+        df = df.withColumn(
+            "resultado_chamada",
+            F.when(
+                F.col("_resultado_chamada") == "10",
+                F.lit("Chamada completada"),
+            )
+            .when(F.col("_resultado_chamada") == "31", F.lit("Não responde"))
+            .when(F.col("_resultado_chamada") == "32", F.lit("linha ocupada"))
+            .when(
+                F.col("_resultado_chamada") == "44",
+                F.lit("Congestionamento"),
+            )
+            .when(F.col("_resultado_chamada") == "48", F.lit("Falha"))
+            .when(
+                F.col("_resultado_chamada").isin("50", "51", "52", "53"),
+                F.lit("Outros"),
+            )
+            .when(
+                F.col("_resultado_chamada") == "99",
+                F.lit("Não identificado"),
+            )
+            .otherwise(F.lit(None).cast(T.StringType())),
+        )
+
+        df = self._apply_standard_pipeline(df, date_time_fmt)
+        self._write_parquet(df, target_file)
+
+        return target_file
+
+    @log_operation
     def transform_stfc_axe_claro(
         self, source_file: str, target_file: str, **kwargs
     ) -> str:
