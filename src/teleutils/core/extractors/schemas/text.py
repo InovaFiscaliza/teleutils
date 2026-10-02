@@ -67,6 +67,7 @@ class CDRTextSchema:
     column_names: tuple[str, ...]
     job_description: str
     read_rdd: bool = False
+    fill_char: str = ""
 
     def __post_init__(self) -> None:
         """Normaliza e valida a consistência da configuração antes da extração.
@@ -219,6 +220,7 @@ TEXT_DEFAULT_SCHEMAS: dict[str, CDRTextSchema] = {
         ),
         job_description="Extraindo CDR: STFC 7N Oi",
         read_rdd=True,
+        fill_char="-",
     ),
     "stfc_tropico_oi": CDRTextSchema(
         name="Tropico Oi",
@@ -244,6 +246,7 @@ TEXT_DEFAULT_SCHEMAS: dict[str, CDRTextSchema] = {
         ),
         job_description="Extraindo CDR: STFC Tropico Oi",
         read_rdd=True,
+        fill_char="-",
     ),
     "stfc_axe_claro": CDRTextSchema(
         name="AXE Claro",

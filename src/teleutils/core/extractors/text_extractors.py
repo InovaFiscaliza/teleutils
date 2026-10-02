@@ -185,14 +185,19 @@ class CDRTextExtractor:
             )
         # Processamento de arquivos de largura fixa (fixed-width) quando column_sizes está definido.
         if schema.column_sizes:
-            columns_expressions = [
-                F.trim(
-                    F.regexp_replace(F.substring(F.col("value"), indice, size), "-", "")
-                ).alias(name)
-                for indice, size, name in zip(
-                    schema.column_indices, schema.column_sizes, schema.column_names
-                )
-            ]
+            columns_expressions = []
+            for indice, size, name in zip(
+                schema.column_indices, schema.column_sizes, schema.column_names
+            ):
+                col_expression = F.substring(F.col("value"), indice, size)
+                # Se o schema possui caractere de preenchimento definido à direita (ex: "-")
+                if schema.fill_char:
+                    # r"-+$" garante que só altera os caracteres de preenchimento no final do campo
+                    fill_pattern = f"{schema.fill_char}+$"
+                    col_expression = F.regexp_replace(col_expression, fill_pattern, "")
+                # Trim para garantir remoção de espaços em branco remanescentes
+                col_expression = F.trim(col_expression)
+                columns_expressions.append(col_expression.alias(name))
             df = df.select(*columns_expressions)
         # Leitura de arquivo CSV padrão quando column_sizes não está definido.
         else:
