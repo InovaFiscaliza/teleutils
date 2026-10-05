@@ -39,7 +39,7 @@ def log_operation(method: Callable) -> Callable:
             logger.exception(
                 "Falha na operação [%s]: %s %s",
                 method.__name__,
-                source_file,
+                source_file_log,
                 e,  # noqa: TRY401
             )
             raise
