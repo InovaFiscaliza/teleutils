@@ -12,19 +12,38 @@ Responsabilidades principais:
     - Persistir resultado no contrato final de dados.
 
 Principais funcionalidades:
-    - Transformação para Ericsson.
-    - Transformação para TIM/Huawei.
-    - Transformação para Vivo/FCDR.
-    - Transformação para Nokia.
+    - Pré-processamento de layouts SMP Ericsson, Huawei VoLTE e Nokia GSM.
+    - Pré-processamento de layouts STFC Huawei NGN, Vivo FCDR e Oi/Claro.
+    - Composição de datas, células, IMSIs e IMEIs e classificação de códigos.
 
 Dependências relevantes:
     - pyspark.sql (SparkSession e funções colunares)
     - teleutils._logging.log_operation
     - teleutils.core.transformers.base_transformer.CDRBaseTransformer
 
+Notes:
+    Os métodos de layout leem Parquet intermediário, aplicam ajustes específicos
+    e delegam a normalização comum ao transformador base. Esse pipeline completa
+    colunas ausentes, converte datas segundo a máscara do layout, aplica
+    ``MIN_SAFE_DATE``, normaliza duração e números, deriva autenticação e preenche
+    nulos da chave primária. A normalização telefônica usa a UDF
+    ``spark_normalize_number`` e produz números formatados e indicadores de
+    validade, preservando os números originais quando disponibilizados.
+
+    As expressões constroem planos distribuídos; a escrita materializa os dados.
+    ``_write_parquet`` seleciona, converte e renomeia as colunas de
+    ``TARGET_SCHEMA``, descarta campos fora do contrato e sobrescreve o destino
+    particionado por ``no_tipo_chamada``. Os métodos retornam o caminho de saída,
+    não um DataFrame. ``log_operation`` registra início, sucesso e falhas,
+    relançando exceções.
+
+    ``transform`` procura funções no namespace global do módulo, não métodos da
+    classe. Este arquivo não define funções globais ``transform_<cdr_schema>``;
+    os métodos de layout podem ser chamados diretamente.
+
 Example:
     >>> transformer = CDRTransformer(spark)
-    >>> df = transformer.transform_cdr_nokia("/tmp/in", "/tmp/out")
+    >>> destino = transformer.transform_smp_gsm_nokia("/tmp/in", "/tmp/out")
 """
 
 from __future__ import annotations
@@ -64,7 +83,9 @@ def _check_output_format(
 
     Args:
         output_format: Formato de saída a ser verificado.
-        valid_output_formats: Conjunto de formatos de saída válidos.
+        valid_output_formats: Conjunto de formatos aceitos. O padrão contém
+            ``default``, ``smp_ericsson_gsm_tim``, ``smp_huawei_volte_tim`` e
+            ``smp_nokia_algar``; a comparação é exata.
 
     Raises:
         ValueError: Se o formato de saída não estiver no conjunto de válidos.
@@ -112,21 +133,23 @@ def _concat_or_null(separator: str, *columns):
 
     Returns:
         Column: Expressão Spark com o resultado de ``concat_ws`` quando todas
-        as colunas estiverem preenchidas, ou ``NULL`` caso qualquer uma delas
+        as colunas forem não nulas, ou ``NULL`` caso qualquer uma delas
         seja nula.
+
+    Raises:
+        TypeError: Se nenhum componente for fornecido, pois ``reduce`` não
+            recebe um valor inicial para uma sequência vazia.
 
     Notes:
         Regra de negócio: um identificador composto só é válido quando todos
         os seus componentes existem; a presença de um único componente nulo
-        invalida o composto inteiro.
+        invalida o composto inteiro. Strings vazias não são tratadas aqui;
+        ``_build_composite_column`` normaliza os componentes recebidos por nome.
     """
-    # 1. Normaliza os argumentos garantindo objetos Column
     cols = [F.col(c) if isinstance(c, str) else c for c in columns]
 
-    # 2. Retorna True se QUALQUER coluna for NULL
     has_any_null = reduce(or_, [c.isNull() for c in cols])
 
-    # 3. Retorna NULL se houver algum nulo, caso contrário, executa o concat_ws
     return F.when(has_any_null, F.lit(None)).otherwise(F.concat_ws(separator, *cols))
 
 
@@ -154,12 +177,18 @@ def _build_composite_column(
 
     Returns:
         Column: Expressão Spark com o composto final, ou ``NULL`` caso algum
-        componente esteja ausente/em branco.
+        componente seja nulo ou um componente recebido por nome esteja em branco.
+
+    Raises:
+        TypeError: Se ``components`` estiver vazio, pela redução sem valor
+            inicial em ``_concat_or_null``.
 
     Notes:
-        Regra de negócio: o zero-padding de 5 caracteres reflete o tamanho
-        máximo esperado para campos como LAC/CI/TAC em formato decimal,
-        garantindo largura fixa e comparável entre fornecedores.
+        Componentes recebidos como expressões não passam por ``_null_if_blank``
+        nem pelo preenchimento. Nos componentes nomeados, valores não vazios
+        preservam o conteúdo original, sem retirar espaços das bordas.
+        ``lpad`` produz largura de 5 caracteres e também trunca valores maiores;
+        não há validação prévia dessa largura.
     """
     columns = []
     for component in components:
@@ -184,16 +213,21 @@ def _concat_date_time(
         df: DataFrame de entrada.
         start_date: Nome da coluna contendo a data de início.
         start_time: Nome da coluna contendo a hora de início.
-        stop_date: Nome da coluna contendo a data de término.
-        stop_time: Nome da coluna contendo a hora de término.
-
+        stop_date: Nome da coluna contendo a data de término. Padrão: ``_data_fim``.
+        stop_time: Nome da coluna contendo a hora de término. Padrão: ``_hora_fim``.
 
     Returns:
         DataFrame: Cópia do DataFrame de entrada com ``data_hora`` adicionada
-        ou atualizada. ``data_hora_fim`` também é adicionada quando as colunas
-        de origem ``_data_fim`` e ``_hora_fim`` existem. A conversão dessas
+        ou atualizada. ``data_hora_fim`` também é adicionada ou atualizada quando
+        as colunas indicadas por ``stop_date`` e ``stop_time`` existem. A conversão dessas
         strings para timestamp é realizada posteriormente por
         ``_apply_standard_pipeline``.
+
+    Notes:
+        Os componentes são unidos por espaço e o resultado é nulo quando algum
+        deles é nulo ou está em branco. As colunas de início são necessárias;
+        se faltar uma coluna de término, ``data_hora_fim`` permanece inalterada
+        ou ausente, para tratamento posterior pelo pipeline comum.
     """
     columns = {
         "data_hora": _build_composite_column(
@@ -229,11 +263,17 @@ def _extract_cell_info(
 
     Returns:
         DataFrame: Cópia do DataFrame de entrada com as colunas
-        as colunas especificadas em ``out_col_tec`` e ``out_col_cell_id`` adicionadas.
+        especificadas em ``out_col_tec`` e ``out_col_cell_id`` adicionadas ou
+        substituídas. A tecnologia é o primeiro trecho separado por ``;``;
+        o identificador é o grupo hexadecimal encontrado após ``3gpp=``.
 
     Raises:
         ValueError: Se ``df`` ou ``col_name`` não forem informados, ou se
             ``col_name`` não existir entre as colunas de ``df``.
+
+    Notes:
+        ``regexp_extract`` retorna string vazia quando o padrão não é encontrado
+        em uma entrada não nula. Esta função não converte esse resultado em nulo.
     """
     if df is None:
         raise ValueError("O parâmetro 'df' é obrigatório e não foi informado.")
@@ -274,31 +314,40 @@ def _format_cell_id(df, col_name, out_col, gnb_id_bits=26, output_format="defaul
             gravado (pode coincidir com ``col_name`` para sobrescrever).
         gnb_id_bits: Quantidade de bits reservados ao identificador do gNB
             dentro do NCGI (5G). Os bits restantes (até completar 36) são
-            atribuídos ao Cell ID. Valor padrão de 26 bits segue a convenção
-            usual 3GPP para NCGI de 36 bits.
-        output_format: Formato de saída desejado para o identificador de célula.
-            Pode assumir valores como ``default`` (padrão) ou outros formatos suportados pelo sistema.
-            default: Mantém o formatação padrão ``mcc-mnc-area-celula``.
-            tim: Utiliza os formatos da prestadora TIM para identificadores 3G/4G/5G:
-                3G: _not implemented_
-                4G: mcc-mnc-eci
-                5G: _not implemented_
+            atribuídos ao Cell ID. O padrão da implementação é 26 bits.
+        output_format: Uma das chaves de ``_VALID_OUTPUT_FORMATS``. Para 3G,
+            ``smp_ericsson_gsm_tim`` e ``smp_nokia_algar`` não completam os
+            componentes de área e célula com zeros. Para 4G,
+            ``smp_huawei_volte_tim`` produz ``mcc-mnc-eci``. As demais combinações
+            usam a representação detalhada; 5G independe dessa opção.
 
     Returns:
         DataFrame: Cópia do DataFrame de entrada com a coluna ``out_col``
-        adicionada/atualizada, contendo o identificador formatado no padrão
-        ``mcc-mnc-area-celula``, o valor original (quando o comprimento não
+                adicionada/atualizada, contendo o identificador formatado segundo
+                ``output_format``, o valor original (quando o comprimento não
         corresponde a nenhum layout conhecido) ou ``NULL`` quando a formatação
         resultar em string vazia.
 
+    Raises:
+        ValueError: Se ``output_format`` não estiver em ``_VALID_OUTPUT_FORMATS``.
+            Uma partição com ``gnb_id_bits > 36`` também produz deslocamento
+            negativo ao construir a máscara em Python.
+
     Notes:
-        - Algoritmo não trivial: o comprimento da string (13, 16 ou 20
-          caracteres) determina qual layout (3G/4G/5G) é aplicado; os campos
-          binários do NCGI são extraídos via deslocamento e máscara de bits
-          (``shiftright``/``bitwiseAND``) para separar gNB ID e Cell ID.
-        - Anotação de manutenção: ``gnb_id_bits`` deve ser ajustado caso a
-          operadora utilize uma partição de bits diferente da convenção
-          padrão 26/10 para NCGI.
+        O comprimento, não a coluna de tecnologia, escolhe o layout. Nos três
+        casos, MCC ocupa os caracteres 1 a 3 e MNC os caracteres 4 e 5.
+        Em 3G (13 caracteres), área e célula são convertidas do hexadecimal
+        nas posições 6 e 10, com largura 4; o formato detalhado usa largura 5.
+        Em 4G (16 caracteres), o ECI vem da posição 10, com largura 7: a divisão
+        inteira por 256 produz o eNB e o resto produz a célula, preenchidos com
+        zeros até larguras 7 e 3. Em 5G (20 caracteres), os 9 caracteres a partir
+        da posição 12 formam o NCGI; deslocamento e máscara separam gNB e célula,
+        preenchidos até larguras 8 e 4.
+
+        ``gnb_id_bits`` não tem validação de faixa e a máscara é construída
+        independentemente da tecnologia dos registros. As composições usam
+        ``concat_ws``, que ignora componentes nulos: não há exigência de todos
+        os componentes presentes, diferentemente de ``_concat_or_null``.
     """
     col = F.col(col_name)
     length = F.length(col)
@@ -378,10 +427,10 @@ def _format_cell_id(df, col_name, out_col, gnb_id_bits=26, output_format="defaul
 
 
 class CDRTransformer(CDRBaseTransformer):
-    """Transformador de CDRs Teleparser com regras por fornecedor.
+    """Transformador de CDRs intermediários com regras por fornecedor/layout.
 
     A classe especializa o transformador base para lidar com peculiaridades de
-    layouts de entrada processados pelo Teleparser. Cada método de
+    layouts de entrada em Parquet. Cada método de
     transformação encapsula ajustes de campos que antecedem a execução do
     pipeline padrão.
 
@@ -391,7 +440,13 @@ class CDRTransformer(CDRBaseTransformer):
 
     Attributes:
         spark:
-            Sessão Spark utilizada para leitura, transformação e escrita.
+            Nova sessão criada por ``spark.newSession()`` no construtor base,
+            configurada com ``spark.sql.timestampType=TIMESTAMP_NTZ``.
+        default_mcc: Expressão literal de ``DEFAULT_MCC`` para células Nokia.
+        algar_mnc: Expressão literal de ``ALGAR_MNC`` para células Nokia/Algar.
+        claro_mnc: Expressão literal de ``CLARO_MNC`` para células Nokia/Claro.
+        min_safe_date: Expressão de ``MIN_SAFE_DATE`` herdada para datas e chave.
+        null_sentinel_value: Expressão do sentinela textual herdada para a chave.
 
     Notes:
         Novos fornecedores devem ser adicionados como métodos dedicados,
@@ -406,7 +461,12 @@ class CDRTransformer(CDRBaseTransformer):
         """Inicializa o transformador com sessão Spark ativa.
 
         Args:
-            spark: Sessão Spark compartilhada pelo pipeline de transformação.
+            spark: Sessão Spark a partir da qual o construtor base cria a sessão
+                usada pela instância.
+
+        Notes:
+            Configura a nova sessão para timestamps sem fuso e cria expressões
+            literais de MCC/MNC. Não lê nem grava arquivos na inicialização.
         """
 
         super().__init__(spark)
@@ -422,14 +482,30 @@ class CDRTransformer(CDRBaseTransformer):
         cdr_schema: str,
         output_format: str = "default",
     ) -> str:
-        """Transforma CDR genérico para o contrato padronizado do domínio.
+        """Valida o formato e encaminha a chamada a um transformador global.
 
         Args:
             source_file: Caminho parquet com CDRs de entrada.
             target_file: Caminho parquet de saída transformada.
+            cdr_schema: Sufixo usado na busca por ``transform_<cdr_schema>``
+                no namespace global deste módulo.
+            output_format: Chave aceita por ``_check_output_format``, repassada
+                ao transformador encontrado. O padrão é ``default``.
 
         Returns:
-            str: Caminho do parquet transformado em ``target_file``.
+            str: Retorno do transformador global encontrado, esperado como o
+                caminho de saída; este método não grava diretamente.
+
+        Raises:
+            ValueError: Se o formato não for aceito ou não houver um elemento
+                global com o nome solicitado.
+
+        Notes:
+            A busca não consulta os métodos da instância. Este arquivo define
+            os transformadores de layout como métodos de ``CDRTransformer``,
+            não como funções globais, portanto eles não são encontrados por
+            esta implementação. A existência do elemento global é verificada,
+            mas sua capacidade de chamada não é validada.
         """
 
         _check_output_format(output_format)
@@ -454,15 +530,27 @@ class CDRTransformer(CDRBaseTransformer):
         Args:
             source_file: Caminho parquet com CDRs Ericsson de entrada.
             target_file: Caminho parquet de saída transformada.
+            **kwargs: ``output_format`` é consultado com padrão ``"csv"``;
+                apenas o valor ``"tim"`` desativa o preenchimento de LAC e
+                CI/SAC com zeros. As demais opções são ignoradas.
 
         Returns:
             str: Caminho do parquet transformado em ``target_file``.
 
         Notes:
             - Regra de negócio: duração ausente resulta em ``0``.
-            - Efeito colateral: grava o resultado em ``target_file``.
-            - Anotação de manutenção: se o formato de duração mudar na origem,
-              este cálculo deve ser revisado antes do pipeline comum.
+            - A duração usa substrings nas posições 1, 4 e 7, com largura 2;
+                o método não valida o padrão ``HH:mm:ss`` antes das conversões.
+            - Datas são combinadas com horas e interpretadas por
+                ``yy-MM-dd HH:mm:ss``. O término usa ``_data`` e ``_hora_fim``.
+            - Células de origem/destino concatenam MCC, MNC, LAC e CI/SAC com
+                hífens. IMSIs concatenam MCC, MNC e MSIN, e IMEIs concatenam TAC
+                e SN, sem separador. Componentes nomeados em branco viram nulos;
+                qualquer componente nulo torna o identificador composto nulo.
+            - Grava Parquet com sobrescrita pelo pipeline de escrita herdado.
+                ``output_format`` não altera o formato de arquivo nem é validado
+                neste método; ``"csv"`` e ``"tim"`` não pertencem ao conjunto
+                aceito pelo despachante ``transform``.
         """
 
         output_format = kwargs.get("output_format", "csv")
@@ -482,7 +570,7 @@ class CDRTransformer(CDRBaseTransformer):
 
         df = _concat_date_time(df, stop_date="_data")
 
-        # Células da TIM não devem ter valores preenchidos com zeros à esquerda para lac e ci/sac.
+        # Apenas a opção literal "tim" desativa o preenchimento de LAC e CI/SAC.
         padded_origin_cells: tuple[str, ...]
         padded_destination_cells: tuple[str, ...]
 
@@ -550,14 +638,16 @@ class CDRTransformer(CDRBaseTransformer):
         Args:
             source_file: Caminho parquet com CDRs Nokia de entrada.
             target_file: Caminho parquet de saída transformada.
+            **kwargs: Opções adicionais aceitas, mas não utilizadas.
 
         Returns:
             str: Caminho do parquet transformado em ``target_file``.
 
         Notes:
             - Regra de negócio: múltiplos campos ``_duracao*`` são reduzidos a
-              uma única duração por registro via ``coalesce``; valores
-              ``"FFFFFF"`` são tratados como nulos antes da redução.
+                uma única duração por registro via ``coalesce``, na ordem das
+                colunas do DataFrame; valores ``"FFFFFF"`` são tratados como nulos
+                antes da redução.
             - Regra de negócio: para chamadas ``FORW``, o destino é derivado do
               campo ``numero_origem_encaminhamento``.
             - ``data_hora`` usa ``data_hora_alocacao_canal`` quando disponível
@@ -568,11 +658,17 @@ class CDRTransformer(CDRBaseTransformer):
               e MNC conforme ``prestadora``: Claro recebe ``CLARO_MNC`` e Algar
               recebe ``ALGAR_MNC``. Outros valores de prestadora resultam em MNC
               nulo e, consequentemente, em célula composta nula.
-            - ``_resultado_chamada`` é agrupado em faixas de códigos hexadecimais
-              antes da aplicação do pipeline comum.
-            - Efeito colateral: grava o resultado em ``target_file``.
-            - Anotação de manutenção: divergências residuais com parser legado
-              devem ser monitoradas em homologações futuras.
+            - LAC e CI são preenchidos até largura 5. As datas usam a máscara
+                ``dd/MM/yyyy HH:mm:ss`` no pipeline comum.
+            - ``_resultado_chamada`` é comparado com limites numéricos definidos
+                em hexadecimal: 0x0000 a 0x03FF vira ``normal clearing``;
+                0x0400 a 0x07FF, ``internal congestion``; 0x0800 a 0x0BFF,
+                ``external congestion``; 0x0C00 a 0x0FFF, ``subscriber errors``;
+                a partir de 0x1000, ``event codes``. Demais casos resultam em nulo.
+                Não há conversão explícita de uma string hexadecimal nessa etapa.
+            - O pré-processamento exige as colunas referenciadas e não verifica
+                se há pelo menos uma coluna ``_duracao*`` antes de ``coalesce``.
+            - Grava Parquet com sobrescrita pelo pipeline de escrita herdado.
         """
         date_time_fmt = "dd/MM/yyyy HH:mm:ss"
         df = self.spark.read.parquet(source_file)
@@ -659,7 +755,7 @@ class CDRTransformer(CDRBaseTransformer):
             .drop("_nokia_mnc")
         )
 
-        # Agrupar os valores de _resultado_chamada em faixas de códigos de status, conforme documentação Nokia:
+        # Os limites hexadecimais são constantes Python; a coluna não é decodificada aqui.
         # +--------------------+---------------------+
         # | _resultado_chamada | descrição           |
         # +--------------------+---------------------+
@@ -717,29 +813,47 @@ class CDRTransformer(CDRBaseTransformer):
         Args:
             source_file: Caminho parquet com CDRs SMP Huawei VoLTE TIM de entrada.
             target_file: Caminho parquet de saída transformada.
+            **kwargs: Opções adicionais aceitas, mas não utilizadas. O formato
+                de célula é fixado em ``smp_huawei_volte_tim`` internamente.
 
         Returns:
             str: Caminho do parquet transformado em ``target_file``.
 
+        Raises:
+            ValueError: Se a coluna ``_informacao_rede`` não existir ao executar
+                ``_extract_cell_info``.
+
         Notes:
-            - Efeito colateral: grava o resultado em ``target_file``.
+            - Grava Parquet com sobrescrita pelo pipeline de escrita herdado.
             - A regra de remoção de prefixo aplica ``substr(3, 9999)`` aos
-              números ATS sem autenticação, removendo os dois primeiros
-              caracteres da string.
-            - Anotação de manutenção: os ramos de ATS e IBCF dependem da
-              coluna ``tipo_cdr``. O contrato ``smp_huawei_volte_tim`` da extração
-              padrão disponibiliza ``_tipo_cdr``; este método não realiza essa
-              renomeação.
+                números ATS, removendo os dois primeiros caracteres da string
+                e invertendo em seguida os pares de caracteres por regex.
+                Essa regra independe do conteúdo da autenticação. Para IBCF,
+                extrai dígitos entre ``sip:`` e ``@`` ou ``;``; sem correspondência,
+                ``regexp_extract`` retorna string vazia em entradas não nulas.
+            - Os ramos de ATS e IBCF dependem da coluna ``tipo_cdr`` e dos valores
+                literais ``aTSRecord`` e ``iBCFRecord``; este método não renomeia
+                ``_tipo_cdr`` nem cria uma alternativa para essa coluna ausente.
             - Registros ``aTSRecord`` e ``iBCFRecord`` têm números e
               autenticação extraídos por regras distintas. Os atributos de célula, IMEI e
               IMSI são atribuídos à origem ou ao destino apenas para os papéis
               ``oRIGINATING-ROLE`` e ``tERMINATING-ROLE``.
             - Os timestamps são truncados aos 19 primeiros caracteres antes do pipeline
-              comum. O IMSI é obtido apenas do primeiro objeto do JSON em ``_info_imsi``
-              quando seu tipo é ``eND-USER-IMSI``.
+                comum, que usa ``yyyy-MM-dd HH:mm:ss``; a informação posterior,
+                inclusive o fuso, não participa do parsing. O IMSI é obtido apenas do primeiro objeto do JSON em ``_info_imsi``
+                quando seu tipo é ``eND-USER-IMSI``.
+            - A origem ATS usa ``$[0].tEL-URI`` e a origem IBCF usa
+                ``$[0].sIP-URI`` de ``_numero_origem_ats_ibcf``. Os valores anteriores
+                à normalização são guardados nas colunas ``_numero_*_original``.
+                A autenticação extrai ``verstat=`` seguido de letras ou hífens,
+                de ``_numero_origem_auth`` para ATS e do campo compartilhado para
+                os demais registros. IMEI só é mantido quando ``_info_imei == "iMEI"``.
             - ``codigo_resposta_sip`` é preenchido somente para valores de
               ``_resultado_chamada`` maiores ou iguais a 200; a mesma coluna é então
               classificada em faixas e códigos específicos para compor ``resultado_chamada``.
+              Em IBCF, o código vem de ``SIP;cause=<dígitos>;``. A classificação
+              cobre os intervalos (-400, -300] e (-300, -200], os códigos -3 a 5,
+              200 e as faixas SIP de 201 a 699; demais valores resultam em nulo.
         """
         date_time_fmt = "yyyy-MM-dd HH:mm:ss"
         df = self.spark.read.parquet(source_file)
@@ -971,9 +1085,14 @@ class CDRTransformer(CDRBaseTransformer):
         Args:
             source_file: Caminho parquet com CDRs SMP Ericsson VoLTE Vivo de entrada.
             target_file: Caminho parquet de saída transformada.
+            **kwargs: Opções adicionais aceitas, mas não utilizadas.
 
         Returns:
             str: Caminho do parquet transformado em ``target_file``.
+
+        Raises:
+            ValueError: Se ``_informacao_rede_origem`` ou
+                ``_informacao_rede_destino`` não existir ao extrair a tecnologia.
 
         Notes:
             - A coluna ``_numero_origem_original`` é dividida em ``;``: o
@@ -984,7 +1103,15 @@ class CDRTransformer(CDRBaseTransformer):
               removidos antes do pipeline comum.
             - ``_format_cell_id`` converte separadamente os identificadores
               hexadecimais de origem e destino para suas colunas de célula.
-            - Efeito colateral: grava o resultado em ``target_file``.
+            - O pipeline comum interpreta datas com ``yyyyMMdd HHmmss``; o
+                término combina ``_data`` com ``_hora_fim``. Códigos de tipo
+                1/3/4 viram ``msOriginating``/``callForwarding``/``msTerminating``.
+                Resultados 1/2/3 recebem os rótulos definidos no método; demais
+                códigos de tipo e resultado preservam o valor recebido.
+            - O pipeline comum usa ``numero_origem`` para normalização e depois
+                restaura ``_numero_origem_original`` no campo original de saída,
+                incluindo o trecho de autenticação que estava nessa coluna.
+            - Grava Parquet com sobrescrita pelo pipeline de escrita herdado.
         """
         date_time_fmt = "yyyyMMdd HHmmss"
         df = self.spark.read.parquet(source_file)
@@ -1007,7 +1134,7 @@ class CDRTransformer(CDRBaseTransformer):
         )
 
         # Extrair autenticação e prefixos adicionais dos números.
-        # A autenticação está contida na coluna _numero_origem,
+        # A autenticação está contida na coluna _numero_origem_original,
         # por exemplo: 551136128860;verstat=TN-Validation-Passe
         df = (
             df.withColumn("_split", F.split(F.col("_numero_origem_original"), ";"))
@@ -1061,19 +1188,24 @@ class CDRTransformer(CDRBaseTransformer):
         normalização restante ao pipeline comum.
 
         Args:
-            source_file: Caminho do arquivo de entrada no formato STFC Huawei NGN.
+            source_file: Caminho Parquet intermediário do layout STFC Huawei NGN.
             target_file: Diretório de saída em parquet padronizado.
+            **kwargs: Opções adicionais aceitas, mas não utilizadas.
 
         Returns:
             str: Caminho do parquet transformado em ``target_file``.
 
         Notes:
             - ``data_hora`` resulta da combinação de ``_data`` com ``_hora``;
-              ``data_hora_fim`` combina ``_data_fim`` com a mesma coluna
-              ``_hora``.
+                ``data_hora_fim`` combina ``_data_fim`` com ``_hora_fim`` quando
+                ambas existem. A máscara temporal é ``ddMMyyyy HHmmss``.
+            - Tipos 01/02/03/04/05 viram ``intra_office``, ``incoming_office``,
+                ``outgoing_office``, ``tandem`` e ``new_service``. Resultados
+                00/01/02 viram ``caller party on-hook``, ``called party on-hook``
+                e ``abnormal``.
             - Códigos não previstos em ``_tipo_chamada`` e ``_resultado_chamada``
               recebem o rótulo ``"unknown"``.
-            - Efeito colateral: grava o resultado em ``target_file``.
+            - Grava Parquet com sobrescrita pelo pipeline de escrita herdado.
         """
 
         date_time_fmt = "ddMMyyyy HHmmss"
@@ -1111,26 +1243,24 @@ class CDRTransformer(CDRBaseTransformer):
     def transform_stfc_huawei_ngn_tim(
         self, source_file: str, target_file: str, **kwargs
     ) -> str:
-        """Transforma registros do layout STFC Huawei NGN usando o pipeline padrão.
+        """Deriva o bilhetador do arquivo e normaliza o layout STFC Huawei NGN TIM.
 
-        Combina os campos de data e hora extraídos, converte os códigos de tipo
-        e status de chamada conhecidos para rótulos textuais e delega a
-        normalização restante ao pipeline comum.
+        Usa o primeiro trecho de ``arquivo_origem`` separado por ponto como
+        ``bilhetador`` e delega as demais operações ao pipeline comum.
 
         Args:
-            source_file: Caminho do arquivo de entrada no formato STFC Huawei NGN.
+            source_file: Caminho Parquet intermediário do layout Huawei NGN TIM.
             target_file: Diretório de saída em parquet padronizado.
+            **kwargs: Opções adicionais aceitas, mas não utilizadas.
 
         Returns:
             str: Caminho do parquet transformado em ``target_file``.
 
         Notes:
-            - ``data_hora`` resulta da combinação de ``_data`` com ``_hora``;
-              ``data_hora_fim`` combina ``_data_fim`` com a mesma coluna
-              ``_hora``.
-            - Códigos não previstos em ``_tipo_chamada`` e ``_resultado_chamada``
-              recebem o rótulo ``"unknown"``.
-            - Efeito colateral: grava o resultado em ``target_file``.
+            Não concatena campos de data/hora nem mapeia códigos de chamada.
+            A máscara temporal usada pelo pipeline é ``yyMMddHHmmss``.
+            ``arquivo_origem`` deve existir antes do pré-processamento.
+            Grava Parquet com sobrescrita pelo pipeline de escrita herdado.
         """
 
         date_time_fmt = "yyMMddHHmmss"
@@ -1156,19 +1286,24 @@ class CDRTransformer(CDRBaseTransformer):
         normalização restante ao pipeline comum.
 
         Args:
-            source_file: Caminho do arquivo de entrada no formato STFC Vivo FCDR.
+            source_file: Caminho Parquet intermediário do layout STFC Vivo FCDR.
             target_file: Diretório de saída em parquet padronizado.
+            **kwargs: Opções adicionais aceitas, mas não utilizadas.
 
         Returns:
             str: Caminho do parquet transformado em ``target_file``.
 
         Notes:
             - ``data_hora`` resulta da combinação de ``_data`` com ``_hora``;
-              ``data_hora_fim`` combina ``_data_fim`` com a mesma coluna
-              ``_hora``.
-            - Códigos não previstos em ``_tipo_chamada`` e ``_resultado_chamada``
-              recebem o rótulo ``"unknown"``.
-            - Efeito colateral: grava o resultado em ``target_file``.
+                ``data_hora_fim`` combina ``_data_fim`` com ``_hora_fim`` quando
+                ambas existem. A máscara temporal é ``ddMMyy HHmmss``.
+            - Tipos E/S/T viram ``Entrada``/``Saída``/``Transporte``; outros
+                valores resultam em nulo antes do preenchimento da chave.
+            - ``_resultado_chamada`` é convertido para inteiro e valor absoluto.
+                Os códigos 0 a 7 recebem rótulos individuais; 8 a 15 representam
+                congestionamento interno e 20 a 25 outros congestionamentos.
+                Os demais resultados ficam nulos antes do pipeline comum.
+            - Grava Parquet com sobrescrita pelo pipeline de escrita herdado.
         """
 
         date_time_fmt = "ddMMyy HHmmss"
@@ -1232,6 +1367,27 @@ class CDRTransformer(CDRBaseTransformer):
     def transform_stfc_tropico_oi(
         self, source_file: str, target_file: str, **kwargs
     ) -> str:
+        """Combina datas e classifica tipos e resultados do layout Trópico Oi.
+
+        Args:
+            source_file: Caminho Parquet intermediário de CDRs STFC Trópico Oi.
+            target_file: Diretório Parquet de saída, sobrescrito na gravação.
+            **kwargs: Opções adicionais aceitas, mas não utilizadas.
+
+        Returns:
+            str: Caminho de saída informado em ``target_file`` após a gravação.
+
+        Notes:
+            Combina ``_data``/``_hora`` e, se presentes, ``_data_fim``/``_hora_fim``;
+            o pipeline interpreta os resultados com ``ddMMyy HHmmss``.
+            Converte ``_resultado_chamada`` para inteiro e valor absoluto antes
+            das comparações. Tipos 0/1/2 viram ``Interna``/``Saída``/``Entrada``.
+            Resultados 10/20 indicam conclusão com/sem tarifação; 31/32 indicam
+            ausência de resposta/ocupação; 43/44, congestionamento; 48/49, falha
+            técnica; 50 a 56 recebem os rótulos específicos definidos no método.
+            Tipos e resultados não mapeados ficam nulos antes do pipeline comum,
+            que normaliza e grava a saída conforme o contrato herdado.
+        """
         date_time_fmt = "ddMMyy HHmmss"
         df = self.spark.read.parquet(source_file)
 
@@ -1307,6 +1463,24 @@ class CDRTransformer(CDRBaseTransformer):
 
     @log_operation
     def transform_stfc_7n_oi(self, source_file: str, target_file: str, **kwargs) -> str:
+        """Combina datas e classifica resultados de chamadas do layout 7N Oi.
+
+        Args:
+            source_file: Caminho Parquet intermediário de CDRs STFC 7N Oi.
+            target_file: Diretório Parquet de saída, sobrescrito na gravação.
+            **kwargs: Opções adicionais aceitas, mas não utilizadas.
+
+        Returns:
+            str: Caminho de saída informado em ``target_file`` após a gravação.
+
+        Notes:
+            Combina ``_data``/``_hora`` e, se presentes, ``_data_fim``/``_hora_fim``;
+            a máscara temporal é ``ddMMyyyy HHmmss``. Resultados 10, 31, 32, 44
+            e 48 indicam conclusão, ausência de resposta, ocupação,
+            congestionamento e falha; 50 a 53 viram ``Outros`` e 99 vira
+            ``Não identificado``. Demais resultados ficam nulos antes do
+            pipeline comum. Não cria nem mapeia ``tipo_chamada`` nesta etapa.
+        """
         date_time_fmt = "ddMMyyyy HHmmss"
         df = self.spark.read.parquet(source_file)
 
@@ -1345,6 +1519,27 @@ class CDRTransformer(CDRBaseTransformer):
     def transform_stfc_axe_claro(
         self, source_file: str, target_file: str, **kwargs
     ) -> str:
+        """Combina horários e classifica tipos e resultados do layout AXE Claro.
+
+        Args:
+            source_file: Caminho Parquet intermediário de CDRs STFC AXE Claro.
+            target_file: Diretório Parquet de saída, sobrescrito na gravação.
+            **kwargs: Opções adicionais aceitas, mas não utilizadas.
+
+        Returns:
+            str: Caminho de saída informado em ``target_file`` após a gravação.
+
+        Notes:
+            Início e término usam a mesma ``_data``, combinada com ``_hora`` e
+            ``_hora_fim``; não há ajuste de virada de dia. A máscara é
+            ``yyMMdd HHmmss``. Tipos 01 a 0B recebem os rótulos POTS, RDSI,
+            redirecionamento, procedimento, evento e serviço definidos no método;
+            outros tipos ficam nulos antes do pipeline comum.
+            O resultado é convertido para inteiro, sem valor absoluto. Códigos
+            1 a 8 e 20/21/24/26/27/28/29 recebem rótulos específicos; 4/25 e as
+            faixas 9 a 19, 22 a 23 e 30 a 99 viram ``Reserva``. Os demais casos,
+            inclusive nulos, viram ``Desconexão Prematura`` antes da normalização.
+        """
         date_time_fmt = "yyMMdd HHmmss"
         df = self.spark.read.parquet(source_file)
 
@@ -1457,12 +1652,29 @@ class CDRTransformer(CDRBaseTransformer):
     def transform_stfc_pcl_claro(
         self, source_file: str, target_file: str, **kwargs
     ) -> str:
+        """Combina datas e prepara tipo e resultado de chamadas PCL Claro.
+
+        Args:
+            source_file: Caminho Parquet intermediário de CDRs STFC PCL Claro.
+            target_file: Diretório Parquet de saída, sobrescrito na gravação.
+            **kwargs: Opções adicionais aceitas, mas não utilizadas.
+
+        Returns:
+            str: Caminho de saída informado em ``target_file`` após a gravação.
+
+        Notes:
+            Combina ``_data``/``_hora`` e, se presentes, ``_data_fim``/``_hora_fim``;
+            a máscara é ``yyyyMMdd HHmmss``. ``tipo_chamada`` recebe
+            ``_tipo_chamada`` convertido para string, sem mapear seus códigos.
+            Somente o resultado ``"3"`` vira ``b-AnswerHasBeenReceived``;
+            demais valores ficam nulos antes do pipeline comum e da gravação.
+        """
         date_time_fmt = "yyyyMMdd HHmmss"
         df = self.spark.read.parquet(source_file)
 
         df = _concat_date_time(df)
 
-        # Tipos de chamada PCL/Claro não estão documentados
+        # Preserva os códigos de tipo recebidos, sem atribuir rótulos de domínio.
         df = df.withColumn("tipo_chamada", F.col("_tipo_chamada").cast(T.StringType()))
 
         df = df.withColumn(
@@ -1481,12 +1693,31 @@ class CDRTransformer(CDRBaseTransformer):
     def transform_stfc_tropico_claro(
         self, source_file: str, target_file: str, **kwargs
     ) -> str:
+        """Combina datas e classifica chamadas do layout Trópico Claro.
+
+        Args:
+            source_file: Caminho Parquet intermediário de CDRs STFC Trópico Claro.
+            target_file: Diretório Parquet de saída, sobrescrito na gravação.
+            **kwargs: Opções adicionais aceitas, mas não utilizadas.
+
+        Returns:
+            str: Caminho de saída informado em ``target_file`` após a gravação.
+
+        Notes:
+            Combina ``_data``/``_hora`` e, se presentes, ``_data_fim``/``_hora_fim``;
+            a máscara é ``ddMMyyyy HHmmss``. Apenas o tipo ``"04"`` vira
+            ``tandem``; os demais ficam nulos antes do pipeline comum.
+            Resultados 003/006 indicam atendimento e desligamento; 013 a 033
+            recebem os rótulos específicos definidos no método; 102/104 indicam
+            ausência de conversação e 201/202 viram ``fatia da chamada``.
+            Qualquer resultado não mapeado vira ``unknown``. As comparações
+            usam strings, preservando a importância dos zeros iniciais.
+        """
         date_time_fmt = "ddMMyyyy HHmmss"
         df = self.spark.read.parquet(source_file)
 
         df = _concat_date_time(df)
 
-        # Tipos de chamada PCL/Claro não estão documentados
         df = df.withColumn(
             "tipo_chamada",
             F.when(F.col("_tipo_chamada") == "04", F.lit("tandem"))
@@ -1560,6 +1791,24 @@ class CDRTransformer(CDRBaseTransformer):
     def transform_stfc_pit_claro(
         self, source_file: str, target_file: str, **kwargs
     ) -> str:
+        """Recorta timestamps e deriva o sentido de chamadas do layout PIT Claro.
+
+        Args:
+            source_file: Caminho Parquet intermediário de CDRs STFC PIT Claro.
+            target_file: Diretório Parquet de saída, sobrescrito na gravação.
+            **kwargs: Opções adicionais aceitas, mas não utilizadas.
+
+        Returns:
+            str: Caminho de saída informado em ``target_file`` após a gravação.
+
+        Notes:
+            ``data_hora`` e ``data_hora_fim`` recebem os 14 primeiros caracteres
+            de ``_data_hora`` e ``_data_hora_fim``; a máscara é ``yyyyMMddHHmmss``.
+            A prestadora de origem ``BRAEBT`` produz ``Originating``; qualquer
+            outro valor, inclusive nulo, produz ``Terminating``.
+            Não classifica o resultado da chamada: delega as demais operações
+            ao pipeline comum e à gravação herdada.
+        """
         date_time_fmt = "yyyyMMddHHmmss"
         df = self.spark.read.parquet(source_file)
 
@@ -1587,6 +1836,30 @@ class CDRTransformer(CDRBaseTransformer):
     def transform_stfc_ss8bf_claro(
         self, source_file: str, target_file: str, **kwargs
     ) -> str:
+        """Recorta referências e classifica chamadas do layout SS8BF Claro.
+
+        Args:
+            source_file: Caminho Parquet intermediário de CDRs STFC SS8BF Claro.
+            target_file: Diretório Parquet de saída, sobrescrito na gravação.
+            **kwargs: Opções adicionais aceitas, mas não utilizadas.
+
+        Returns:
+            str: Caminho de saída informado em ``target_file`` após a gravação.
+
+        Notes:
+            ``data_hora`` e ``data_hora_referencia`` recebem os 19 primeiros
+            caracteres de ``_data_hora`` e ``_referencia``; ``referencia`` recebe
+            8 caracteres a partir da posição 52 de ``_referencia``. A máscara
+            temporal é ``yyyy-MM-dd'T'HH:mm:ss``. Resultados 0 a 9 recebem os
+            rótulos de conclusão/falha definidos no método; demais valores
+            ficam nulos antes do pipeline comum.
+            A origem 900 tem prioridade e produz ``Originating``. Para origem
+            901 e destino 902/903, encaminhamento não nulo produz ``Forwarding``;
+            sem encaminhamento, 902 produz ``Terminating`` e 903, ``Transit``.
+            Demais combinações viram ``Unknown``. String vazia em
+            ``_numero_encaminhado`` conta como encaminhamento, pois o teste
+            verifica apenas nulidade. O número de destino não é substituído.
+        """
         date_time_fmt = "yyyy-MM-dd'T'HH:mm:ss"
         df = self.spark.read.parquet(source_file)
 
@@ -1598,7 +1871,6 @@ class CDRTransformer(CDRBaseTransformer):
             }
         )
 
-        # Tipos de chamada Originada/Terminada são baseados na prestadora de origem
         df = df.withColumn(
             "resultado_chamada",
             F.when(F.col("_resultado_chamada") == "0", "Call was completed")
