@@ -1,15 +1,24 @@
-"""Contratos de leitura e mapeamento para CDRs em arquivos texto/CSV.
+"""Contratos de leitura e mapeamento de CDRs delimitados ou de largura fixa.
 
 Este módulo reúne a configuração declarativa usada por ``CDRTextExtractor``
-para ler layouts de CDR delimitados. Cada contrato especifica as opções de
-leitura, as posições de coluna a selecionar, os nomes de saída e um filtro
-opcional aplicado após a seleção. O módulo não lê arquivos nem executa
-transformações Spark.
+para ler layouts de CDR delimitados ou de largura fixa. Cada contrato
+especifica as opções de leitura CSV ou RDD, as posições de coluna ou os recortes
+de caracteres, os nomes de saída e um filtro opcional aplicado pelo extrator.
+O módulo não lê arquivos nem executa transformações Spark.
 
 Os contratos disponíveis em ``TEXT_DEFAULT_SCHEMAS`` são indexados pelas
-chaves consumidas pelos métodos específicos do extrator. Os índices são
-baseados em zero e devem manter correspondência posicional com os nomes de
-coluna.
+chaves consumidas por ``CDRTextExtractor.extract``. Os layouts PIT e SS8BF
+reutilizam os schemas Spark definidos em ``schemas._claro``.
+
+Notes:
+    Sem ``column_sizes``, os índices representam colunas baseadas em zero (Python-style indexing).
+    Com ``column_sizes``, representam posições de caracteres repassadas
+    diretamente a ``substring``, cuja primeira posição é 1 (Spark-style indexing). Os índices devem
+    manter correspondência posicional com os nomes de saída.
+
+    A importação instancia e valida os contratos do catálogo, sem exigir uma
+    sessão Spark ativa. ``TEXT_DEFAULT_SCHEMAS`` é um dicionário mutável;
+    ``frozen=True`` se aplica às instâncias de ``CDRTextSchema``, não ao catálogo.
 
 Example:
     >>> from teleutils.core.extractors.schemas.text import TEXT_DEFAULT_SCHEMAS
@@ -32,29 +41,57 @@ from teleutils.core.extractors.schemas._claro import (
 
 @dataclass(frozen=True)
 class CDRTextSchema:
-    """Configura a leitura e o mapeamento de um layout CDR texto/CSV.
+    """Configura a leitura e o mapeamento de um layout CDR.
 
-    Os índices e nomes de coluna são armazenados como tuplas para que a
-    configuração não possa ser alterada após a instanciação. A ordem desses
-    valores é preservada e define o pareamento aplicado pelo extrator durante a
-    seleção e a renomeação das colunas.
+    A construção converte índices e nomes de coluna em tuplas e valida a
+    consistência do contrato. A ordem desses valores é preservada e define
+    o pareamento aplicado pelo extrator durante a seleção ou o recorte e a
+    atribuição dos nomes de saída. As operações Spark são executadas pelo
+    extrator, não pela classe.
 
     Attributes:
         name: Nome amigável do fornecedor ou layout de origem.
         delimiter: Delimitador repassado à leitura CSV do Spark.
-        schema: Schema Spark aplicado à leitura ou ``None`` para deixar que o
-            Spark produza as colunas sem um schema explícito.
+        schema: ``StructType``, string de definição de schema ou ``None``,
+            repassado ao leitor CSV. Com ``None``, o extrator lê sem schema
+            explícito e mantém a inferência de tipos desativada.
         has_header: Indica se a primeira linha do arquivo deve ser tratada como
             cabeçalho pela leitura CSV.
         lines_to_keep: Par ``(nome_da_coluna, valor)`` usado pelo extrator
-            para remover registros cujo valor seja igual ao configurado, ou
-            ``None`` quando nenhum filtro deve ser aplicado.
-        column_indices: Posições, baseadas em zero, das colunas de origem a
-            selecionar.
-        column_names: Nomes atribuídos às colunas selecionadas, na mesma ordem
-            de ``column_indices``.
-        job_description: Descrição textual armazenada no contrato para uso do
-            fluxo de extração e observabilidade.
+            para manter registros por igualdade. Os valores especiais
+            ``"is null"`` e ``"is not null"`` testam nulidade; ``None`` desativa
+            o filtro. A coluna deve constar em ``column_names``. O filtro por
+            igualdade não mantém valores nulos na coluna filtrada.
+        column_indices: Índices de colunas baseados em zero, quando
+            ``column_sizes`` está vazio, ou posições iniciais de caracteres
+            para ``substring``, quando há comprimentos configurados.
+        column_sizes: Comprimentos dos campos de largura fixa, pareados com
+            ``column_indices`` e ``column_names``. Uma tupla vazia ativa a
+            seleção de colunas em vez do recorte da coluna ``value``.
+        column_names: Nomes atribuídos aos campos selecionados ou recortados,
+            na mesma ordem de ``column_indices``.
+        job_description: Descrição textual armazenada no contrato; não é
+            utilizada por ``CDRTextExtractor.extract``.
+        read_rdd: Se verdadeiro, o extrator lê linhas via RDD e produz a coluna
+            ``value``, sem aplicar ``delimiter``, ``has_header`` ou ``schema``.
+            Se falso, utiliza o leitor CSV. O padrão é ``False``.
+            A leitura via RDD é utilizada para contornar falhas de interpretação
+            de caminhos como URI pelo leitor CSV, relatadas no ambiente de origem
+            para nomes de arquivos que contêm ``@``. A opção é configurada no
+            contrato, sem detecção automática desses nomes.
+        fill_char: Conteúdo usado sem escape no padrão regular
+            ``fill_char + '+$'`` para remover preenchimento final de campos de
+            largura fixa, antes de ``trim``. Uma string vazia desativa essa
+            remoção, mas não a retirada de espaços das bordas.
+
+    Notes:
+        ``frozen=True`` impede a atribuição normal aos atributos, mas não torna
+        objetos internos profundamente imutáveis. ``column_sizes`` não é
+        convertido em tupla, e o ``StructType`` recebido não é copiado.
+
+        O ramo de largura fixa exige uma coluna ``value`` na leitura. Ela é
+        criada por ``read_rdd=True`` ou pode ser definida pelo schema CSV,
+        como nos contratos que usam ``schema="value string"``.
     """
 
     name: str
@@ -73,22 +110,33 @@ class CDRTextSchema:
         """Normaliza e valida a consistência da configuração antes da extração.
 
         As coleções externas de índices e nomes recebidas são convertidas para
-        tuplas antes das validações, preservando a imutabilidade do contrato.
+        tuplas antes das validações por meio de ``object.__setattr__``, apesar
+        de a dataclass ser congelada. Os demais atributos não são normalizados.
         Quando há filtro, o nome da coluna filtrada deve estar entre os nomes de
         saída, pois a filtragem é realizada depois da seleção e renomeação.
 
         Raises:
-            ValueError: Se ``schema`` não for ``None`` nem um ``StructType``;
+            ValueError: Se ``schema`` não for ``None``, ``StructType`` ou ``str``;
                 se ``lines_to_keep`` não for ``None`` nem uma tupla de duas
                 strings; se sua coluna não estiver em ``column_names``; se os
-                índices e nomes tiverem tamanhos distintos; se não houver
-                índices; se houver índice negativo; ou se o maior índice não
-                existir no schema Spark fornecido.
+                índices e nomes tiverem tamanhos distintos; se ``column_sizes``
+                não vazio tiver tamanho diferente de ``column_indices``;
+                se não houver índices; se houver índice negativo; ou se o maior
+                índice for maior ou igual à quantidade de campos do
+                ``StructType`` fornecido.
 
         Notes:
-            A compatibilidade dos índices com arquivos lidos sem schema é
-            verificada posteriormente por ``CDRTextExtractor``, porque a
-            quantidade de colunas só é conhecida após a leitura do arquivo.
+            A verificação de limites contra ``StructType`` também ocorre quando
+            há ``column_sizes``; ela não distingue posições de caracteres de
+            índices de colunas. Schemas em string não passam por essa verificação.
+
+            Não há validação dos comprimentos individuais em ``column_sizes``,
+            da sintaxe de schemas em string nem da existência da coluna
+            ``value`` exigida pelo recorte de largura fixa.
+
+            ``CDRTextExtractor`` verifica o maior índice contra as colunas
+            efetivamente lidas apenas no ramo sem ``column_sizes``. O ramo de
+            largura fixa não valida o comprimento das linhas recortadas.
         """
         object.__setattr__(self, "column_indices", tuple(self.column_indices))
         object.__setattr__(self, "column_names", tuple(self.column_names))
