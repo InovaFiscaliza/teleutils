@@ -210,7 +210,7 @@ class CDRTextExtractor:
                     f"Schema '{schema.name}' requer coluna no índice {max_index}, "
                     f"mas o arquivo possui apenas {len(df.columns)} colunas.\n"
                     f"Verifique se o delimitador '{schema.delimiter}' está correto "
-                    f"para o arquivo: {source_file}\n"
+                    f"para o arquivo: {source_file_log}\n"
                     f"Índices solicitados: {schema.column_indices}\n"
                     f"Colunas disponíveis: {list(enumerate(df.columns))}\n"
                     f"Configuração do schema: {schema!r}"
