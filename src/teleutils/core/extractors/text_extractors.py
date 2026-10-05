@@ -103,7 +103,7 @@ class CDRTextExtractor:
     @log_operation
     def extract(
         self,
-        source_file: str,
+        source_file: str | list[str],
         target_file: str,
         cdr_schema: str,
         *,
@@ -146,6 +146,9 @@ class CDRTextExtractor:
             ``schema.column_names``. A condição de desigualdade do Spark não
             mantém valores nulos na coluna filtrada.
         """
+
+        if isinstance(source_file, list) and not source_file:
+            raise ValueError("source_file deve conter ao menos um caminho de entrada.")
 
         if cdr_schema not in self.schemas:
             raise ValueError(
@@ -271,26 +274,3 @@ class CDRTextExtractor:
         )
         df.write.mode("overwrite").parquet(target_file)
         return target_file
-
-    @log_operation
-    def extract_cdr_ngn_huawei(self, source_file: str, target_file: str) -> str:
-        """Extrai registros do layout NGN Huawei usando o contrato pré-configurado.
-
-        Args:
-            source_file: Caminho do arquivo de entrada no formato NGN Huawei.
-            target_file: Diretório de saída em parquet padronizado.
-
-        Returns:
-            str: Caminho do diretório Parquet persistido em ``target_file``.
-
-        Raises:
-            ValueError: Se o arquivo não obedecer o layout esperado pelo schema.
-
-        Example:
-            >>> extrator = CDRTextExtractor(spark)
-            >>> df = extrator.extract_cdr_ngn_huawei(
-            ...     source_file="dados/ngn_huawei.csv",
-            ...     target_file="parquet/ngn_huawei_extracted"
-            ... )
-        """
-        return self.extract(source_file, target_file, "stfc_huawei_ngn")
