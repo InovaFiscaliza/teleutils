@@ -16,19 +16,32 @@ Responsabilidades principais:
     - Escrever parquet intermediário para consumo pelos transformadores.
 
 Principais funcionalidades:
-    - Extração para Ericsson.
-    - Extração para TIM Huawei.
-    - Extração para Vivo FCDR.
-    - Extração para Nokia com tolerância a colunas ausentes.
+        - Mapeamento dos layouts SMP Ericsson GSM, Ericsson VoLTE Vivo,
+            Huawei VoLTE TIM e Nokia GSM definidos no catálogo padrão.
+        - Leitura com união de schemas e preenchimento de campos ausentes com nulos.
+        - Tratamento literal de nomes de colunas que contêm pontos.
+        - Remoção opcional de duplicatas antes do ajuste final de ``tipo_cdr``.
 
 Dependências relevantes:
     - pyspark.sql (DataFrame, SparkSession e funções colunares)
     - teleutils.core.extractors.schemas (contratos de mapeamento por fornecedor)
     - teleutils._logging.log_operation
 
+Notes:
+    ``extract`` recebe uma chave de ``PARQUET_DEFAULT_SCHEMAS`` ou do catálogo
+    fornecido ao construtor. A seleção renomeia campos sem normalizar números
+    telefônicos nem interpretar datas. Colunas existentes preservam seus tipos;
+    campos ausentes no DataFrame lido são criados como nulos do tipo string.
+
+    As transformações constroem o plano distribuído, materializado pela escrita
+    Parquet em modo ``overwrite``. O destino é sobrescrito, sem particionamento
+    explícito. O retorno é o caminho de saída, não um DataFrame.
+
 Example:
     >>> extractor = CDRParquetExtractor(spark)
-    >>> df = extractor.extract_cdr_ericsson("/tmp/origem", "/tmp/destino")
+    >>> destino = extractor.extract(
+    ...     "/tmp/origem", "/tmp/destino", cdr_schema="smp_ericsson_gsm"
+    ... )
 """
 
 from __future__ import annotations
@@ -60,11 +73,12 @@ class CDRParquetExtractor:
 
     Notes:
         - Os schemas são injetados via construtor (``schemas``), permitindo
-          substituir ou estender os contratos padrão sem alterar esta classe.
-        - Quando nenhum schema é informado, ``PARQUET_DEFAULT_SCHEMAS`` (do
-          módulo ``teleutils.core.extractors.schemas``) é utilizado.
-        - Métodos públicos são wrappers sem lógica adicional significativa,
-          mantendo o fluxo principal em ``extract_cdr``.
+            substituir ou estender os contratos padrão sem alterar esta classe.
+        - Quando o catálogo é omitido, ``schemas`` referencia o dicionário
+            compartilhado ``PARQUET_DEFAULT_SCHEMAS``, sem cópia. Alterações nesse
+            dicionário são visíveis às instâncias que compartilham a referência.
+        - O fluxo principal está em ``extract``; novos contratos são consumidos
+            por sua chave, sem necessidade de um método específico por layout.
     """
 
     def __init__(
@@ -81,52 +95,86 @@ class CDRParquetExtractor:
                 ``PARQUET_DEFAULT_SCHEMAS`` são adotados.
 
         Notes:
-            - O uso de uma única sessão favorece consistência operacional e
-              reaproveitamento de contexto em jobs encadeados.
-            - A injeção de dependência de ``schemas`` permite testar a classe
-              com contratos customizados e adicionar novos fornecedores sem
-              modificar esta classe.
+            A sessão e o dicionário recebidos são armazenados diretamente,
+            sem criar uma nova sessão nem copiar o catálogo. Não há leitura
+            ou gravação de arquivos durante a inicialização.
         """
         self.spark = spark
         self.schemas = schemas
 
     @log_operation
-    def extract_cdr(
+    def extract(
         self,
         source_file: str,
         target_file: str,
         cdr_schema: str,
         unique: bool = False,
     ) -> str:
-        """Executa extração genérica conforme schema de mapeamento informado.
+        """Seleciona campos e metadados conforme a chave de um contrato Parquet.
 
         Fluxo de processamento:
-            1. Lê um parquet de entrada ou todos os caminhos de uma lista.
-            2. Aplica seleção e renomeação com base no schema.
-            3. Cria como nulas as colunas do schema ausentes na origem.
-            4. Enriquece metadados de origem a partir do caminho do arquivo.
-            5. Remove duplicatas opcionalmente.
-            6. Persiste parquet intermediário.
+            1. Resolve ``cdr_schema`` no catálogo da instância.
+            2. Lê um caminho ou uma lista de caminhos com ``mergeSchema=true``.
+            3. Seleciona e renomeia os campos mapeados, usando nulos do tipo
+               string para aqueles ausentes no DataFrame lido.
+            4. Adiciona a chave do contrato e os metadados do arquivo de entrada.
+            5. Remove duplicatas, se ``unique`` estiver habilitado.
+            6. Substitui ``tipo_cdr`` por ``_tipo_cdr``, se esta coluna existir,
+               e remove ``_tipo_cdr``.
+            7. Sobrescreve o destino com o Parquet intermediário.
 
         Args:
             source_file: Caminho do parquet de entrada. Embora anotado como
-                ``str``, o código também aceita uma ``list`` de caminhos, que
+                ``str``, o código também trata uma lista não vazia de caminhos, que
                 é expandida na chamada de leitura Spark.
             target_file: Caminho do parquet de saída intermediária.
-            schema: Contrato de mapeamento a ser aplicado.
-            unique: Define se duplicatas devem ser removidas no resultado.
+            cdr_schema: Chave de ``self.schemas`` que identifica o contrato
+                ``CDRParquetSchema`` e seus pares ``(origem, destino)``.
+            unique: Se verdadeiro, aplica ``dropDuplicates`` considerando todas
+                as colunas projetadas e os metadados, antes de substituir
+                ``tipo_cdr``. O padrão é ``False``.
 
         Returns:
             str: Caminho do parquet persistido em ``target_file``.
 
+        Raises:
+            ValueError: Se ``cdr_schema`` não estiver no catálogo da instância.
+            IndexError: Se ``source_file`` for uma lista vazia. O decorador
+                acessa seu primeiro elemento antes de executar este método;
+                o registro de log interno também pressupõe uma lista não vazia.
+
         Notes:
-            - Regra de negócio: metadados ``prestadora``, ``tipo_cdr`` e
-              ``arquivo_origem`` são derivados da hierarquia do path de entrada.
-            - Efeito colateral: grava dados em ``target_file`` com overwrite.
-                        - Falhas de leitura, transformação e escrita do Spark não são
-                            interceptadas por este método e são propagadas ao chamador.
-            - Anotação de manutenção: qualquer mudança no padrão de diretórios
-              de origem impacta a extração de metadados via ``input_file_name``.
+            ``mergeSchema=true`` solicita a união dos schemas dos arquivos.
+            A ausência de uma coluna é verificada no DataFrame resultante,
+            não separadamente em cada arquivo. Ausências são registradas em
+            nível de aviso; não interrompem a extração. Não há conversão
+            explícita dos tipos das colunas existentes neste método.
+
+            A projeção preserva a ordem de ``column_mapping`` e descarta campos
+            não mapeados. Nomes de origem com pontos são envolvidos em crases:
+            o acesso é a uma coluna literal de nível superior, não a um campo
+            aninhado. ``job_description`` não é utilizado nesta execução.
+
+            ``esquema`` recebe a chave ``cdr_schema``. Separando
+            ``input_file_name`` por ``/``, ``prestadora`` recebe o terceiro
+            segmento a partir do fim, ``tipo_cdr`` o segundo e ``arquivo_origem``
+            o último. O nome do arquivo não passa por decodificação de URL.
+            Esses metadados substituem colunas de mesmo nome na projeção;
+            o resultado depende da hierarquia dos caminhos de origem.
+
+            Se o contrato produzir ``_tipo_cdr``, essa coluna substitui
+            ``tipo_cdr`` após a deduplicação, inclusive quando seu valor é nulo.
+            Não há fallback para o tipo derivado do diretório. A deduplicação
+            inclui ``arquivo_origem`` e ``_tipo_cdr`` quando presente, portanto
+            registros de arquivos distintos não são eliminados apenas por
+            terem os mesmos campos de chamada. Não há nova deduplicação após
+            substituir ``tipo_cdr`` e remover ``_tipo_cdr``; a saída ainda pode
+            conter linhas iguais após esse ajuste.
+
+            A escrita em modo ``overwrite`` materializa o plano Spark e
+            sobrescreve o destino antes do retorno. ``log_operation`` registra
+            início, sucesso e falhas da execução do método e relança exceções;
+            não há recuperação de falhas de leitura, transformação ou escrita.
         """
 
         if cdr_schema not in self.schemas:
@@ -198,93 +246,3 @@ class CDRParquetExtractor:
         df.write.mode("overwrite").parquet(target_file)
 
         return target_file
-
-    @log_operation
-    def extract_smp_ericsson_gsm(self, source_file: str, target_file: str) -> str:
-        """Extrai CDR Ericsson para parquet intermediário.
-
-        Args:
-            source_file: Caminho do parquet de entrada Ericsson.
-            target_file: Caminho do parquet intermediário de saída.
-
-        Returns:
-            str: Caminho do parquet persistido em ``target_file``.
-
-        Notes:
-            Delega integralmente para ``extract_cdr`` com schema Ericsson.
-        """
-        return self.extract_cdr(
-            source_file,
-            target_file,
-            "smp_ericsson_gsm",
-        )
-
-    @log_operation
-    def extract_smp_gsm_nokia(self, source_file: str, target_file: str) -> str:
-        """Extrai CDR Nokia com tolerância a colunas ausentes.
-
-        Args:
-            source_file: Caminho do parquet de entrada Nokia.
-            target_file: Caminho do parquet intermediário de saída.
-
-        Returns:
-            str: Caminho do parquet persistido em ``target_file``.
-
-        Notes:
-            - Regra de negócio: colunas ausentes são criadas com valor nulo
-              para acomodar variações de disponibilidade entre tipos de CDR Nokia.
-            - Anotação de manutenção: sempre revisar logs de colunas ausentes
-              para identificar mudanças de layout na origem.
-        """
-        return self.extract_cdr(
-            source_file,
-            target_file,
-            "smp_gsm_nokia",
-        )
-
-    @log_operation
-    def extract_smp_huawei_volte_tim(self, source_file: str, target_file: str) -> str:
-        """Extrai CDR TIM Huawei com remoção de duplicatas.
-
-        Args:
-            source_file: Caminho do parquet de entrada LTE Huawei TIM.
-            target_file: Caminho do parquet intermediário de saída.
-
-        Returns:
-            str: Caminho do parquet persistido em ``target_file``.
-
-        Notes:
-            - Regra de negócio: ``unique=True`` para reduzir duplicidade de
-              registros observada neste layout.
-            - Ponto de manutenção: validar periodicamente o impacto dessa
-              deduplicação em cenários de retentativa de ingestão.
-        """
-        return self.extract_cdr(
-            source_file,
-            target_file,
-            "smp_huawei_volte_tim",
-            unique=True,
-        )
-
-    @log_operation
-    def extract_smp_ericsson_volte_vivo(
-        self, source_file: str, target_file: str
-    ) -> str:
-        """Extrai CDR LTE Ericsson Vivo para parquet intermediário.
-
-        Args:
-            source_file: Caminho do parquet de entrada LTE Ericsson Vivo.
-            target_file: Caminho do parquet intermediário de saída.
-
-        Returns:
-            str: Caminho do parquet persistido em ``target_file``.
-
-        Notes:
-            Delega para ``extract_cdr`` com schema LTE Ericsson Vivo sem ajustes
-            adicionais de tolerância ou deduplicação.
-        """
-        return self.extract_cdr(
-            source_file,
-            target_file,
-            "smp_ericsson_volte_vivo",
-        )
