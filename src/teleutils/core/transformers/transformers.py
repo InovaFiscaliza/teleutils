@@ -1108,6 +1108,44 @@ class CDRTransformer(CDRBaseTransformer):
         return target_file
 
     @log_operation
+    def transform_stfc_huawei_ngn_tim(
+        self, source_file: str, target_file: str, **kwargs
+    ) -> str:
+        """Transforma registros do layout STFC Huawei NGN usando o pipeline padrão.
+
+        Combina os campos de data e hora extraídos, converte os códigos de tipo
+        e status de chamada conhecidos para rótulos textuais e delega a
+        normalização restante ao pipeline comum.
+
+        Args:
+            source_file: Caminho do arquivo de entrada no formato STFC Huawei NGN.
+            target_file: Diretório de saída em parquet padronizado.
+
+        Returns:
+            str: Caminho do parquet transformado em ``target_file``.
+
+        Notes:
+            - ``data_hora`` resulta da combinação de ``_data`` com ``_hora``;
+              ``data_hora_fim`` combina ``_data_fim`` com a mesma coluna
+              ``_hora``.
+            - Códigos não previstos em ``_tipo_chamada`` e ``_resultado_chamada``
+              recebem o rótulo ``"unknown"``.
+            - Efeito colateral: grava o resultado em ``target_file``.
+        """
+
+        date_time_fmt = "yyMMddHHmmss"
+        df = self.spark.read.parquet(source_file)
+
+        df = df.withColumn(
+            "bilhetador", F.split(F.col("arquivo_origem"), r"\.").getItem(0)
+        )
+
+        df = self._apply_standard_pipeline(df, date_time_fmt)
+        self._write_parquet(df, target_file)
+
+        return target_file
+
+    @log_operation
     def transform_stfc_fcdr_vivo(
         self, source_file: str, target_file: str, **kwargs
     ) -> str:
