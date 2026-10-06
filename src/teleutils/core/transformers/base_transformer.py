@@ -334,7 +334,10 @@ class CDRBaseTransformer:
         return df.withColumns(columns_to_fill)
 
     def _apply_standard_pipeline(
-        self, df: DataFrame, date_time_fmt: str = "yyyy-MM-dd HH-mm-ss"
+        self,
+        df: DataFrame,
+        date_time_fmt: str = "yyyy-MM-dd HH-mm-ss",
+        ref_date_time_fmt="",
     ) -> DataFrame:
         """Executa pipeline comum de transformação para todos os layouts.
 
@@ -362,7 +365,7 @@ class CDRBaseTransformer:
         """
 
         df = self._fill_missing_columns(df)
-        df = self._format_date_time(df, date_time_fmt)
+        df = self._format_date_time(df, date_time_fmt, ref_date_time_fmt)
         df = self._format_numbers(df)
         df = self._add_tn_validation_status(df)
         df = self._fill_primary_key_columns(df)
