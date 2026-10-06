@@ -1272,6 +1272,42 @@ class CDRTransformer(CDRBaseTransformer):
         return target_file
 
     @log_operation
+    def transform_stfc_italtel_ngn_tim(
+        self, source_file: str, target_file: str, **kwargs
+    ) -> str:
+        """Deriva o bilhetador do arquivo e normaliza o layout STFC Italtel NGN TIM.
+
+        Usa o primeiro trecho de ``arquivo_origem`` separado por ponto como
+        ``bilhetador`` e delega as demais operações ao pipeline comum.
+
+        Args:
+            source_file: Caminho Parquet intermediário do layout Italtel NGN TIM.
+            target_file: Diretório de saída em parquet padronizado.
+            **kwargs: Opções adicionais aceitas, mas não utilizadas.
+
+        Returns:
+            str: Caminho do parquet transformado em ``target_file``.
+
+        Notes:
+            Não concatena campos de data/hora nem mapeia códigos de chamada.
+            A máscara temporal usada pelo pipeline é ``yyMMddHHmmss``.
+            ``arquivo_origem`` deve existir antes do pré-processamento.
+            Grava Parquet com sobrescrita pelo pipeline de escrita herdado.
+        """
+
+        date_time_fmt = "dd/MM/yy HH:mm:ss"
+        ref_date_time_fmt = "yyyy-MM-dd HH:mm:ss"
+
+        df = self.spark.read.parquet(source_file)
+
+        df = _concat_date_time(df)
+
+        df = self._apply_standard_pipeline(df, date_time_fmt, ref_date_time_fmt)
+        self._write_parquet(df, target_file)
+
+        return target_file
+
+    @log_operation
     def transform_stfc_fcdr_vivo(
         self, source_file: str, target_file: str, **kwargs
     ) -> str:
