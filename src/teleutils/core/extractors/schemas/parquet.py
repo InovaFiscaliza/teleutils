@@ -234,4 +234,28 @@ PARQUET_DEFAULT_SCHEMAS: dict[str, CDRParquetSchema] = {
         ),
         job_description="Extraindo CDR Parquet: SMP Ericsson VoLTE Vivo",
     ),
+    "stfc_italtel_ngn_tim": CDRParquetSchema(
+        name="Italtel NGN TIM",
+        column_mapping=(
+            ("network_call_reference_sequence_number", "referencia"),
+            ("call_id_number_time", "data_hora_referencia"),
+            ("starting_date_of_call", "_data"),
+            ("starting_time_of_call", "_hora"),
+            ("duration_of_call_seconds", "duracao"),
+            ("calling_information_calling_number", "numero_origem"),
+            ("called_information_called_number", "numero_destino"),
+            ("call_final_status_information_final_status", "resultado_chamada"),
+            (
+                "trunking_group_identity_information_incoming_trunk_group_identity",
+                "rota_entrada",
+            ),
+            (
+                "trunking_group_identity_information_outgoing_trunk_group_identity",
+                "rota_saida",
+            ),
+            ("network_call_reference_switch_identity", "bilhetador"),
+            ("type_of_call", "tipo_chamada"),
+        ),
+        job_description="Extraindo CDR Parquet: SMP Italtel NGN TIM",
+    ),
 }
