@@ -12,8 +12,10 @@ Responsabilidades principais:
     - Persistir resultado no contrato final de dados.
 
 Principais funcionalidades:
-    - Pré-processamento de layouts SMP Ericsson, Huawei VoLTE e Nokia GSM.
-    - Pré-processamento de layouts STFC Huawei NGN, Vivo FCDR e Oi/Claro.
+    - Pré-processamento de layouts SMP (Ericsson GSM, Ericsson VoLTE Vivo,
+      Huawei VoLTE TIM e Nokia GSM).
+    - Pré-processamento de layouts STFC (Huawei NGN, Huawei NGN TIM, Italtel NGN
+      TIM, Vivo FCDR, Oi 7N/Trópico e Claro AXE/PCL/PIT/SS8BF/Trópico).
     - Composição de datas, células, IMSIs e IMEIs e classificação de códigos.
 
 Dependências relevantes:
@@ -323,15 +325,15 @@ def _format_cell_id(df, col_name, out_col, gnb_id_bits=26, output_format="defaul
 
     Returns:
         DataFrame: Cópia do DataFrame de entrada com a coluna ``out_col``
-                adicionada/atualizada, contendo o identificador formatado segundo
-                ``output_format``, o valor original (quando o comprimento não
+        adicionada/atualizada, contendo o identificador formatado segundo
+        ``output_format``, o valor original (quando o comprimento não
         corresponde a nenhum layout conhecido) ou ``NULL`` quando a formatação
         resultar em string vazia.
 
     Raises:
         ValueError: Se ``output_format`` não estiver em ``_VALID_OUTPUT_FORMATS``.
-            Uma partição com ``gnb_id_bits > 36`` também produz deslocamento
-            negativo ao construir a máscara em Python.
+            Um ``gnb_id_bits`` maior que 36 também produz deslocamento negativo
+            ao construir a máscara em Python, levantando ``ValueError``.
 
     Notes:
         O comprimento, não a coluna de tecnologia, escolhe o layout. Nos três
@@ -506,6 +508,10 @@ class CDRTransformer(CDRBaseTransformer):
             não como funções globais, portanto eles não são encontrados por
             esta implementação. A existência do elemento global é verificada,
             mas sua capacidade de chamada não é validada.
+
+            Entre os métodos de layout, apenas ``transform_smp_ericsson_gsm``
+            declara o parâmetro ``output_format``; o despachante o repassa
+            sempre como argumento nomeado.
         """
 
         _check_output_format(output_format)
@@ -519,7 +525,7 @@ class CDRTransformer(CDRBaseTransformer):
 
     @log_operation
     def transform_smp_ericsson_gsm(
-        self, source_file: str, target_file: str, **kwargs
+        self, source_file: str, target_file: str, output_format: str = "default"
     ) -> str:
         """Transforma CDR SMP GSM Ericsson para o contrato padronizado do domínio.
 
@@ -530,12 +536,16 @@ class CDRTransformer(CDRBaseTransformer):
         Args:
             source_file: Caminho parquet com CDRs Ericsson de entrada.
             target_file: Caminho parquet de saída transformada.
-            **kwargs: ``output_format`` é consultado com padrão ``"csv"``;
-                apenas o valor ``"tim"`` desativa o preenchimento de LAC e
-                CI/SAC com zeros. As demais opções são ignoradas.
+            output_format: Chave validada por ``_check_output_format``. Neste
+                método só interessa ao teste ``== "tim"``, que controla o
+                preenchimento de LAC e CI/SAC. O padrão é ``default``.
 
         Returns:
             str: Caminho do parquet transformado em ``target_file``.
+
+        Raises:
+            ValueError: Se ``output_format`` não estiver em
+                ``_VALID_OUTPUT_FORMATS``.
 
         Notes:
             - Regra de negócio: duração ausente resulta em ``0``.
@@ -548,12 +558,15 @@ class CDRTransformer(CDRBaseTransformer):
                 e SN, sem separador. Componentes nomeados em branco viram nulos;
                 qualquer componente nulo torna o identificador composto nulo.
             - Grava Parquet com sobrescrita pelo pipeline de escrita herdado.
-                ``output_format`` não altera o formato de arquivo nem é validado
-                neste método; ``"csv"`` e ``"tim"`` não pertencem ao conjunto
-                aceito pelo despachante ``transform``.
+                ``output_format`` não altera o formato de arquivo.
+            - Anotação de manutenção: ``"tim"`` não pertence a
+                ``_VALID_OUTPUT_FORMATS`` e é rejeitado por
+                ``_check_output_format`` no início do método; o ramo que
+                desativa o preenchimento de LAC e CI/SAC não é alcançável na
+                implementação atual.
         """
 
-        output_format = kwargs.get("output_format", "csv")
+        _check_output_format(output_format)
 
         date_time_fmt = "yy-MM-dd HH:mm:ss"
         df = self.spark.read.parquet(source_file)
@@ -570,7 +583,8 @@ class CDRTransformer(CDRBaseTransformer):
 
         df = _concat_date_time(df, stop_date="_data")
 
-        # Apenas a opção literal "tim" desativa o preenchimento de LAC e CI/SAC.
+        # Apenas a opção literal "tim" desativa o preenchimento de LAC e CI/SAC,
+        # mas ela é rejeitada por _check_output_format antes deste ponto.
         padded_origin_cells: tuple[str, ...]
         padded_destination_cells: tuple[str, ...]
 
@@ -626,9 +640,7 @@ class CDRTransformer(CDRBaseTransformer):
         return target_file
 
     @log_operation
-    def transform_smp_gsm_nokia(
-        self, source_file: str, target_file: str, **kwargs
-    ) -> str:
+    def transform_smp_gsm_nokia(self, source_file: str, target_file: str) -> str:
         """Transforma CDR SMP GSM Nokia para o contrato padronizado do domínio.
 
         Objetivo da operação:
@@ -638,12 +650,12 @@ class CDRTransformer(CDRBaseTransformer):
         Args:
             source_file: Caminho parquet com CDRs Nokia de entrada.
             target_file: Caminho parquet de saída transformada.
-            **kwargs: Opções adicionais aceitas, mas não utilizadas.
 
         Returns:
             str: Caminho do parquet transformado em ``target_file``.
 
         Notes:
+            - ``numero_origem`` recebe ``numero_origem_original`` quando é nulo.
             - Regra de negócio: múltiplos campos ``_duracao*`` são reduzidos a
                 uma única duração por registro via ``coalesce``, na ordem das
                 colunas do DataFrame; valores ``"FFFFFF"`` são tratados como nulos
@@ -800,9 +812,7 @@ class CDRTransformer(CDRBaseTransformer):
         return target_file
 
     @log_operation
-    def transform_smp_huawei_volte_tim(
-        self, source_file: str, target_file: str, **kwargs
-    ) -> str:
+    def transform_smp_huawei_volte_tim(self, source_file: str, target_file: str) -> str:
         """Transforma CDR SMP Huawei VoLTE TIM para o contrato padronizado do domínio.
 
         Objetivo da operação:
@@ -813,8 +823,6 @@ class CDRTransformer(CDRBaseTransformer):
         Args:
             source_file: Caminho parquet com CDRs SMP Huawei VoLTE TIM de entrada.
             target_file: Caminho parquet de saída transformada.
-            **kwargs: Opções adicionais aceitas, mas não utilizadas. O formato
-                de célula é fixado em ``smp_huawei_volte_tim`` internamente.
 
         Returns:
             str: Caminho do parquet transformado em ``target_file``.
@@ -825,6 +833,11 @@ class CDRTransformer(CDRBaseTransformer):
 
         Notes:
             - Grava Parquet com sobrescrita pelo pipeline de escrita herdado.
+            - O formato de célula é fixado internamente em
+                ``smp_huawei_volte_tim``.
+            - Registros cujo ``tipo_cdr`` não seja ``aTSRecord`` nem
+                ``iBCFRecord`` ficam com ``numero_origem`` e ``numero_destino``
+                nulos, pois os ``when`` não possuem ramo padrão.
             - A regra de remoção de prefixo aplica ``substr(3, 9999)`` aos
                 números ATS, removendo os dois primeiros caracteres da string
                 e invertendo em seguida os pares de caracteres por regex.
@@ -1074,7 +1087,7 @@ class CDRTransformer(CDRBaseTransformer):
 
     @log_operation
     def transform_smp_ericsson_volte_vivo(
-        self, source_file: str, target_file: str, **kwargs
+        self, source_file: str, target_file: str
     ) -> str:
         """Transforma CDR SMP Ericsson VoLTE Vivo para o contrato padronizado do domínio.
 
@@ -1085,7 +1098,6 @@ class CDRTransformer(CDRBaseTransformer):
         Args:
             source_file: Caminho parquet com CDRs SMP Ericsson VoLTE Vivo de entrada.
             target_file: Caminho parquet de saída transformada.
-            **kwargs: Opções adicionais aceitas, mas não utilizadas.
 
         Returns:
             str: Caminho do parquet transformado em ``target_file``.
@@ -1178,9 +1190,7 @@ class CDRTransformer(CDRBaseTransformer):
         return target_file
 
     @log_operation
-    def transform_stfc_huawei_ngn(
-        self, source_file: str, target_file: str, **kwargs
-    ) -> str:
+    def transform_stfc_huawei_ngn(self, source_file: str, target_file: str) -> str:
         """Transforma registros do layout STFC Huawei NGN usando o pipeline padrão.
 
         Combina os campos de data e hora extraídos, converte os códigos de tipo
@@ -1190,7 +1200,6 @@ class CDRTransformer(CDRBaseTransformer):
         Args:
             source_file: Caminho Parquet intermediário do layout STFC Huawei NGN.
             target_file: Diretório de saída em parquet padronizado.
-            **kwargs: Opções adicionais aceitas, mas não utilizadas.
 
         Returns:
             str: Caminho do parquet transformado em ``target_file``.
@@ -1240,27 +1249,25 @@ class CDRTransformer(CDRBaseTransformer):
         return target_file
 
     @log_operation
-    def transform_stfc_huawei_ngn_tim(
-        self, source_file: str, target_file: str, **kwargs
-    ) -> str:
-        """Deriva o bilhetador do arquivo e normaliza o layout STFC Huawei NGN TIM.
+    def transform_stfc_huawei_ngn_tim(self, source_file: str, target_file: str) -> str:
+        """Normaliza o layout STFC Huawei NGN TIM usando apenas o pipeline padrão.
 
-        Usa o primeiro trecho de ``arquivo_origem`` separado por ponto como
-        ``bilhetador`` e delega as demais operações ao pipeline comum.
+        Não há pré-processamento específico: o método lê o Parquet, aplica
+        ``_apply_standard_pipeline`` e grava o resultado.
 
         Args:
             source_file: Caminho Parquet intermediário do layout Huawei NGN TIM.
             target_file: Diretório de saída em parquet padronizado.
-            **kwargs: Opções adicionais aceitas, mas não utilizadas.
 
         Returns:
             str: Caminho do parquet transformado em ``target_file``.
 
         Notes:
-            Não concatena campos de data/hora nem mapeia códigos de chamada.
-            A máscara temporal usada pelo pipeline é ``yyMMddHHmmss``.
-            ``arquivo_origem`` deve existir antes do pré-processamento.
-            Grava Parquet com sobrescrita pelo pipeline de escrita herdado.
+            Não concatena campos de data/hora nem mapeia códigos de chamada;
+            ``data_hora`` e as demais colunas temporais devem chegar prontas
+            do Parquet intermediário. A máscara temporal usada pelo pipeline é
+            ``yyMMddHHmmss``. Grava Parquet com sobrescrita pelo pipeline de
+            escrita herdado.
         """
 
         date_time_fmt = "yyMMddHHmmss"
@@ -1272,27 +1279,22 @@ class CDRTransformer(CDRBaseTransformer):
         return target_file
 
     @log_operation
-    def transform_stfc_italtel_ngn_tim(
-        self, source_file: str, target_file: str, **kwargs
-    ) -> str:
-        """Deriva o bilhetador do arquivo e normaliza o layout STFC Italtel NGN TIM.
-
-        Usa o primeiro trecho de ``arquivo_origem`` separado por ponto como
-        ``bilhetador`` e delega as demais operações ao pipeline comum.
+    def transform_stfc_italtel_ngn_tim(self, source_file: str, target_file: str) -> str:
+        """Combina datas e normaliza o layout STFC Italtel NGN TIM.
 
         Args:
             source_file: Caminho Parquet intermediário do layout Italtel NGN TIM.
             target_file: Diretório de saída em parquet padronizado.
-            **kwargs: Opções adicionais aceitas, mas não utilizadas.
 
         Returns:
             str: Caminho do parquet transformado em ``target_file``.
 
         Notes:
-            Não concatena campos de data/hora nem mapeia códigos de chamada.
-            A máscara temporal usada pelo pipeline é ``yyMMddHHmmss``.
-            ``arquivo_origem`` deve existir antes do pré-processamento.
-            Grava Parquet com sobrescrita pelo pipeline de escrita herdado.
+            Combina ``_data``/``_hora`` e, se presentes, ``_data_fim``/``_hora_fim``.
+            Não mapeia códigos de chamada. ``data_hora`` e ``data_hora_fim``
+            usam a máscara ``dd/MM/yy HH:mm:ss``; ``data_hora_referencia``
+            usa ``yyyy-MM-dd HH:mm:ss``. Grava Parquet com sobrescrita pelo
+            pipeline de escrita herdado.
         """
 
         date_time_fmt = "dd/MM/yy HH:mm:ss"
@@ -1308,9 +1310,7 @@ class CDRTransformer(CDRBaseTransformer):
         return target_file
 
     @log_operation
-    def transform_stfc_fcdr_vivo(
-        self, source_file: str, target_file: str, **kwargs
-    ) -> str:
+    def transform_stfc_fcdr_vivo(self, source_file: str, target_file: str) -> str:
         """Transforma registros do layout STFC Vivo FCDR usando o pipeline padrão.
 
         Combina os campos de data e hora extraídos, converte os códigos de tipo
@@ -1320,7 +1320,6 @@ class CDRTransformer(CDRBaseTransformer):
         Args:
             source_file: Caminho Parquet intermediário do layout STFC Vivo FCDR.
             target_file: Diretório de saída em parquet padronizado.
-            **kwargs: Opções adicionais aceitas, mas não utilizadas.
 
         Returns:
             str: Caminho do parquet transformado em ``target_file``.
@@ -1396,15 +1395,12 @@ class CDRTransformer(CDRBaseTransformer):
         return target_file
 
     @log_operation
-    def transform_stfc_tropico_oi(
-        self, source_file: str, target_file: str, **kwargs
-    ) -> str:
+    def transform_stfc_tropico_oi(self, source_file: str, target_file: str) -> str:
         """Combina datas e classifica tipos e resultados do layout Trópico Oi.
 
         Args:
             source_file: Caminho Parquet intermediário de CDRs STFC Trópico Oi.
             target_file: Diretório Parquet de saída, sobrescrito na gravação.
-            **kwargs: Opções adicionais aceitas, mas não utilizadas.
 
         Returns:
             str: Caminho de saída informado em ``target_file`` após a gravação.
@@ -1494,13 +1490,12 @@ class CDRTransformer(CDRBaseTransformer):
         return target_file
 
     @log_operation
-    def transform_stfc_7n_oi(self, source_file: str, target_file: str, **kwargs) -> str:
+    def transform_stfc_7n_oi(self, source_file: str, target_file: str) -> str:
         """Combina datas e classifica resultados de chamadas do layout 7N Oi.
 
         Args:
             source_file: Caminho Parquet intermediário de CDRs STFC 7N Oi.
             target_file: Diretório Parquet de saída, sobrescrito na gravação.
-            **kwargs: Opções adicionais aceitas, mas não utilizadas.
 
         Returns:
             str: Caminho de saída informado em ``target_file`` após a gravação.
@@ -1548,15 +1543,12 @@ class CDRTransformer(CDRBaseTransformer):
         return target_file
 
     @log_operation
-    def transform_stfc_axe_claro(
-        self, source_file: str, target_file: str, **kwargs
-    ) -> str:
+    def transform_stfc_axe_claro(self, source_file: str, target_file: str) -> str:
         """Combina horários e classifica tipos e resultados do layout AXE Claro.
 
         Args:
             source_file: Caminho Parquet intermediário de CDRs STFC AXE Claro.
             target_file: Diretório Parquet de saída, sobrescrito na gravação.
-            **kwargs: Opções adicionais aceitas, mas não utilizadas.
 
         Returns:
             str: Caminho de saída informado em ``target_file`` após a gravação.
@@ -1681,15 +1673,12 @@ class CDRTransformer(CDRBaseTransformer):
         return target_file
 
     @log_operation
-    def transform_stfc_pcl_claro(
-        self, source_file: str, target_file: str, **kwargs
-    ) -> str:
+    def transform_stfc_pcl_claro(self, source_file: str, target_file: str) -> str:
         """Combina datas e prepara tipo e resultado de chamadas PCL Claro.
 
         Args:
             source_file: Caminho Parquet intermediário de CDRs STFC PCL Claro.
             target_file: Diretório Parquet de saída, sobrescrito na gravação.
-            **kwargs: Opções adicionais aceitas, mas não utilizadas.
 
         Returns:
             str: Caminho de saída informado em ``target_file`` após a gravação.
@@ -1722,15 +1711,12 @@ class CDRTransformer(CDRBaseTransformer):
         return target_file
 
     @log_operation
-    def transform_stfc_tropico_claro(
-        self, source_file: str, target_file: str, **kwargs
-    ) -> str:
+    def transform_stfc_tropico_claro(self, source_file: str, target_file: str) -> str:
         """Combina datas e classifica chamadas do layout Trópico Claro.
 
         Args:
             source_file: Caminho Parquet intermediário de CDRs STFC Trópico Claro.
             target_file: Diretório Parquet de saída, sobrescrito na gravação.
-            **kwargs: Opções adicionais aceitas, mas não utilizadas.
 
         Returns:
             str: Caminho de saída informado em ``target_file`` após a gravação.
@@ -1820,15 +1806,12 @@ class CDRTransformer(CDRBaseTransformer):
         return target_file
 
     @log_operation
-    def transform_stfc_pit_claro(
-        self, source_file: str, target_file: str, **kwargs
-    ) -> str:
+    def transform_stfc_pit_claro(self, source_file: str, target_file: str) -> str:
         """Recorta timestamps e deriva o sentido de chamadas do layout PIT Claro.
 
         Args:
             source_file: Caminho Parquet intermediário de CDRs STFC PIT Claro.
             target_file: Diretório Parquet de saída, sobrescrito na gravação.
-            **kwargs: Opções adicionais aceitas, mas não utilizadas.
 
         Returns:
             str: Caminho de saída informado em ``target_file`` após a gravação.
@@ -1865,15 +1848,12 @@ class CDRTransformer(CDRBaseTransformer):
         return target_file
 
     @log_operation
-    def transform_stfc_ss8bf_claro(
-        self, source_file: str, target_file: str, **kwargs
-    ) -> str:
+    def transform_stfc_ss8bf_claro(self, source_file: str, target_file: str) -> str:
         """Recorta referências e classifica chamadas do layout SS8BF Claro.
 
         Args:
             source_file: Caminho Parquet intermediário de CDRs STFC SS8BF Claro.
             target_file: Diretório Parquet de saída, sobrescrito na gravação.
-            **kwargs: Opções adicionais aceitas, mas não utilizadas.
 
         Returns:
             str: Caminho de saída informado em ``target_file`` após a gravação.
