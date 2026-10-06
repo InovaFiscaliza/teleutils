@@ -1266,10 +1266,6 @@ class CDRTransformer(CDRBaseTransformer):
         date_time_fmt = "yyMMddHHmmss"
         df = self.spark.read.parquet(source_file)
 
-        df = df.withColumn(
-            "bilhetador", F.split(F.col("arquivo_origem"), r"\.").getItem(0)
-        )
-
         df = self._apply_standard_pipeline(df, date_time_fmt)
         self._write_parquet(df, target_file)
 

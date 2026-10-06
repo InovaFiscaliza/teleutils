@@ -227,7 +227,7 @@ TEXT_DEFAULT_SCHEMAS: dict[str, CDRTextSchema] = {
         schema=None,
         has_header=False,
         lines_to_keep=None,
-        column_indices=(5, 7, 9, 10, 11, 17, 29, 30),
+        column_indices=(5, 6, 8, 10, 11, 17, 18, 29, 30),
         column_sizes=(),
         column_names=(
             "duracao",
@@ -235,6 +235,7 @@ TEXT_DEFAULT_SCHEMAS: dict[str, CDRTextSchema] = {
             "rota_saida",
             "numero_origem",
             "numero_destino",
+            "bilhetador",
             "referencia",
             "data_hora",
             "data_hora_fim",
