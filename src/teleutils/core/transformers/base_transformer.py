@@ -91,7 +91,12 @@ class CDRBaseTransformer:
         self.min_safe_date = F.lit(MIN_SAFE_DATE).cast(T.TimestampNTZType())
         self.null_sentinel_value = F.lit(NULL_SENTINEL_VALUE).cast(T.StringType())
 
-    def _format_date_time(self, df, date_time_fmt: str = "yyyy-MM-dd HH-mm-ss"):
+    def _format_date_time(
+        self,
+        df,
+        date_time_fmt: str = "yyyy-MM-dd HH-mm-ss",
+        ref_date_time_fmt: str = "",
+    ):
         """Padroniza campos temporais e normaliza duração.
 
         Objetivo da operação:
@@ -118,8 +123,12 @@ class CDRBaseTransformer:
         """
 
         timestamp_format = F.lit(date_time_fmt)
+        if ref_date_time_fmt:
+            ref_timestamp_format = F.lit(ref_date_time_fmt)
+        else:
+            ref_timestamp_format = timestamp_format
 
-        def normalize_timestamp(column_name):
+        def normalize_timestamp(column_name, timestamp_format):
             return F.greatest(
                 F.try_to_timestamp(F.col(column_name), timestamp_format),
                 self.min_safe_date,
@@ -136,8 +145,10 @@ class CDRBaseTransformer:
                 # Converte duração nula ou não conversível para zero.
                 "duracao": normalize_duration("duracao"),
                 # Datas nulas, inválidas ou anteriores ao limite viram MIN_SAFE_DATE.
-                "data_hora": normalize_timestamp("data_hora"),
-                "data_hora_referencia": normalize_timestamp("data_hora_referencia"),
+                "data_hora": normalize_timestamp("data_hora", timestamp_format),
+                "data_hora_referencia": normalize_timestamp(
+                    "data_hora_referencia", ref_timestamp_format
+                ),
             }
         )
 
@@ -145,7 +156,7 @@ class CDRBaseTransformer:
             "data_hora_fim",
             F.when(
                 F.col("data_hora_fim").isNotNull(),
-                normalize_timestamp("data_hora_fim"),
+                normalize_timestamp("data_hora_fim", timestamp_format),
             ).otherwise(F.col("data_hora") + F.make_interval(secs=F.col("duracao"))),
         )
 
