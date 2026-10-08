@@ -20,7 +20,7 @@ Principais funcionalidades:
 Dependências relevantes:
     - pyspark.sql (DataFrame, funções e tipos)
     - teleutils._config.MIN_SAFE_DATE
-    - teleutils.preprocessing.spark_normalize_number
+    - teleutils.preprocessing._normalize_number
 
 Example:
     >>> transformer = CDRBaseTransformer(spark)
@@ -31,9 +31,11 @@ from __future__ import annotations
 
 import logging
 
+import pandas as pd
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
 from pyspark.sql import types as T
+from pyspark.sql.functions import pandas_udf  # type: ignore
 
 from teleutils._config import (
     MIN_SAFE_DATE,
@@ -41,9 +43,59 @@ from teleutils._config import (
     PRIMARY_KEY_COLUMNS,
     TARGET_SCHEMA,
 )
-from teleutils.preprocessing import spark_normalize_number
+from teleutils.preprocessing import normalize_number
 
 logger = logging.getLogger(__name__)
+
+# Schema Spark para o tipo de retorno da UDF pandas: (numero_formatado, numero_valido).
+# Mantido como constante de módulo para permitir reuso e evitar recriação por chamada.
+_RETURN_SCHEMA = T.StructType(
+    [
+        T.StructField("numero_formatado", T.StringType(), True),
+        T.StructField("numero_valido", T.BooleanType(), True),
+    ]
+)
+
+
+@pandas_udf(_RETURN_SCHEMA)  # type: ignore
+def _normalize_number(number_series: pd.Series) -> pd.DataFrame:
+    """Normaliza números telefônicos em lote para uso em pipelines Spark.
+
+    UDF pandas vetorizada que recebe uma série de números telefônicos brutos,
+    aplica ``normalize_number`` sobre cada elemento e retorna uma estrutura
+    tabular com o número formatado e o indicador de validade.
+
+    Args:
+        number_series: Série pandas contendo números telefônicos em formato bruto,
+            possivelmente com letras, pontuação e prefixos variados.
+
+    Returns:
+        pd.DataFrame: DataFrame com as seguintes colunas:
+            - ``numero_formatado`` (str | None): Número normalizado ou original.
+            - ``numero_valido`` (bool | None): Indicador de sucesso da normalização.
+
+    Notes:
+        A pandas UDF processa os dados por lote (batch), reduzindo o overhead de
+        serialização em comparação com UDFs linha a linha, o que melhora
+        significativamente o desempenho em grandes volumes de CDR.
+
+        Anotação de manutenção: alterações no contrato de retorno (nomes ou
+        tipos de coluna) exigem atualização coordenada de
+        ``_RETURN_SCHEMA`` e de todos os acessos às
+        colunas estruturadas nos transformadores que consomem esta UDF.
+    """
+    # Processar em batch (vetorizado)
+    results = []
+    for number in number_series:
+        results.append(normalize_number(number))
+
+    return pd.DataFrame(
+        results,
+        columns=[
+            "numero_formatado",
+            "numero_valido",
+        ],
+    )
 
 
 class CDRBaseTransformer:
@@ -182,11 +234,11 @@ class CDRBaseTransformer:
         df = (
             df.withColumn(
                 "_numero_origem_formatado",
-                spark_normalize_number("numero_origem"),  # type: ignore
+                _normalize_number("numero_origem"),  # type: ignore
             )
             .withColumn(
                 "_numero_destino_formatado",
-                spark_normalize_number("numero_destino"),  # type: ignore
+                _normalize_number("numero_destino"),  # type: ignore
             )
             .withColumn(
                 "numero_origem_formatado",
