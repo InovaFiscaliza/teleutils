@@ -1,22 +1,25 @@
-"""Pacote de pré-processamento: normalização e validação de dados.
+"""API pública do pacote de pré-processamento.
 
-Reexporta as funções de normalização de números telefônicos brasileiros
-(``normalize_number``, ``normalize_number_pair``, ``spark_normalize_number``) e
-de validação de CNPJ (``validar_cnpj``, ``spark_validar_cnpj``) utilizadas
-pelas camadas de transformação do projeto.
+Este inicializador reexporta as funções listadas em ``__all__`` para acesso
+direto pelo namespace ``teleutils.preprocessing``:
+
+        - ``normalize_number``: normaliza e valida um número telefônico brasileiro,
+            conforme os padrões implementados em ``number_format``.
+        - ``is_valid_cnpj``: valida um CNPJ conforme a implementação em ``utils``.
+
+Example:
+        >>> normalize_number("11999999999")
+        ('11999999999', True)
+        >>> is_valid_cnpj("11222333000181")
+        True
 """
 
 from teleutils.preprocessing.number_format import (
     normalize_number,
-    normalize_number_pair,
-    spark_normalize_number,
 )
-from teleutils.preprocessing.utils import spark_validar_cnpj, validar_cnpj
+from teleutils.preprocessing.utils import is_valid_cnpj
 
 __all__ = [
+    "is_valid_cnpj",
     "normalize_number",
-    "normalize_number_pair",
-    "spark_normalize_number",
-    "spark_validar_cnpj",
-    "validar_cnpj",
 ]
