@@ -32,7 +32,8 @@
         "ms-toolsai.jupyter",
         "charliermarsh.ruff",
         "tamasfe.even-better-toml",
-        "mutantdino.resourcemonitor"
+        "mutantdino.resourcemonitor",
+        "mechatroner.rainbow-csv"
       ],
       "settings": {
         "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python"
