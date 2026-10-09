@@ -48,7 +48,7 @@ import logging
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 
-from teleutils._logging import log_operation
+from teleutils._logging import format_source_file_for_log, log_operation
 from teleutils.core.extractors.schemas import TEXT_DEFAULT_SCHEMAS, CDRTextSchema
 
 logger = logging.getLogger(__name__)
@@ -202,10 +202,7 @@ class CDRTextExtractor:
 
         schema = self.schemas[cdr_schema]
 
-        if isinstance(source_file, list):
-            source_file_log = source_file[0] + "... "
-        else:
-            source_file_log = source_file
+        source_file_log = format_source_file_for_log(source_file)
         logger.info(
             "Lendo arquivo(s) CSV: %s com delimitador '%s' e header=%s",
             source_file_log,

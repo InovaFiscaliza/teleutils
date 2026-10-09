@@ -51,7 +51,7 @@ import logging
 from pyspark.sql import SparkSession  # type: ignore
 from pyspark.sql import functions as F  # type: ignore
 
-from teleutils._logging import log_operation
+from teleutils._logging import format_source_file_for_log, log_operation
 from teleutils.core.extractors.schemas import PARQUET_DEFAULT_SCHEMAS, CDRParquetSchema
 
 logger = logging.getLogger(__name__)
@@ -139,9 +139,6 @@ class CDRParquetExtractor:
 
         Raises:
             ValueError: Se ``cdr_schema`` não estiver no catálogo da instância.
-            IndexError: Se ``source_file`` for uma lista vazia. O decorador
-                acessa seu primeiro elemento antes de executar este método;
-                o registro de log interno também pressupõe uma lista não vazia.
 
         Notes:
             ``mergeSchema=true`` solicita a união dos schemas dos arquivos.
@@ -185,10 +182,7 @@ class CDRParquetExtractor:
 
         schema = self.schemas[cdr_schema]
 
-        if isinstance(source_file, list):
-            source_file_log = source_file[0] + "... "
-        else:
-            source_file_log = source_file
+        source_file_log = format_source_file_for_log(source_file)
         logger.info("Lendo arquivo(s) parquet: %s", source_file_log)
 
         if isinstance(source_file, list):

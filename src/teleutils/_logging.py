@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import logging
 from functools import wraps
-from typing import Callable
+from time import perf_counter
+from typing import Any, Callable, TypeVar, cast
 
 # Convenção para bibliotecas: NullHandler no pacote raiz.
 # Evita o aviso "No handlers could be found" quando o consumidor
@@ -11,37 +12,58 @@ from typing import Callable
 logging.getLogger("teleutils").addHandler(logging.NullHandler())
 
 
-def log_operation(method: Callable) -> Callable:
-    """
-    Decorador para registrar início, fim e falhas de métodos de transformação.
+Method = TypeVar("Method", bound=Callable[..., Any])
 
-    Usa o logger do módulo da classe decorada (via self.__class__.__module__)
-    para manter a hierarquia de loggers correta na biblioteca.
+
+def format_source_file_for_log(source_file: str | list[str]) -> str:
+    """Descreve a entrada para log, sem validar ou modificar os caminhos.
+
+    Listas são resumidas pelo primeiro elemento e pela quantidade de caminhos.
+    Listas vazias são representadas sem acesso ao primeiro elemento. A
+    representação por ``repr`` torna caracteres de controle visíveis.
+    """
+    if isinstance(source_file, list):
+        count = len(source_file)
+        first_path = repr(source_file[0]) if source_file else "[]"
+        label = "caminho" if count == 1 else "caminhos"
+        return f"{first_path} ({count} {label})"
+    return repr(source_file)
+
+
+def log_operation(method: Method) -> Method:
+    """Registra início, sucesso, duração e falhas de extração, transformação e carga.
+
+    Usa o logger do módulo que implementa o método e seu nome qualificado.
+    Não valida a entrada nem configura níveis ou handlers da aplicação.
+    Exceções da operação são registradas com traceback e relançadas intactas.
+    A duração mede a execução do método, sem materializar ações Spark adicionais.
     """
 
     @wraps(method)
-    def wrapper(self, source_file: str, *args, **kwargs):
-        if isinstance(source_file, list):
-            source_file_log = source_file[0] + "... "
-        else:
-            source_file_log = source_file
-
-        logger = logging.getLogger(self.__class__.__module__)
-        logger.info("Iniciando operação [%s]: %s", method.__name__, source_file_log)
+    def wrapper(
+        self: Any, source_file: str | list[str], *args: Any, **kwargs: Any
+    ) -> Any:
+        source_file_log = format_source_file_for_log(source_file)
+        logger = logging.getLogger(method.__module__)
+        operation = method.__qualname__
+        logger.info("Iniciando operação [%s]: %s", operation, source_file_log)
+        started_at = perf_counter()
         try:
             result = method(self, source_file, *args, **kwargs)
-            logger.info(
-                "Operação [%s] concluída com sucesso.",
-                method.__name__,
-            )
-            return result
-        except Exception as e:
+        except Exception:
             logger.exception(
-                "Falha na operação [%s]: %s %s",
-                method.__name__,
+                "Falha na operação [%s]: %s (duração: %.3f s)",
+                operation,
                 source_file_log,
-                e,  # noqa: TRY401
+                perf_counter() - started_at,
             )
             raise
+        logger.info(
+            "Operação [%s] concluída com sucesso: %s (duração: %.3f s)",
+            operation,
+            source_file_log,
+            perf_counter() - started_at,
+        )
+        return result
 
-    return wrapper
+    return cast(Method, wrapper)
