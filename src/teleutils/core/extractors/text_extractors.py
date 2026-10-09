@@ -49,7 +49,11 @@ from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 
 from teleutils._logging import format_source_file_for_log, log_operation
-from teleutils.core.extractors.schemas import TEXT_DEFAULT_SCHEMAS, CDRTextSchema
+from teleutils.core.extractors.schemas import (
+    TEXT_DEFAULT_SCHEMAS,
+    CDRTextSchema,
+    resolve_cdr_schema,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -137,6 +141,7 @@ class CDRTextExtractor:
             str: Caminho do diretório Parquet persistido em ``target_file``.
 
         Raises:
+            TypeError: Se ``cdr_schema`` não for uma string.
             ValueError: Se ``source_file`` for uma lista vazia;
                 se ``cdr_schema`` não for uma chave válida de
                 ``self.schemas`` ou, no ramo sem ``column_sizes``, se o maior
@@ -194,13 +199,7 @@ class CDRTextExtractor:
         if isinstance(source_file, list) and not source_file:
             raise ValueError("source_file deve conter ao menos um caminho de entrada.")
 
-        if cdr_schema not in self.schemas:
-            raise ValueError(
-                f"Schema '{cdr_schema}' não encontrado. "
-                f"Schemas disponíveis: {list(self.schemas)}"
-            )
-
-        schema = self.schemas[cdr_schema]
+        schema = resolve_cdr_schema(self.schemas, cdr_schema)
 
         source_file_log = format_source_file_for_log(source_file)
         logger.info(

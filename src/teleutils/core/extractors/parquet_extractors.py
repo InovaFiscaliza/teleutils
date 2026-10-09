@@ -52,7 +52,11 @@ from pyspark.sql import SparkSession  # type: ignore
 from pyspark.sql import functions as F  # type: ignore
 
 from teleutils._logging import format_source_file_for_log, log_operation
-from teleutils.core.extractors.schemas import PARQUET_DEFAULT_SCHEMAS, CDRParquetSchema
+from teleutils.core.extractors.schemas import (
+    PARQUET_DEFAULT_SCHEMAS,
+    CDRParquetSchema,
+    resolve_cdr_schema,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -138,6 +142,7 @@ class CDRParquetExtractor:
             str: Caminho do parquet persistido em ``target_file``.
 
         Raises:
+            TypeError: Se ``cdr_schema`` não for uma string.
             ValueError: Se ``cdr_schema`` não estiver no catálogo da instância.
 
         Notes:
@@ -174,13 +179,7 @@ class CDRParquetExtractor:
             não há recuperação de falhas de leitura, transformação ou escrita.
         """
 
-        if cdr_schema not in self.schemas:
-            raise ValueError(
-                f"Schema '{cdr_schema}' não encontrado. "
-                f"Schemas disponíveis: {list(self.schemas)}"
-            )
-
-        schema = self.schemas[cdr_schema]
+        schema = resolve_cdr_schema(self.schemas, cdr_schema)
 
         source_file_log = format_source_file_for_log(source_file)
         logger.info("Lendo arquivo(s) parquet: %s", source_file_log)
