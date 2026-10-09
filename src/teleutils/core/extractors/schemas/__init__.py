@@ -11,6 +11,7 @@ Exports:
     CDRTextSchema: Contrato de leitura, seleção e filtragem para CDRs texto/CSV.
     PARQUET_DEFAULT_SCHEMAS: Catálogo de contratos padrão para layouts Parquet.
     TEXT_DEFAULT_SCHEMAS: Catálogo de contratos padrão para layouts texto/CSV.
+    resolve_cdr_schema: Valida uma chave e obtém seu contrato no catálogo informado.
 
 Example:
     >>> from teleutils.core.extractors.schemas import PARQUET_DEFAULT_SCHEMAS
@@ -18,6 +19,9 @@ Example:
     'SMP Ericsson GSM'
 """
 
+from __future__ import annotations
+
+from teleutils.core.extractors.schemas._schema_utils import resolve_cdr_schema
 from teleutils.core.extractors.schemas.parquet import (
     PARQUET_DEFAULT_SCHEMAS,
     CDRParquetSchema,
@@ -25,8 +29,9 @@ from teleutils.core.extractors.schemas.parquet import (
 from teleutils.core.extractors.schemas.text import TEXT_DEFAULT_SCHEMAS, CDRTextSchema
 
 __all__ = [
-    "CDRParquetSchema",
-    "CDRTextSchema",
     "PARQUET_DEFAULT_SCHEMAS",
     "TEXT_DEFAULT_SCHEMAS",
+    "CDRParquetSchema",
+    "CDRTextSchema",
+    "resolve_cdr_schema",
 ]
