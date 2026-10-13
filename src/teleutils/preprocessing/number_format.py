@@ -185,10 +185,12 @@ MID_NUMBERS_PATTERN = re.compile(
 )
 
 # group(1): apenas o número do serviço, sem o CN
+# padrão de números de serviços de utilidade pública deve ser mais
+# restritivo que de números fixos ou móveis para minimizar falsos positivos.
 UTILITY_NUMBERS_PATTERN = re.compile(
     rf"""
     ^
-    (?:{_CN_PATTERN})?
+    (?:0?{_CN_PATTERN})?
     ({_SERVICES_PATTERN})
     $
     """,
@@ -287,16 +289,13 @@ def normalize_number(subscriber_number, national_destination_code=""):
     # Remove caracteres indesejados usando CLEAN_PATTERN
     clean_subscriber_number = CLEAN_PATTERN.sub("", clean_subscriber_number)
 
-    # Substitui o prefixo encontrado por uma string vazia ""
-    clean_subscriber_number = PREFFIX_PATTERN.sub("", clean_subscriber_number)
-
     len_clean_subscriber_number = len(clean_subscriber_number)
 
     if len_clean_subscriber_number >= 10:
         pattern = LARGE_NUMBERS_PATTERN
     elif len_clean_subscriber_number in (8, 9):
         pattern = MID_NUMBERS_PATTERN
-    elif len_clean_subscriber_number in (3, 4, 5):
+    elif len_clean_subscriber_number in (3, 4, 5, 6):
         pattern = UTILITY_NUMBERS_PATTERN
     else:
         return (subscriber_number, False)
