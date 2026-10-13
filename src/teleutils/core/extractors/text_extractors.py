@@ -37,6 +37,7 @@ Example:
     ...     target_file="saida/ngn_huawei",
     ...     cdr_schema="stfc_huawei_ngn",
     ...     operator="prestadora",
+    ...     service="stfc",
     ...     cdr_type="stfc"
     ... )
 """
@@ -49,6 +50,12 @@ from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 
 from teleutils._logging import format_source_file_for_log, log_operation
+from teleutils.core.extractors._extractors_utils import (
+    SOURCE_PATH_COLUMN,
+    add_source_metadata,
+    read_text_with_source,
+    validate_metadata_arguments,
+)
 from teleutils.core.extractors.schemas import (
     TEXT_DEFAULT_SCHEMAS,
     CDRTextSchema,
@@ -108,8 +115,9 @@ class CDRTextExtractor:
         target_file: str,
         cdr_schema: str,
         *,
-        operator: str = "",
-        cdr_type: str = "",
+        operator: str | None = "",
+        service: str | None = "",
+        cdr_type: str | None = "",
     ) -> str:
         """Extrai campos e metadados de um layout CDR e grava Parquet intermediário.
 
@@ -118,7 +126,7 @@ class CDRTextExtractor:
             2. Lê linhas via RDD ou CSV com as opções do contrato.
             3. Recorta campos de largura fixa ou valida e seleciona colunas por
                posição, atribuindo os nomes de ``column_names``.
-            4. Adiciona ``esquema``, ``prestadora``, ``tipo_cdr`` e
+            4. Adiciona ``esquema``, ``prestadora``, ``servico``, ``tipo_cdr`` e
                ``arquivo_origem`` para identificar o contrato e a origem.
             5. Mantém registros que atendem ao filtro opcional ``lines_to_keep``.
             6. Grava o resultado em Parquet com modo ``overwrite``.
@@ -131,28 +139,48 @@ class CDRTextExtractor:
             cdr_schema: Chave do contrato de mapeamento aplicável ao formato de origem.
                 Define as opções de leitura, as posições selecionadas, os nomes
                 de saída e o filtro opcional.
-            operator: Valor literal de ``prestadora``. Se vazio, utiliza o
-                terceiro segmento a partir do fim do caminho retornado por
-                ``input_file_name``.
-            cdr_type: Valor literal de ``tipo_cdr``. Se vazio, utiliza o segundo
-                segmento a partir do fim do mesmo caminho.
+            operator: Valor de ``prestadora``. Se vazio ou ``None``, utiliza
+                o diretório operator de ``../operator/service/cdr_type/arquivo``.
+            service: Valor de ``servico``. Se vazio ou ``None``, utiliza o
+                diretório service da mesma estrutura.
+            cdr_type: Valor de ``tipo_cdr``. Se vazio ou ``None``, utiliza o
+                diretório cdr_type. A coluna ``_tipo_cdr`` prevalece, se existir.
 
         Returns:
             str: Caminho do diretório Parquet persistido em ``target_file``.
 
         Raises:
-            TypeError: Se ``cdr_schema`` não for uma string.
+            TypeError: Se ``cdr_schema`` não for uma string ou um argumento
+                de metadados não for uma string nem ``None``.
             ValueError: Se ``source_file`` for uma lista vazia;
                 se ``cdr_schema`` não for uma chave válida de
                 ``self.schemas`` ou, no ramo sem ``column_sizes``, se o maior
                 índice requerido for maior ou igual à quantidade de colunas
-                lidas. Essa verificação não é realizada no ramo de largura fixa.
+                lidas; um argumento contiver somente espaços; ou algum metadado
+                obrigatório não puder ser inferido do caminho. A verificação de
+                índices não é realizada no ramo de largura fixa.
 
         Notes:
+            Cada chamada deve receber dados de uma única prestadora e de um
+            único tipo de CDR de entrada, mesmo quando ``source_file`` contém
+            vários caminhos. Essa premissa é responsabilidade do chamador;
+            não há validação de homogeneidade entre os arquivos. A classificação
+            por registro de ``_tipo_cdr``, quando presente, pode variar, como
+            nos registros ``aTSRecord`` e ``iBCFRecord``.
+
+            Não há lista fechada de prestadoras, serviços ou tipos de CDR.
+            Novos contratos podem ser adicionados a ``self.schemas`` em tempo
+            de execução e selecionados por ``cdr_schema``. A validação dos
+            valores e da consistência dos dados após a extração cabe ao usuário.
+            Informações incorretas ou localização inadequada dos arquivos podem
+            produzir metadados e dados inconsistentes.
+
             Na leitura CSV, ``inferSchema=False`` desativa a inferência de tipos,
             ``schema.schema`` é repassado ao leitor e espaços iniciais e finais
             são ignorados. No ramo ``read_rdd``, cada linha vira uma coluna
             ``value``; delimitador, cabeçalho e schema Spark não são aplicados.
+            A origem de cada linha é mantida em uma coluna interna, removida
+            antes da persistência.
 
             A leitura via RDD contorna falhas de interpretação de caminhos como
             URI pelo leitor CSV, relatadas no ambiente de origem para nomes de
@@ -172,11 +200,18 @@ class CDRTextExtractor:
             Apenas os campos selecionados ou recortados seguem para a saída,
             junto dos metadados. Não há conversão adicional de tipos dos campos.
 
-            ``esquema`` recebe a chave ``cdr_schema``. ``arquivo_origem`` recebe
-            o último segmento de ``input_file_name``, decodificado por
-            ``url_decode``. Os segmentos são separados por ``/``. Não há
-            alternativa para ausência de informação de arquivo no ramo RDD;
-            os metadados derivados dependem do valor fornecido pelo Spark.
+            ``_tipo_cdr``, quando mapeada, prevalece sobre o argumento ou a
+            inferência de ``tipo_cdr``, inclusive quando nula. Um log informa
+            essa precedência. A coluna é removida somente depois dos filtros.
+
+            ``esquema`` recebe a chave ``cdr_schema``. ``prestadora``, ``servico``
+            e ``tipo_cdr`` usam argumentos prioritários sobre os diretórios
+            ``../operator/service/cdr_type`` do arquivo efetivamente lido.
+            Somente campos ausentes são inferidos e verificados por uma ação
+            Spark antes da escrita. Argumentos completos dispensam a validação
+            da hierarquia. ``arquivo_origem`` é o nome do arquivo, decodificado
+            como URI e preservando sinais de mais literais. O ramo RDD preserva
+            a origem ao associar cada linha ao arquivo efetivamente lido.
 
             O filtro é aplicado depois da seleção e renomeação; por isso, seu
             primeiro elemento deve corresponder a um nome presente em
@@ -190,7 +225,8 @@ class CDRTextExtractor:
 
             Manutenção: ``source_file`` aceita um caminho ou uma lista de
             caminhos, conforme a assinatura ``str | list[str]``. No ramo RDD,
-            as listas são unidas por vírgulas; no CSV, são repassadas ao leitor.
+            arquivos são enumerados pelo filesystem Hadoop e seus RDDs unidos;
+            no CSV, os caminhos são repassados ao leitor.
             Listas vazias são rejeitadas com ``ValueError`` antes da resolução
             do contrato e de qualquer leitura. O decorador registra a falha sem
             acessar o primeiro elemento de uma lista vazia.
@@ -200,6 +236,7 @@ class CDRTextExtractor:
             raise ValueError("source_file deve conter ao menos um caminho de entrada.")
 
         schema = resolve_cdr_schema(self.schemas, cdr_schema)
+        validate_metadata_arguments(operator, service, cdr_type)
 
         source_file_log = format_source_file_for_log(source_file)
         logger.info(
@@ -212,10 +249,7 @@ class CDRTextExtractor:
         # read_rdd controla a leitura de linhas, independentemente de column_sizes.
         # O ramo RDD contorna falhas do leitor CSV relatadas para caminhos com "@".
         if schema.read_rdd:
-            if isinstance(source_file, list):
-                source_file = ",".join(source_file)
-            rdd = self.spark.sparkContext.textFile(source_file)
-            df = rdd.map(lambda x: (x,)).toDF(["value"])
+            df = read_text_with_source(self.spark, source_file)
         else:
             df = self.spark.read.csv(
                 source_file,
@@ -226,6 +260,7 @@ class CDRTextExtractor:
                 ignoreLeadingWhiteSpace=True,
                 ignoreTrailingWhiteSpace=True,
             )
+            df = df.withColumn(SOURCE_PATH_COLUMN, F.input_file_name())
         # O recorte de largura fixa exige uma coluna value produzida pela leitura.
         if schema.column_sizes:
             columns_expressions = []
@@ -239,19 +274,20 @@ class CDRTextExtractor:
                     col_expression = F.regexp_replace(col_expression, fill_pattern, "")
                 col_expression = F.trim(col_expression)
                 columns_expressions.append(col_expression.alias(name))
-            df = df.select(*columns_expressions)
+            df = df.select(*columns_expressions, F.col(SOURCE_PATH_COLUMN))
         else:
             # Valida se todos os índices solicitados existem no DataFrame lido.
             logger.info("Validando índices de coluna para o esquema '%s'", schema.name)
             max_index = max(schema.column_indices)
-            if max_index >= len(df.columns):
+            source_columns = [name for name in df.columns if name != SOURCE_PATH_COLUMN]
+            if max_index >= len(source_columns):
                 raise ValueError(
                     f"Schema '{schema.name}' requer coluna no índice {max_index}, "
-                    f"mas o arquivo possui apenas {len(df.columns)} colunas.\n"
+                    f"mas o arquivo possui apenas {len(source_columns)} colunas.\n"
                     f"Verifique se o delimitador '{schema.delimiter}' está correto "
                     f"para o arquivo: {source_file_log}\n"
                     f"Índices solicitados: {schema.column_indices}\n"
-                    f"Colunas disponíveis: {list(enumerate(df.columns))}\n"
+                    f"Colunas disponíveis: {list(enumerate(source_columns))}\n"
                     f"Configuração do schema: {schema!r}"
                 )
 
@@ -261,31 +297,21 @@ class CDRTextExtractor:
             # A seleção por índice preserva compatibilidade com layouts sem cabeçalho
             # estável, onde nomes de coluna originais não são confiáveis.
             columns_to_keep = [
-                F.col(df.columns[index]).alias(column_name)
+                F.col(source_columns[index]).alias(column_name)
                 for index, column_name in zip(
                     schema.column_indices,
                     schema.column_names,
                 )
             ]
-            df = df.select(*columns_to_keep)
+            df = df.select(*columns_to_keep, F.col(SOURCE_PATH_COLUMN))
 
-        if operator:
-            operator_expression = F.lit(operator)
-        else:
-            operator_expression = F.element_at(F.split(F.input_file_name(), "/"), -3)
-        if cdr_type:
-            cdr_type_expression = F.lit(cdr_type)
-        else:
-            cdr_type_expression = F.element_at(F.split(F.input_file_name(), "/"), -2)
-        df = df.withColumns(
-            {
-                "esquema": F.lit(cdr_schema),
-                "prestadora": operator_expression,
-                "tipo_cdr": cdr_type_expression,
-                "arquivo_origem": F.url_decode(
-                    F.element_at(F.split(F.input_file_name(), "/"), -1)
-                ),
-            }
+        df = add_source_metadata(
+            df,
+            cdr_schema,
+            operator=operator,
+            service=service,
+            cdr_type=cdr_type,
+            logger=logger,
         )
 
         if schema.lines_to_keep is not None:
@@ -304,6 +330,7 @@ class CDRTextExtractor:
             )
             df = df.filter(filter_expression)
 
+        df = df.drop("_tipo_cdr")
         logger.info(
             "Escrevendo DataFrame extraído para parquet: %s",
             target_file,

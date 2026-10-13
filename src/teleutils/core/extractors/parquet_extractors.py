@@ -40,7 +40,8 @@ Notes:
 Example:
     >>> extractor = CDRParquetExtractor(spark)
     >>> destino = extractor.extract(
-    ...     "/tmp/origem", "/tmp/destino", cdr_schema="smp_ericsson_gsm"
+    ...     "/tmp/origem", "/tmp/destino", cdr_schema="smp_ericsson_gsm",
+    ...     operator="prestadora", service="smp", cdr_type="gsm"
     ... )
 """
 
@@ -52,6 +53,11 @@ from pyspark.sql import SparkSession  # type: ignore
 from pyspark.sql import functions as F  # type: ignore
 
 from teleutils._logging import format_source_file_for_log, log_operation
+from teleutils.core.extractors._extractors_utils import (
+    SOURCE_PATH_COLUMN,
+    add_source_metadata,
+    validate_metadata_arguments,
+)
 from teleutils.core.extractors.schemas import (
     PARQUET_DEFAULT_SCHEMAS,
     CDRParquetSchema,
@@ -109,10 +115,14 @@ class CDRParquetExtractor:
     @log_operation
     def extract(
         self,
-        source_file: str,
+        source_file: str | list[str],
         target_file: str,
         cdr_schema: str,
         unique: bool = False,
+        *,
+        operator: str | None = "",
+        service: str | None = "",
+        cdr_type: str | None = "",
     ) -> str:
         """Seleciona campos e metadados conforme a chave de um contrato Parquet.
 
@@ -123,29 +133,50 @@ class CDRParquetExtractor:
                string para aqueles ausentes no DataFrame lido.
             4. Adiciona a chave do contrato e os metadados do arquivo de entrada.
             5. Remove duplicatas, se ``unique`` estiver habilitado.
-            6. Substitui ``tipo_cdr`` por ``_tipo_cdr``, se esta coluna existir,
-               e remove ``_tipo_cdr``.
+                6. Remove a coluna intermediária ``_tipo_cdr``, se existir.
             7. Sobrescreve o destino com o Parquet intermediário.
 
         Args:
-            source_file: Caminho do parquet de entrada. Embora anotado como
-                ``str``, o código também trata uma lista não vazia de caminhos, que
-                é expandida na chamada de leitura Spark.
+            source_file: Caminho do parquet de entrada ou lista não vazia de
+                caminhos, expandida na chamada de leitura Spark.
             target_file: Caminho do parquet de saída intermediária.
             cdr_schema: Chave de ``self.schemas`` que identifica o contrato
                 ``CDRParquetSchema`` e seus pares ``(origem, destino)``.
             unique: Se verdadeiro, aplica ``dropDuplicates`` considerando todas
-                as colunas projetadas e os metadados, antes de substituir
-                ``tipo_cdr``. O padrão é ``False``.
+                as colunas projetadas e os metadados, antes de remover
+                ``_tipo_cdr``. O padrão é ``False``.
+            operator: Valor de ``prestadora``. Se vazio ou ``None``, utiliza
+                o diretório operator de ``../operator/service/cdr_type/arquivo``.
+            service: Valor de ``servico``. Se vazio ou ``None``, utiliza o
+                diretório service da mesma estrutura.
+            cdr_type: Valor de ``tipo_cdr``. Se vazio ou ``None``, utiliza o
+                diretório cdr_type. A coluna ``_tipo_cdr`` prevalece, se existir.
 
         Returns:
             str: Caminho do parquet persistido em ``target_file``.
 
         Raises:
-            TypeError: Se ``cdr_schema`` não for uma string.
-            ValueError: Se ``cdr_schema`` não estiver no catálogo da instância.
+            TypeError: Se ``cdr_schema`` não for uma string ou um argumento
+                de metadados não for uma string nem ``None``.
+            ValueError: Se a lista de caminhos for vazia; o schema não estiver
+                no catálogo; um argumento contiver somente espaços; ou algum
+                metadado obrigatório não puder ser inferido do caminho.
 
         Notes:
+            Cada chamada deve receber dados de uma única prestadora e de um
+            único tipo de CDR de entrada, mesmo quando ``source_file`` contém
+            vários caminhos. Essa premissa é responsabilidade do chamador;
+            não há validação de homogeneidade entre os arquivos. A classificação
+            por registro de ``_tipo_cdr``, quando presente, pode variar, como
+            nos registros ``aTSRecord`` e ``iBCFRecord``.
+
+            Não há lista fechada de prestadoras, serviços ou tipos de CDR.
+            Novos contratos podem ser adicionados a ``self.schemas`` em tempo
+            de execução e selecionados por ``cdr_schema``. A validação dos
+            valores e da consistência dos dados após a extração cabe ao usuário.
+            Informações incorretas ou localização inadequada dos arquivos podem
+            produzir metadados e dados inconsistentes.
+
             ``mergeSchema=true`` solicita a união dos schemas dos arquivos.
             A ausência de uma coluna é verificada no DataFrame resultante,
             não separadamente em cada arquivo. Ausências são registradas em
@@ -157,21 +188,21 @@ class CDRParquetExtractor:
             o acesso é a uma coluna literal de nível superior, não a um campo
             aninhado. ``job_description`` não é utilizado nesta execução.
 
-            ``esquema`` recebe a chave ``cdr_schema``. Separando
-            ``input_file_name`` por ``/``, ``prestadora`` recebe o terceiro
-            segmento a partir do fim, ``tipo_cdr`` o segundo e ``arquivo_origem``
-            o último. O nome do arquivo não passa por decodificação de URL.
-            Esses metadados substituem colunas de mesmo nome na projeção;
-            o resultado depende da hierarquia dos caminhos de origem.
+            ``esquema`` recebe a chave ``cdr_schema``. ``prestadora``, ``servico``
+            e ``tipo_cdr`` usam argumentos prioritários sobre os diretórios
+            ``../operator/service/cdr_type`` do arquivo efetivamente lido.
+            Somente campos ausentes são inferidos e verificados por uma ação
+            Spark antes da escrita. Argumentos completos dispensam a validação
+            da hierarquia. ``arquivo_origem`` é o nome do arquivo, decodificado
+            como URI e preservando sinais de mais literais. Os cinco metadados
+            substituem colunas de mesmo nome na projeção.
 
             Se o contrato produzir ``_tipo_cdr``, essa coluna substitui
-            ``tipo_cdr`` após a deduplicação, inclusive quando seu valor é nulo.
+            ``tipo_cdr`` antes da deduplicação, inclusive quando seu valor é nulo.
+            Um log informa que o argumento ou a inferência do tipo foi ignorado.
             Não há fallback para o tipo derivado do diretório. A deduplicação
-            inclui ``arquivo_origem`` e ``_tipo_cdr`` quando presente, portanto
-            registros de arquivos distintos não são eliminados apenas por
-            terem os mesmos campos de chamada. Não há nova deduplicação após
-            substituir ``tipo_cdr`` e remover ``_tipo_cdr``; a saída ainda pode
-            conter linhas iguais após esse ajuste.
+            inclui ``arquivo_origem`` e ``_tipo_cdr`` quando presente; não há
+            nova deduplicação após remover a coluna intermediária.
 
             A escrita em modo ``overwrite`` materializa o plano Spark e
             sobrescreve o destino antes do retorno. ``log_operation`` registra
@@ -179,7 +210,10 @@ class CDRParquetExtractor:
             não há recuperação de falhas de leitura, transformação ou escrita.
         """
 
+        if isinstance(source_file, list) and not source_file:
+            raise ValueError("source_file deve conter ao menos um caminho de entrada.")
         schema = resolve_cdr_schema(self.schemas, cdr_schema)
+        validate_metadata_arguments(operator, service, cdr_type)
 
         source_file_log = format_source_file_for_log(source_file)
         logger.info("Lendo arquivo(s) parquet: %s", source_file_log)
@@ -189,6 +223,7 @@ class CDRParquetExtractor:
         else:
             df = self.spark.read.option("mergeSchema", "true").parquet(source_file)
 
+        df = df.withColumn(SOURCE_PATH_COLUMN, F.input_file_name())
         missing_columns = [
             source_col
             for source_col, _ in schema.column_mapping
@@ -216,13 +251,14 @@ class CDRParquetExtractor:
 
             select_expr.append(source_expr.alias(target_col))
 
-        df = df.select(*select_expr).withColumns(
-            {
-                "esquema": F.lit(cdr_schema),
-                "prestadora": F.element_at(F.split(F.input_file_name(), "/"), -3),
-                "tipo_cdr": F.element_at(F.split(F.input_file_name(), "/"), -2),
-                "arquivo_origem": F.element_at(F.split(F.input_file_name(), "/"), -1),
-            }
+        df = df.select(*select_expr, F.col(SOURCE_PATH_COLUMN))
+        df = add_source_metadata(
+            df,
+            cdr_schema,
+            operator=operator,
+            service=service,
+            cdr_type=cdr_type,
+            logger=logger,
         )
 
         if unique:
@@ -233,7 +269,7 @@ class CDRParquetExtractor:
             )
 
         if "_tipo_cdr" in df.columns:
-            df = df.withColumn("tipo_cdr", F.col("_tipo_cdr")).drop("_tipo_cdr")
+            df = df.drop("_tipo_cdr")
 
         logger.info("Escrevendo DataFrame extraido para parquet: %s", target_file)
         df.write.mode("overwrite").parquet(target_file)
