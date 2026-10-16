@@ -19,13 +19,19 @@ def suppress_spark_loggers(
     *logger_names: str,
     level: str = "ERROR",
 ) -> Callable[[DecoratorMethod], DecoratorMethod]:
-    """Altera temporariamente os níveis dos loggers Spark durante uma chamada."""
+    """Altera níveis Spark e registra aplicação e restauração no logger Python.
+
+    Registra em INFO os nomes e níveis no logger do módulo do método decorado.
+    Não captura as mensagens descartadas pelo Spark. Restaura os níveis
+    efetivos anteriores no finally, inclusive quando o método falha.
+    """
     if not logger_names:
         raise ValueError("Informe ao menos um logger.")
 
     def decorate(method: DecoratorMethod) -> DecoratorMethod:
         @wraps(method)
         def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
+            operation_logger = logging.getLogger(method.__module__)
             jvm = self.spark.sparkContext._jvm
             log4j = jvm.org.apache.logging.log4j
             configurator = log4j.core.config.Configurator
@@ -39,11 +45,23 @@ def suppress_spark_loggers(
             try:
                 for name in logger_names:
                     configurator.setLevel(name, target_level)
+                    operation_logger.info(
+                        "Logger Spark '%s': nível temporário %s aplicado "
+                        "(nível anterior: %s).",
+                        name,
+                        target_level,
+                        previous_levels[name],
+                    )
 
                 return method(self, *args, **kwargs)
             finally:
                 for name, previous_level in previous_levels.items():
                     configurator.setLevel(name, previous_level)
+                    operation_logger.info(
+                        "Logger Spark '%s': nível anterior %s restaurado.",
+                        name,
+                        previous_level,
+                    )
 
         return cast(DecoratorMethod, wrapper)
 

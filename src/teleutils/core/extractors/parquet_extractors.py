@@ -56,12 +56,18 @@ from teleutils._logging import format_source_file_for_log, log_operation
 from teleutils.core.extractors._extractors_utils import (
     SOURCE_PATH_COLUMN,
     add_source_metadata,
+    suppress_spark_loggers,
     validate_metadata_arguments,
 )
 from teleutils.core.extractors.schemas import (
     PARQUET_DEFAULT_SCHEMAS,
     CDRParquetSchema,
     resolve_cdr_schema,
+)
+
+PARQUET_EXTRACTOR_LOGGERS_TO_SUPPRESS = (
+    "org.apache.spark.sql.execution.datasources.parquet.ParquetFileFormat",
+    "org.apache.spark.sql.execution.datasources.FileScanRDD",
 )
 
 logger = logging.getLogger(__name__)
@@ -113,6 +119,7 @@ class CDRParquetExtractor:
         self.schemas = schemas
 
     @log_operation
+    @suppress_spark_loggers(*PARQUET_EXTRACTOR_LOGGERS_TO_SUPPRESS)
     def extract(
         self,
         source_file: str | list[str],
