@@ -61,6 +61,7 @@ class CDRParquetSchema:
     name: str
     column_mapping: tuple[tuple[str, str], ...]
     job_description: str
+    fill_char: str = ""
 
     def __post_init__(self) -> None:
         """Valida a estrutura do mapeamento após a criação do dataclass.
@@ -257,5 +258,25 @@ PARQUET_DEFAULT_SCHEMAS: dict[str, CDRParquetSchema] = {
             ("type_of_call", "tipo_chamada"),
         ),
         job_description="Extraindo CDR Parquet: SMP Italtel NGN TIM",
+    ),
+    "stfc_sigma_claro": CDRParquetSchema(
+        name="Sigma Claro",
+        column_mapping=(
+            ("source_file", "arquivo_origem"),
+            ("format", "_tipo_cdr"),
+            ("a_exchange_id", "bilhetador"),
+            ("a_calling_party", "numero_origem"),
+            ("a_called_party", "numero_destino"),
+            ("a_start_date", "_data"),
+            ("a_start_time", "_hora"),
+            ("a_duration_seconds", "duracao"),
+            ("a_incoming_route_name", "rota_entrada"),
+            ("a_outgoing_route_name", "rota_saida"),
+            ("a_call_class", "resultado_chamada"),
+            ("a_incoming_seizure_time", "_hora_nao_atendidas"),
+            ("a_sequence_number", "referencia"),
+        ),
+        job_description="Extraindo CDR Parquet: SMP Sigma Claro",
+        fill_char="-",
     ),
 }
