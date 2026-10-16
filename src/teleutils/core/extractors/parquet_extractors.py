@@ -218,12 +218,16 @@ class CDRParquetExtractor:
         source_file_log = format_source_file_for_log(source_file)
         logger.info("Lendo arquivo(s) parquet: %s", source_file_log)
 
+        reader = self.spark.read.option("mergeSchema", "true").option(
+            "ignoreCorruptFiles", "true"
+        )
         if isinstance(source_file, list):
-            df = self.spark.read.option("mergeSchema", "true").parquet(*source_file)
+            df = reader.parquet(*source_file)
         else:
-            df = self.spark.read.option("mergeSchema", "true").parquet(source_file)
+            df = reader.parquet(source_file)
 
-        df = df.withColumn(SOURCE_PATH_COLUMN, F.input_file_name())
+        if SOURCE_PATH_COLUMN not in df.columns:
+            df = df.withColumn(SOURCE_PATH_COLUMN, F.input_file_name())
         missing_columns = [
             source_col
             for source_col, _ in schema.column_mapping
@@ -249,6 +253,10 @@ class CDRParquetExtractor:
             else:
                 source_expr = F.lit(None).cast("string")
 
+            if schema.fill_char:
+                # fill_char entra no padrão sem escape de metacaracteres.
+                fill_pattern = f"{schema.fill_char}+$"
+                source_expr = F.regexp_replace(source_expr, fill_pattern, "")
             select_expr.append(source_expr.alias(target_col))
 
         df = df.select(*select_expr, F.col(SOURCE_PATH_COLUMN))
