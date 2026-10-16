@@ -3,12 +3,51 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, cast
+from functools import wraps
+from typing import Any, Callable, TypeVar, cast
 
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
 
+DecoratorMethod = TypeVar("DecoratorMethod", bound=Callable[..., Any])
+
+
 SOURCE_PATH_COLUMN = "__teleutils_source_path"
+
+
+def suppress_spark_loggers(
+    *logger_names: str,
+    level: str = "ERROR",
+) -> Callable[[DecoratorMethod], DecoratorMethod]:
+    """Altera temporariamente os níveis dos loggers Spark durante uma chamada."""
+    if not logger_names:
+        raise ValueError("Informe ao menos um logger.")
+
+    def decorate(method: DecoratorMethod) -> DecoratorMethod:
+        @wraps(method)
+        def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
+            jvm = self.spark.sparkContext._jvm
+            log4j = jvm.org.apache.logging.log4j
+            configurator = log4j.core.config.Configurator
+            target_level = getattr(log4j.Level, level.upper())
+
+            previous_levels = {
+                name: log4j.LogManager.getLogger(name).getLevel()
+                for name in logger_names
+            }
+
+            try:
+                for name in logger_names:
+                    configurator.setLevel(name, target_level)
+
+                return method(self, *args, **kwargs)
+            finally:
+                for name, previous_level in previous_levels.items():
+                    configurator.setLevel(name, previous_level)
+
+        return cast(DecoratorMethod, wrapper)
+
+    return decorate
 
 
 def read_text_with_source(
