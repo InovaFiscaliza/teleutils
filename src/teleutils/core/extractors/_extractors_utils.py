@@ -138,10 +138,12 @@ def add_source_metadata(
             expressions[name] = F.url_decode(F.regexp_replace(segment, r"\+", "%2B"))
             inferred_names.append(name)
 
-    filename = F.try_element_at(segments, F.lit(-1))
-    expressions["arquivo_origem"] = F.url_decode(
-        F.regexp_replace(filename, r"\+", "%2B")
-    )
+    # Se arquivo origem existe no DataFrame, não é necessário inferi-lo do caminho.
+    if "arquivo_origem" not in df.columns:
+        filename = F.try_element_at(segments, F.lit(-1))
+        expressions["arquivo_origem"] = F.url_decode(
+            F.regexp_replace(filename, r"\+", "%2B")
+        )
     df = df.withColumns(expressions)
 
     if inferred_names:
