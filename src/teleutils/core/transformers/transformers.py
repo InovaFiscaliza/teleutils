@@ -1957,13 +1957,15 @@ class CDRTransformer(CDRBaseTransformer):
 
     @log_operation
     def transform_stfc_sigma_claro(self, source_file: str, target_file: str) -> str:
-        date_time_fmt = "ddMMyy HHmmss"
+        date_time_fmt = "ddMMyy HH:mm:ss"
         df = self.spark.read.parquet(source_file)
 
-        time_exp = F.when(F.col("_hora") != "", F.col("_hora")).otherwise(
-            F.regexp_replace(F.col("_hora_nao_atendidas"), ":", "")
+        df = df.withColumns(
+            {
+                "data_hora": F.concat_ws(" ", F.col("_data"), F.col("_hora")),
+                "data_hora_fim": F.concat_ws(" ", F.col("_data"), F.col("_hora_fim")),
+            }
         )
-        df = df.withColumn("data_hora", F.concat_ws(" ", F.col("_data"), time_exp))
 
         df = self._apply_standard_pipeline(df, date_time_fmt)
         self._write_parquet(df, target_file)
