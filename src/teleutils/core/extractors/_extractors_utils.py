@@ -23,7 +23,9 @@ def suppress_spark_loggers(
 
     Registra em INFO os nomes e níveis no logger do módulo do método decorado.
     Não captura as mensagens descartadas pelo Spark. Restaura os níveis
-    efetivos anteriores no finally, inclusive quando o método falha.
+    explícitos e a herança anteriores no finally, inclusive quando o método
+    falha. A alteração afeta o contexto Log4j2 compartilhado da JVM do driver;
+    não há isolamento entre chamadas concorrentes.
     """
     if not logger_names:
         raise ValueError("Informe ao menos um logger.")
@@ -36,11 +38,19 @@ def suppress_spark_loggers(
             log4j = jvm.org.apache.logging.log4j
             configurator = log4j.core.config.Configurator
             target_level = getattr(log4j.Level, level.upper())
+            context = log4j.LogManager.getContext(False)
+            configuration = context.getConfiguration()
 
-            previous_levels = {
-                name: log4j.LogManager.getLogger(name).getLevel()
-                for name in logger_names
-            }
+            previous_configs = {}
+            for name in logger_names:
+                logger_config = configuration.getLoggers().get(name)
+                previous_configs[name] = (
+                    logger_config,
+                    logger_config.getExplicitLevel()
+                    if logger_config is not None
+                    else None,
+                    log4j.LogManager.getLogger(name).getLevel(),
+                )
 
             try:
                 for name in logger_names:
@@ -50,17 +60,27 @@ def suppress_spark_loggers(
                         "(nível anterior: %s).",
                         name,
                         target_level,
-                        previous_levels[name],
+                        previous_configs[name][2],
                     )
 
                 return method(self, *args, **kwargs)
             finally:
-                for name, previous_level in previous_levels.items():
-                    configurator.setLevel(name, previous_level)
+                for name, (
+                    logger_config,
+                    explicit_level,
+                    _,
+                ) in previous_configs.items():
+                    if logger_config is None:
+                        configuration.removeLogger(name)
+                    else:
+                        logger_config.setLevel(explicit_level)
+                context.updateLoggers()
+                for name in previous_configs:
                     operation_logger.info(
-                        "Logger Spark '%s': nível anterior %s restaurado.",
+                        "Logger Spark '%s': configuração anterior restaurada "
+                        "(nível efetivo: %s).",
                         name,
-                        previous_level,
+                        log4j.LogManager.getLogger(name).getLevel(),
                     )
 
         return cast(DecoratorMethod, wrapper)
