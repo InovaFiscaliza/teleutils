@@ -1,5 +1,7 @@
 ---
+name: documentar-projeto
 description: Cria ou atualiza a documentação técnica do projeto, incluindo a documentação da API pública e o README.md.
+user-invocable: true
 ---
 
 Utilize a skill `skill-documentar-projeto`.

@@ -1,5 +1,7 @@
 ---
+name: documentar-linhagem-dados
 description: Analisa o pipeline atual e gera ou atualiza a documentação de linhagem e transformação dos dados.
+user-invocable: true
 ---
 
 Utilize a skill `skill-documentar-linhagem-dados`.

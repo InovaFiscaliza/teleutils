@@ -1,3 +1,9 @@
+---
+name: criar-mensagem-commit
+description: Gera mensagem de commit seguindo o padrão Conventional Commits.
+user-invocable: true
+---
+
 Generate concise, meaningful commit messages in English following Conventional Commits specification.
 
 📋 Format: <type>[optional scope]: <emoji> <description>

@@ -1,6 +1,7 @@
 ---
-name: documentar-modulo-python
+name: skill-documentar-modulo-python
 description: Documenta módulos Python utilizando docstrings Google Style, comentários explicativos e anotações de manutenção, sem alterar o código ou a lógica de negócio.
+user-invocable: false
 ---
 
 # Documentar módulo Python

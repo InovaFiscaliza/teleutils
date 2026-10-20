@@ -1,6 +1,7 @@
 ---
-name: documentar-linhagem-dados
+name: skill-documentar-linhagem-dados
 description: Analisa o pipeline PySpark do projeto, rastreia a linhagem das colunas desde os CDRs originais até o Parquet final e gera ou atualiza a documentação técnica das transformações.
+user-invocable: false
 ---
 
 # Documentação de Linhagem e Transformação de Dados

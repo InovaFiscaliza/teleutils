@@ -1,6 +1,7 @@
 ---
 name: documentar-modulo-aberto
 description: Documenta o módulo Python atualmente aberto no editor, sem alterar sua lógica de negócio.
+user-invocable: true
 ---
 
 Utilize a skill `skill-documentar-modulo-python`.

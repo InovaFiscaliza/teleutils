@@ -1,5 +1,7 @@
 ---
+name: auditar-linhagem-dados
 description: Audita a documentação de linhagem de dados comparando-a de forma independente com o código atual.
+user-invocable: true
 ---
 
 Utilize a skill `skill-auditar-linhagem-dados`.

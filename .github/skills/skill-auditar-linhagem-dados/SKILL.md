@@ -1,8 +1,7 @@
 ---
-
-name: auditar-linhagem-dados
+name: skill-auditar-linhagem-dados
 description: Realiza uma auditoria técnica independente da documentação de linhagem e transformação de dados de pipelines PySpark, comparando a documentação existente com o comportamento real do código e identificando erros, omissões, inconsistências e ambiguidades sem alterar o código.
-
+user-invocable: false
 ---
 
 # Auditoria de Linhagem e Transformação de Dados
