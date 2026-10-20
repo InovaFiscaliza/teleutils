@@ -1,66 +1,49 @@
-"""Módulo de normalização e validação de números telefônicos brasileiros.
+"""Extração e validação de números telefônicos em entradas textuais.
 
-Este módulo implementa a função `normalize_number`, que padroniza e valida
-números telefônicos brasileiros por meio de expressões regulares baseadas na
-Resolução 749 da ANATEL (referências indicadas nos comentários de cada padrão).
+O módulo define expressões regulares para números STFC, SME, SMP, CNG e
+números de serviços, e usa esses padrões para localizar e classificar um
+número em uma entrada. ``extract_number`` retorna o número encontrado e
+um indicador de sucesso. Quando a entrada é vazia ou nenhuma extração é
+válida, o número retornado é ``SUBSCRIBER_NUMBER_NULL_SENTINEL_VALUE``,
+definido em ``teleutils._config``.
 
-Padrões de numeração reconhecidos:
-    - STFC (telefonia fixa): 8 dígitos iniciados em 2 a 6.
-    - SMP (telefonia móvel): 9 dígitos iniciados em 7, 8 ou 9.
-    - CNG (não geográficos): 10 dígitos iniciados em 300, 303, 500, 800 ou 900
-      (ex.: 0800 sem o ``0`` inicial).
-    - Serviços de 3, 4 e 5 dígitos (ex.: 190), com CN opcional.
+O processamento converte a entrada não vazia em texto minúsculo, remove um
+``f`` final e aplica ``CLEAN_PATTERN``. Em seguida, tenta o padrão associado
+ao tamanho do texto limpo; se não houver extração, pesquisa padrões de fallback
+em uma ordem definida. Números que correspondam ao padrão de rejeição não são
+retornados como extrações válidas.
 
-Principais funcionalidades:
-    - Remoção seletiva de caracteres ``*`` e ``#`` conforme ``CLEAN_PATTERN``.
-    - Remoção de um prefixo de discagem (``90``, ``9090``, ``00`` ou ``0``).
-    - Escolha do padrão de validação conforme o tamanho do número limpo.
-    - Acréscimo opcional do CN (código nacional de destino, o DDD) a números de
-      8 ou 9 dígitos.
-
-Fluxo de processamento:
-    Entrada
-      ↓
-    Valor vazio? → retorna ``SUBSCRIBER_NULL_SENTINEL``
-      ↓
-    ``str`` + minúsculas + remoção de um ``f`` final
-      ↓
-    Limpeza seletiva de ``*`` e ``#`` (``CLEAN_PATTERN``)
-      ↓
-    Remoção do prefixo de discagem (``PREFFIX_PATTERN``)
-      ↓
-    Seleção do padrão pelo tamanho (>= 10, 8 ou 9, 3 a 5)
-      ↓
-    Resultado: ``(número_normalizado, True)`` ou ``(entrada_original, False)``
+Os padrões incluem regras de formato comentadas no próprio código, algumas
+referenciadas à Resolução 749 da ANATEL. A validação corresponde às expressões
+implementadas neste módulo e não realiza consulta externa.
 
 Dependências relevantes:
-    - re (biblioteca padrão Python)
-
-Notes:
-    - A limpeza de ``*`` e ``#`` é seletiva: remove um caractere inicial se
-      houver pelo menos cinco caracteres após ele, remove sequências finais
-      desses caracteres e remove ``#9090`` onde aparecer. Espaços, parênteses
-      e hífens não são removidos.
-    - ``teleutils.preprocessing`` reexporta ``normalize_number`` deste módulo.
-
-Referências:
-    - Plano de Numeração da ANATEL: https://www.anatel.gov.br/
-    - Padrão ITU-T E.164: https://handle.itu.int/11.1002/1000/10688
+    - ``re``: compilação e busca de expressões regulares.
+    - ``typing.NamedTuple``: estrutura do resultado de ``extract_number``.
 
 Example:
-    >>> normalize_number("11999999999")
-    ('11999999999', True)
-    >>> normalize_number("5511999999999")
-    ('11999999999', True)
-    >>> normalize_number("08001234567")
-    ('8001234567', True)
+    >>> extract_number("987654321")
+    ExtractionResult(number='987654321', success=True)
 """
 
 import re
+from typing import NamedTuple
 
-# Retornado por normalize_number para entradas vazias ou nulas; marca o
-# resultado como inválido (False) com um número fixo.
-SUBSCRIBER_NULL_SENTINEL = ("5599999999999", False)
+from teleutils._config import SUBSCRIBER_NUMBER_NULL_SENTINEL_VALUE
+
+
+class ExtractionResult(NamedTuple):
+    """Resultado da tentativa de extração de um número.
+
+    Attributes:
+        number: Número extraído ou, quando a entrada é vazia ou a extração
+            falha, ``SUBSCRIBER_NUMBER_NULL_SENTINEL_VALUE``.
+        success: Indica se um número foi extraído e não foi rejeitado pelo
+            padrão de números repetidos.
+    """
+
+    number: str
+    success: bool
 
 
 #: Resolução 749, art. 15
@@ -75,20 +58,6 @@ _CN_PATTERN = r"""
         7[134579]|
         8[1-9]|
         9[1-9]
-    )
-"""
-
-# Resolução 749, art. 11
-_STFC_PATTERN = r"[2-6][0-9]{7}"
-
-# Resolução 749, art. 12
-_SMP_PATTERN = r"[789][0-9]{8}"
-
-# Resolução 749, art. 18
-_CNG_PATTERN = r"""
-    (?:
-        [3589]00[0-9]{7}|
-        303[0-9]{7}
     )
 """
 
@@ -154,36 +123,6 @@ _SERVICES_PATTERN = rf"""
     )
 """
 
-
-# group(1): CN + fixo/móvel, ou CNG, sempre com o CN quando houver.
-# Não possui âncora ``^``: com ``search``, aceita qualquer prefixo antes do
-# trecho final (ex.: ``55`` + CN + número), que é descartado do resultado.
-LARGE_NUMBERS_PATTERN = re.compile(
-    rf"""
-    (
-        {_CN_PATTERN}
-        (?:
-            {_STFC_PATTERN}|
-            {_SMP_PATTERN}
-        )|
-        {_CNG_PATTERN}
-    )$
-    """,
-    re.VERBOSE,
-)
-
-# group(1): fixo ou móvel (8 ou 9 dígitos), sem CN
-MID_NUMBERS_PATTERN = re.compile(
-    rf"""
-    ^(
-        {_STFC_PATTERN}|
-        {_SMP_PATTERN}
-    )
-    $
-    """,
-    re.VERBOSE,
-)
-
 # group(1): apenas o número do serviço, sem o CN
 # padrão de números de serviços de utilidade pública deve ser mais
 # restritivo que de números fixos ou móveis para minimizar falsos positivos.
@@ -197,122 +136,212 @@ UTILITY_NUMBERS_PATTERN = re.compile(
     re.VERBOSE,
 )
 
-# Remove marcadores de discagem apenas nos contextos especificados pelas
-# alternativas; não realiza limpeza geral de pontuação ou espaços.
-CLEAN_PATTERN = re.compile(
-    r"""
-        ^[*#](?=.{5})|    # "*" ou "#" inicial, só se a string tiver mais de 5 caracteres
-        [*#]+$|           # um ou mais "*" ou "#" no final
-        \#9090            # prefixo de chamada a cobrar (#9090) no meio do número
-    """,
-    re.VERBOSE,
-)
+# Resolução 749, art. 11
+_STFC_PATTERN = r"[2-6][0-9]{7}"
 
-PREFFIX_PATTERN = re.compile(
-    r"""
-    ^(?:
-        90(?:90)?|  # prefixo de chamada a cobrar
-        00|         # prefixo de discagem internacional
-        0           # prefixo de discagem nacional
+# Resolução 749 não menciona SME
+# Na base da EASI há apenas prefixo com N8=7 designado
+_SME_PATTERN = r"7[0-9]{7}"
+
+# Resolução 749, art. 12
+# Resolução destina número 7,8 e 9 para N9
+# Na base da EASI há apenas N9=9 atribuídos
+_SMP_PATTERN = r"9[0-9]{8}"
+
+# Resolução 749, art. 18 (Exceção)
+# Ainda há alguns 0800 com 9 dígitos
+_SHORT_CNG_PATTERN = r"(?:800[0-9]{6})"
+
+_LONG_CNG_PATTERN = r"""
+    (?:
+        [3589]00[0-9]{7}|
+        303[0-9]{7}
     )
-    """,
+"""
+
+# group(1): CN + fixo/móvel, ou CNG
+_NUMBERS_PATTERN = f"(?:{_SMP_PATTERN}|{_SME_PATTERN}|{_STFC_PATTERN})"
+_ALL_CNG_PATTERN = f"(?:{_LONG_CNG_PATTERN}|{_SHORT_CNG_PATTERN})"
+
+LARGE_NUMBERS_PATTERN = re.compile(
+    rf"^((?:{_CN_PATTERN}){_NUMBERS_PATTERN}|{_ALL_CNG_PATTERN})$",
+    re.VERBOSE,
+)
+
+# group(1): fixo ou móvel (8 ou 9 dígitos), sem CN ou CNG curto
+MID_NUMBERS_PATTERN = re.compile(
+    rf"^({_NUMBERS_PATTERN}|{_SHORT_CNG_PATTERN})$",
     re.VERBOSE,
 )
 
 
-def normalize_number(subscriber_number, national_destination_code=""):
-    """Normaliza um número telefônico brasileiro conforme os padrões da ANATEL.
+# Padrões de fallback para extrair números de várias posições na entrada, considerando prioridades:
+# 1 números móveis (SMP ou SME)
+# 2 números fixos (STFC)
+# 3 números de CNG (curto ou longo)
 
-    Converte a entrada em texto, remove um prefixo de discagem, escolhe o
-    padrão de validação pelo tamanho do número restante e retorna o número
-    normalizado com um indicador de validade.
+_MOBILE_BODY = f"(?:{_CN_PATTERN})(?:{_SMP_PATTERN}|{_SME_PATTERN})"
+_LANDLINE_BODY = f"(?:{_CN_PATTERN}){_STFC_PATTERN}"
+_CNG_BODY = f"(?:{_LONG_CNG_PATTERN}|{_SHORT_CNG_PATTERN})"
+
+
+def _build_patterns(body: str) -> tuple[re.Pattern, re.Pattern, re.Pattern]:
+    """Compila buscas ancoradas no fim, no início e em qualquer posição.
 
     Args:
-        subscriber_number: Número a normalizar. É convertido com ``str``; deve
-            conter dígitos; um ``f`` final é removido após conversão para
-            minúsculas. ``CLEAN_PATTERN`` remove ``*`` e ``#`` somente em
-            posições específicas; pontuação comum, espaços e outras letras
-            não são removidos.
-        national_destination_code: CN (DDD) a ser prefixado somente quando o
-            número limpo tiver 8 ou 9 dígitos e for válido. Padrão: ``""``
-            (nenhum acréscimo).
+        body: Expressão regular que representa o número a localizar.
 
     Returns:
-        tuple[str, bool]:
-            - Entrada vazia ou nula: ``SUBSCRIBER_NULL_SENTINEL``
-              (``("5599999999999", False)``).
-            - Número válido: ``(número_normalizado, True)``.
-            - Número inválido: ``(subscriber_number, False)``, com o valor
-              original sem conversão ou limpeza.
+        Tupla de três padrões compilados, cada um com um grupo de captura:
+        busca no fim da entrada, no início e em qualquer posição,
+        respectivamente.
+    """
+    return (
+        re.compile(rf"({body})$", re.VERBOSE),  # fim
+        re.compile(rf"^({body})", re.VERBOSE),  # início
+        re.compile(rf"({body})", re.VERBOSE),  # qualquer ponto
+    )
+
+
+TRAILING_MOBILE_PATTERNS, LEADING_MOBILE_PATTERNS, ANYWHERE_MOBILE_PATTERNS = (
+    _build_patterns(_MOBILE_BODY)
+)
+TRAILING_LANDLINE_PATTERNS, LEADING_LANDLINE_PATTERNS, ANYWHERE_LANDLINE_PATTERNS = (
+    _build_patterns(_LANDLINE_BODY)
+)
+TRAILING_CNG_PATTERNS, LEADING_CNG_PATTERNS, ANYWHERE_CNG_PATTERNS = _build_patterns(
+    _CNG_BODY
+)
+
+# group(1): fixo ou móvel (8 ou 9 dígitos), sem CN, após o prefixo 9090
+COLLECT_CALL_PATTERN = re.compile(
+    rf"9090({_NUMBERS_PATTERN})",
+    re.VERBOSE,
+)
+
+FALLBACK_PATTERNS = [
+    TRAILING_MOBILE_PATTERNS,
+    LEADING_MOBILE_PATTERNS,
+    TRAILING_LANDLINE_PATTERNS,
+    LEADING_LANDLINE_PATTERNS,
+    TRAILING_CNG_PATTERNS,
+    LEADING_CNG_PATTERNS,
+    COLLECT_CALL_PATTERN,
+    ANYWHERE_MOBILE_PATTERNS,
+    ANYWHERE_LANDLINE_PATTERNS,
+    ANYWHERE_CNG_PATTERNS,
+]
+
+# Remove zeros iniciais e, separadamente, sufixos de oito ou mais dígitos iguais.
+CLEAN_PATTERN = re.compile(r"^0+|(\d)\1{7,}$")
+
+
+# Padrão para números rejeitados: todos os dígitos iguais ou duas sequências de dígitos repetidos.
+REJECTED_NUMBERS_PATTERN = re.compile(
+    rf"^(?:{_CN_PATTERN})?(?:(\d)\1+|(\d)\2*(?!\2)(\d)\3*)$",
+    re.VERBOSE,
+)
+
+
+def _is_rejected_number(subscriber_number):
+    """Indica se o texto corresponde ao padrão de números repetidos rejeitados.
+
+    Args:
+        subscriber_number: Texto comparado com ``REJECTED_NUMBERS_PATTERN``.
+
+    Returns:
+        ``True`` quando o padrão encontra correspondência; caso contrário,
+        ``False``.
+    """
+    return REJECTED_NUMBERS_PATTERN.match(subscriber_number) is not None
+
+
+def _extract_number(pattern, subscriber_number):
+    """Obtém o grupo final da primeira correspondência se ele não for rejeitado.
+
+    Args:
+        pattern: Padrão compilado usado para pesquisar a entrada.
+        subscriber_number: Texto no qual a busca será realizada.
+
+    Returns:
+        Texto capturado pelo último grupo do padrão, ou ``None`` quando não há
+        correspondência ou o texto capturado é rejeitado por
+        ``REJECTED_NUMBERS_PATTERN``.
+    """
+    if match := pattern.search(subscriber_number):
+        if _is_rejected_number(match.group(match.lastindex)):
+            return None
+        return match.group(match.lastindex)
+    return None
+
+
+def _search_number(subscriber_number, fallback_patterns):
+    """Tenta os padrões de fallback na ordem recebida.
+
+    Args:
+        subscriber_number: Texto limpo no qual os padrões serão pesquisados.
+        fallback_patterns: Padrões compilados cuja ordem determina a prioridade
+            das tentativas.
+
+    Returns:
+        A primeira extração válida encontrada ou ``None`` se nenhuma tentativa
+        produzir um número aceito.
+    """
+    for pattern in fallback_patterns:
+        if extracted_number := _extract_number(pattern, subscriber_number):
+            return extracted_number
+    return None
+
+
+# (tamanhos aceitos do texto limpo, padrão da tentativa inicial)
+_LENGTH_RULES = (
+    (range(3, 8), UTILITY_NUMBERS_PATTERN),
+    (range(8, 10), MID_NUMBERS_PATTERN),
+    (range(10, 12), LARGE_NUMBERS_PATTERN),
+)
+
+
+def extract_number(subscriber_number) -> ExtractionResult:
+    """Extrai um número reconhecido de uma entrada e indica se houve sucesso.
+
+    Args:
+        subscriber_number: Valor de entrada. Valores falsy são tratados como
+            entrada vazia; os demais são convertidos para texto antes da
+            limpeza e da busca.
+
+    Returns:
+        ExtractionResult: Tupla nomeada com o número extraído e o indicador de
+        sucesso. Para uma entrada falsy ou quando nenhuma extração é válida,
+        retorna ``(SUBSCRIBER_NUMBER_NULL_SENTINEL_VALUE, False)``.
 
     Notes:
-        Etapas de processamento:
-            1. Entradas falsy (``None``, ``""``) retornam o sentinela.
-            2. A entrada é convertida para minúsculas e perde um ``f`` final.
-            3. ``CLEAN_PATTERN`` remove ``*``/``#`` inicial quando seguido de
-               pelo menos cinco caracteres, sequências finais desses
-               caracteres e ocorrências de ``#9090``.
-            4. ``PREFFIX_PATTERN`` remove um prefixo de discagem inicial.
-            5. O tamanho do resultado define o padrão: 10 ou mais dígitos
-               (``LARGE_NUMBERS_PATTERN``), 8 ou 9 (``MID_NUMBERS_PATTERN``),
-               3 a 5 (``UTILITY_NUMBERS_PATTERN``); outros tamanhos são
-               inválidos.
-            6. O ``group(1)`` do padrão é o número normalizado: sem prefixo
-               de discagem, sem código de país (``55``) e, para serviços, sem
-               CN. O 0 inicial de 0800/0300 é removido como prefixo
-               nacional, e não é restaurado.
-
-        O bloco ``except IndexError`` retorna ``SUBSCRIBER_NULL_SENTINEL``;
-        os padrões usados definem ``group(1)``, portanto esse retorno é
-        defensivo.
-
-    Example:
-        >>> normalize_number("11999999999")
-        ('11999999999', True)
-        >>> normalize_number("5511999999999")
-        ('11999999999', True)
-        >>> normalize_number("08001234567")
-        ('8001234567', True)
-        >>> normalize_number("190")
-        ('190', True)
-        >>> normalize_number("invalido")
-        ('invalido', False)
+        O texto é convertido para minúsculas, tem um ``f`` final removido e
+        passa por ``CLEAN_PATTERN`` antes da seleção dos padrões. A tentativa
+        inicial depende do comprimento resultante: serviços para comprimentos
+        de 3 a 7, padrões intermediários para 8 ou 9 e padrões longos para 10
+        ou 11. Se essa tentativa não produzir um número, os padrões de fallback
+        são pesquisados na ordem de ``FALLBACK_PATTERNS``. A limpeza não remove
+        espaços nem pontuação em geral.
     """
-
     if not subscriber_number:
-        return SUBSCRIBER_NULL_SENTINEL
+        return ExtractionResult(SUBSCRIBER_NUMBER_NULL_SENTINEL_VALUE, False)
 
-    # Converte para minúsculas e remove no máximo um 'f' final (comparação
-    # case-insensitive com o sufixo).
-    clean_subscriber_number = str(subscriber_number).lower().removesuffix("f")
+    clean_number = CLEAN_PATTERN.sub(
+        "", str(subscriber_number).lower().removesuffix("f")
+    )
+    length = len(clean_number)
 
-    # Remove caracteres indesejados usando CLEAN_PATTERN
-    clean_subscriber_number = CLEAN_PATTERN.sub("", clean_subscriber_number)
+    extracted_number = None
 
-    # Substitui o prefixo encontrado por uma string vazia ""
-    clean_subscriber_number = PREFFIX_PATTERN.sub("", clean_subscriber_number)
+    for lengths, pattern in _LENGTH_RULES:
+        if length in lengths:
+            extracted_number = _extract_number(pattern, clean_number)
+            break
 
-    len_clean_subscriber_number = len(clean_subscriber_number)
+    if not extracted_number:
+        extracted_number = _search_number(clean_number, FALLBACK_PATTERNS)
 
-    if len_clean_subscriber_number >= 10:
-        pattern = LARGE_NUMBERS_PATTERN
-    elif len_clean_subscriber_number in (8, 9):
-        pattern = MID_NUMBERS_PATTERN
-    elif len_clean_subscriber_number in (3, 4, 5):
-        pattern = UTILITY_NUMBERS_PATTERN
-    else:
-        return (subscriber_number, False)
+    if extracted_number and not _is_rejected_number(extracted_number):
+        return ExtractionResult(extracted_number, True)
 
-    normalized_subscriber_number = pattern.search(clean_subscriber_number)
-    if normalized_subscriber_number:
-        try:
-            if len_clean_subscriber_number in (8, 9) and national_destination_code:
-                return (
-                    national_destination_code + normalized_subscriber_number.group(1),
-                    True,
-                )
-            return (normalized_subscriber_number.group(1), True)
-        except IndexError:
-            return SUBSCRIBER_NULL_SENTINEL
-
-    return (subscriber_number, False)
+    return ExtractionResult(SUBSCRIBER_NUMBER_NULL_SENTINEL_VALUE, False)

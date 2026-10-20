@@ -60,6 +60,9 @@ CLARO_MNC = "05"
 # evitando que registros distintos sejam erroneamente considerados duplicados
 NULL_SENTINEL_VALUE = "__NULL__"
 
+# Valor sentinela específico para números de assinantes nulos, utilizado em desduplicação e validação.
+SUBSCRIBER_NUMBER_NULL_SENTINEL_VALUE = "99999999999"
+
 # Chave primária para desduplicação de registros, composta por campos críticos que identificam unicamente uma chamada
 PRIMARY_KEY_COLUMNS = [
     "no_tipo_chamada",
