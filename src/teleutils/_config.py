@@ -61,7 +61,7 @@ CLARO_MNC = "05"
 NULL_SENTINEL_VALUE = "__NULL__"
 
 # Valor sentinela específico para números de assinantes nulos, utilizado em desduplicação e validação.
-SUBSCRIBER_NUMBER_NULL_SENTINEL_VALUE = "99999999999"
+SUBSCRIBER_NUMBER_NULL_SENTINEL_VALUE = "5599999999999"
 
 # Chave primária para desduplicação de registros, composta por campos críticos que identificam unicamente uma chamada
 PRIMARY_KEY_COLUMNS = [
@@ -91,11 +91,11 @@ TARGET_SCHEMA = {
     "data_hora_fim": ("dh_fim_chamada", T.TimestampNTZType()),
     "duracao": ("qt_duracao_segundos", T.IntegerType()),
     # 2. Partes Envolvidas (Quem ligou para quem)
-    "numero_origem_formatado": ("nu_origem", T.StringType()),
-    "numero_origem_valido": ("ic_origem_valido", T.BooleanType()),
+    "numero_origem_extraido": ("nu_origem", T.StringType()),
+    "sucesso_extracao_origem": ("ic_origem_valido", T.BooleanType()),
     "numero_origem": ("nu_origem_original", T.StringType()),
-    "numero_destino_formatado": ("nu_destino", T.StringType()),
-    "numero_destino_valido": ("ic_destino_valido", T.BooleanType()),
+    "numero_destino_extraido": ("nu_destino", T.StringType()),
+    "sucesso_extracao_destino": ("ic_destino_valido", T.BooleanType()),
     "numero_destino": ("nu_destino_original", T.StringType()),
     # 3. Status & Resultado da Chamada (O que aconteceu com a ligação)
     "resultado_chamada": ("no_resultado_chamada", T.StringType()),

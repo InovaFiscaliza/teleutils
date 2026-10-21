@@ -344,4 +344,4 @@ def extract_number(subscriber_number) -> ExtractionResult:
     if extracted_number and not _is_rejected_number(extracted_number):
         return ExtractionResult(extracted_number, True)
 
-    return ExtractionResult(SUBSCRIBER_NUMBER_NULL_SENTINEL_VALUE, False)
+    return ExtractionResult(subscriber_number, False)
