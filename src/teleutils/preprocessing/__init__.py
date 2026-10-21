@@ -4,7 +4,7 @@ Este inicializador reexporta as funções listadas em ``__all__`` para acesso
 direto pelo namespace ``teleutils.preprocessing``:
 
         - ``extract_number``: extrai e valida um número telefônico brasileiro,
-            conforme os padrões implementados em ``number_format``. Retorna
+            conforme os padrões implementados em ``phone_number_extractor``. Retorna
             um ``ExtractionResult`` com o número e um indicador de sucesso;
             em caso de falha, o número é o valor sentinela
             ``SUBSCRIBER_NUMBER_NULL_SENTINEL_VALUE``.
@@ -17,7 +17,7 @@ Example:
         True
 """
 
-from teleutils.preprocessing.number_format import (
+from teleutils.preprocessing.phone_number_extractor import (
     extract_number,
 )
 from teleutils.preprocessing.utils import is_valid_cnpj

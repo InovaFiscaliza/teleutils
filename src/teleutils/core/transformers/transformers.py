@@ -15,7 +15,7 @@ Principais funcionalidades:
     - Pré-processamento de layouts SMP (Ericsson GSM, Ericsson VoLTE Vivo,
       Huawei VoLTE TIM e Nokia GSM).
     - Pré-processamento de layouts STFC (Huawei NGN, Huawei NGN TIM, Italtel NGN
-      TIM, Vivo FCDR, Oi 7N/Trópico e Claro AXE/PCL/PIT/SS8BF/Trópico).
+      TIM, Vivo FCDR, Oi 7N/Trópico e Claro AXE/PCL/PIT/SS8BF/Sigma/Trópico).
     - Composição de datas, células, IMSIs e IMEIs e classificação de códigos.
 
 Dependências relevantes:
@@ -27,10 +27,11 @@ Notes:
     Os métodos de layout leem Parquet intermediário, aplicam ajustes específicos
     e delegam a normalização comum ao transformador base. Esse pipeline completa
     colunas ausentes, converte datas segundo a máscara do layout, aplica
-    ``MIN_SAFE_DATE``, normaliza duração e números, deriva autenticação e preenche
-    nulos da chave primária. A normalização telefônica usa a UDF
-    ``spark_normalize_number`` e produz números formatados e indicadores de
-    validade, preservando os números originais quando disponibilizados.
+    ``MIN_SAFE_DATE``, normaliza duração, extrai números, deriva autenticação e
+    preenche nulos da chave primária. A extração telefônica usa a UDF
+    ``_extract_numbers`` de ``base_transformer`` (pandas UDF) e produz números
+    extraídos e indicadores de sucesso, preservando os números originais
+    quando disponibilizados.
 
     As expressões constroem planos distribuídos; a escrita materializa os dados.
     ``_write_parquet`` seleciona, converte e renomeia as colunas de
@@ -1957,6 +1958,28 @@ class CDRTransformer(CDRBaseTransformer):
 
     @log_operation
     def transform_stfc_sigma_claro(self, source_file: str, target_file: str) -> str:
+        """Compõe data e hora de início e fim do layout Sigma Claro.
+
+        Args:
+            source_file: Caminho Parquet intermediário de CDRs STFC Sigma Claro.
+            target_file: Diretório Parquet de saída, sobrescrito na gravação.
+
+        Returns:
+            str: Caminho de saída informado em ``target_file`` após a gravação.
+
+        Notes:
+            ``data_hora`` é ``_data`` e ``_hora`` unidos por um espaço;
+            ``data_hora_fim`` é ``_data`` e ``_hora_fim`` unidos da mesma forma.
+            O contrato ``stfc_sigma_claro`` de ``PARQUET_DEFAULT_SCHEMAS``
+            mapeia ``_data`` de ``a_start_date``, ``_hora`` de
+            ``a_incoming_seizure_time`` e ``_hora_fim`` de
+            ``a_call_release_time``. O término usa, portanto, a data de início;
+            este método não ajusta a data do término. A máscara temporal é
+            ``ddMMyy HH:mm:ss``. ``concat_ws`` ignora valores nulos, de modo
+            que uma hora nula resulta em um texto apenas com a data.
+            Não há outra regra específica do layout: as demais operações são
+            delegadas ao pipeline comum e à gravação herdada.
+        """
         date_time_fmt = "ddMMyy HH:mm:ss"
         df = self.spark.read.parquet(source_file)
 

@@ -7,7 +7,7 @@ dos dados para consumo analítico.
 
 Responsabilidades principais:
     - Padronizar data/hora e duração das chamadas.
-    - Normalizar números de origem e destino com validação associada.
+    - Extrair números de origem e destino com indicador de sucesso.
     - Derivar status de autenticação a partir de metadados de sinalização.
     - Consolidar o schema final e persistir o resultado em parquet.
     - Fornecer pré-processamentos específicos de layout quando necessário.
@@ -20,7 +20,7 @@ Principais funcionalidades:
 Dependências relevantes:
     - pyspark.sql (DataFrame, funções e tipos)
     - teleutils._config.MIN_SAFE_DATE
-    - teleutils.preprocessing._normalize_number
+    - teleutils.preprocessing.phone_number_extractor.extract_number
 
 Example:
     >>> transformer = CDRBaseTransformer(spark)
@@ -43,36 +43,37 @@ from teleutils._config import (
     PRIMARY_KEY_COLUMNS,
     TARGET_SCHEMA,
 )
-from teleutils.preprocessing import normalize_number
+from teleutils.preprocessing.phone_number_extractor import extract_number
 
 logger = logging.getLogger(__name__)
 
-# Schema Spark para o tipo de retorno da UDF pandas: (numero_formatado, numero_valido).
+# Schema Spark para o retorno da UDF pandas: (numero_extraido, extracao_sucesso).
 # Mantido como constante de módulo para permitir reuso e evitar recriação por chamada.
-_RETURN_SCHEMA = T.StructType(
+_EXTRACTED_NUMBER_RETURN_SCHEMA = T.StructType(
     [
-        T.StructField("numero_formatado", T.StringType(), True),
-        T.StructField("numero_valido", T.BooleanType(), True),
+        T.StructField("numero_extraido", T.StringType(), True),
+        T.StructField("extracao_sucesso", T.BooleanType(), True),
     ]
 )
 
 
-@pandas_udf(_RETURN_SCHEMA)  # type: ignore
-def _normalize_number(number_series: pd.Series) -> pd.DataFrame:
-    """Normaliza números telefônicos em lote para uso em pipelines Spark.
+@pandas_udf(_EXTRACTED_NUMBER_RETURN_SCHEMA)  # type: ignore
+def _extract_numbers(subscriber_number_series: pd.Series) -> pd.DataFrame:
+    """Extrai números telefônicos em lote para uso em pipelines Spark.
 
     UDF pandas vetorizada que recebe uma série de números telefônicos brutos,
-    aplica ``normalize_number`` sobre cada elemento e retorna uma estrutura
-    tabular com o número formatado e o indicador de validade.
+    aplica ``extract_number`` sobre cada elemento e retorna uma estrutura
+    tabular com o número extraído e o indicador de sucesso.
 
     Args:
-        number_series: Série pandas contendo números telefônicos em formato bruto,
+        subscriber_number_series: Série pandas contendo números em formato bruto,
             possivelmente com letras, pontuação e prefixos variados.
 
     Returns:
         pd.DataFrame: DataFrame com as seguintes colunas:
-            - ``numero_formatado`` (str | None): Número normalizado ou original.
-            - ``numero_valido`` (bool | None): Indicador de sucesso da normalização.
+            - ``numero_extraido`` (str): Número extraído ou
+              ``NULL_SENTINEL_VALUE`` quando a extração falha.
+            - ``extracao_sucesso`` (bool): Indicador de sucesso da extração.
 
     Notes:
         A pandas UDF processa os dados por lote (batch), reduzindo o overhead de
@@ -81,19 +82,19 @@ def _normalize_number(number_series: pd.Series) -> pd.DataFrame:
 
         Anotação de manutenção: alterações no contrato de retorno (nomes ou
         tipos de coluna) exigem atualização coordenada de
-        ``_RETURN_SCHEMA`` e de todos os acessos às
+        ``_EXTRACTED_NUMBER_RETURN_SCHEMA`` e de todos os acessos às
         colunas estruturadas nos transformadores que consomem esta UDF.
     """
-    # Processar em batch (vetorizado)
-    results = []
-    for number in number_series:
-        results.append(normalize_number(number))
+    extraction_results = []
+    for subscriber_number in subscriber_number_series:
+        extraction_result = extract_number(subscriber_number=subscriber_number)
+        extraction_results.append((extraction_result.number, extraction_result.success))
 
     return pd.DataFrame(
-        results,
+        extraction_results,
         columns=[
-            "numero_formatado",
-            "numero_valido",
+            "numero_extraido",
+            "extracao_sucesso",
         ],
     )
 
@@ -212,16 +213,17 @@ class CDRBaseTransformer:
             ).otherwise(F.col("data_hora") + F.make_interval(secs=F.col("duracao"))),
         )
 
-    def _format_numbers(self, df):
-        """Normaliza números de origem/destino e adiciona indicadores de validade.
+    def _extract_phone_numbers(self, df):
+        """Extrai números de origem/destino e adiciona indicadores de sucesso.
 
         Args:
             df: DataFrame Spark contendo ao menos ``numero_origem`` e
                 ``numero_destino``.
 
         Returns:
-            DataFrame: DataFrame com colunas formatadas e flags booleanas de
-            validade para origem e destino.
+            DataFrame: DataFrame com ``numero_origem_extraido``,
+            ``numero_destino_extraido``, ``sucesso_extracao_origem`` e
+            ``sucesso_extracao_destino``. Falhas usam o sentinela telefônico.
 
         Notes:
             - A UDF retorna struct; por isso são criadas colunas temporárias
@@ -233,30 +235,31 @@ class CDRBaseTransformer:
         # A UDF produz structs temporários, expandidos nas colunas finais abaixo.
         df = (
             df.withColumn(
-                "_numero_origem_formatado",
-                _normalize_number("numero_origem"),  # type: ignore
+                "_extracao_numero_origem",
+                _extract_numbers("numero_origem"),  # type: ignore
             )
             .withColumn(
-                "_numero_destino_formatado",
-                _normalize_number("numero_destino"),  # type: ignore
+                "_extracao_numero_destino",
+                _extract_numbers("numero_destino"),  # type: ignore
             )
             .withColumn(
-                "numero_origem_formatado",
-                F.col("_numero_origem_formatado.numero_formatado"),
+                "numero_origem_extraido",
+                F.col("_extracao_numero_origem.numero_extraido"),
             )
             .withColumn(
-                "numero_origem_valido", F.col("_numero_origem_formatado.numero_valido")
+                "sucesso_extracao_origem",
+                F.col("_extracao_numero_origem.extracao_sucesso"),
             )
             .withColumn(
-                "numero_destino_formatado",
-                F.col("_numero_destino_formatado.numero_formatado"),
+                "numero_destino_extraido",
+                F.col("_extracao_numero_destino.numero_extraido"),
             )
             .withColumn(
-                "numero_destino_valido",
-                F.col("_numero_destino_formatado.numero_valido"),
+                "sucesso_extracao_destino",
+                F.col("_extracao_numero_destino.extracao_sucesso"),
             )
-            .drop("_numero_origem_formatado")
-            .drop("_numero_destino_formatado")
+            .drop("_extracao_numero_origem")
+            .drop("_extracao_numero_destino")
         )
 
         # Preserva os valores brutos quando o pré-processamento os disponibiliza.
@@ -397,7 +400,7 @@ class CDRBaseTransformer:
             1. Garantia da existência das colunas definidas em
                ``TARGET_SCHEMA``.
             2. Padronização temporal e duração.
-            3. Normalização de números telefônicos.
+            3. Extração de números telefônicos e indicadores de sucesso.
             4. Enriquecimento de status de autenticação.
             5. Garantia de valores não nulos nas colunas da chave primária.
 
@@ -412,13 +415,13 @@ class CDRBaseTransformer:
             Decisão arquitetural: centralizar o pipeline reduz risco de regras
             divergentes entre prestadoras e facilita manutenção evolutiva.
 
-            As colunas do contrato são garantidas antes da normalização de
+            As colunas do contrato são garantidas antes da extração de
             números, que depende de ``numero_origem`` e ``numero_destino``.
         """
 
         df = self._fill_missing_columns(df)
         df = self._format_date_time(df, date_time_fmt, ref_date_time_fmt)
-        df = self._format_numbers(df)
+        df = self._extract_phone_numbers(df)
         df = self._add_tn_validation_status(df)
         df = self._fill_primary_key_columns(df)
 
