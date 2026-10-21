@@ -642,7 +642,7 @@ class CDRTransformer(CDRBaseTransformer):
         return target_file
 
     @log_operation
-    def transform_smp_gsm_nokia(self, source_file: str, target_file: str) -> str:
+    def transform_smp_nokia_gsm(self, source_file: str, target_file: str) -> str:
         """Transforma CDR SMP GSM Nokia para o contrato padronizado do domínio.
 
         Objetivo da operação:
