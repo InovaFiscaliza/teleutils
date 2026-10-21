@@ -1810,6 +1810,10 @@ class CDRTransformer(CDRBaseTransformer):
 
         return target_file
 
+    # Aliases apontando para a mesma implementação
+    transform_stfc_tropico_claro_lega = transform_stfc_tropico_claro
+    transform_stfc_tropico_claro_legb = transform_stfc_tropico_claro
+
     @log_operation
     def transform_stfc_pit_claro(self, source_file: str, target_file: str) -> str:
         """Recorta timestamps e deriva o sentido de chamadas do layout PIT Claro.
