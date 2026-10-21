@@ -1582,25 +1582,21 @@ class CDRTransformer(CDRBaseTransformer):
 
         df = df.withColumn(
             "tipo_chamada",
-            F.when(F.col("_tipo_chamada") == "01", F.lit("Chamada POTS efetiva"))
-            .when(F.col("_tipo_chamada") == "02", F.lit("Chamada POTS inefetiva"))
-            .when(F.col("_tipo_chamada") == "03", F.lit("Chamada RDSI efetiva"))
-            .when(F.col("_tipo_chamada") == "04", F.lit("Chamada RDSI inefetiva"))
+            F.when(F.col("_tipo_chamada") == "01", F.lit("POTS_efetiva"))
+            .when(F.col("_tipo_chamada") == "02", F.lit("POTS_inefetiva"))
+            .when(F.col("_tipo_chamada") == "03", F.lit("RDSI_efetiva"))
+            .when(F.col("_tipo_chamada") == "04", F.lit("RDSI_inefetiva"))
+            .when(F.col("_tipo_chamada") == "05", F.lit("redirecionada_efetiva"))
+            .when(F.col("_tipo_chamada") == "06", F.lit("redirecionada_inefetiva"))
+            .when(F.col("_tipo_chamada") == "07", F.lit("Procedimento_de_assinante"))
             .when(
-                F.col("_tipo_chamada") == "05", F.lit("Chamada redirecionada efetiva")
+                F.col("_tipo_chamada") == "08", F.lit("Evento_não_relativo_a_chamada")
             )
             .when(
-                F.col("_tipo_chamada") == "06", F.lit("Chamada redirecionada inefetiva")
+                F.col("_tipo_chamada") == "09", F.lit("Comando_de_serviço_de_assinante")
             )
-            .when(F.col("_tipo_chamada") == "07", F.lit("Procedimento de assinante"))
-            .when(
-                F.col("_tipo_chamada") == "08", F.lit("Evento não relativo a chamada")
-            )
-            .when(
-                F.col("_tipo_chamada") == "09", F.lit("Comando de serviço de assinante")
-            )
-            .when(F.col("_tipo_chamada") == "0A", F.lit("Chamada RDSI-E efetiva"))
-            .when(F.col("_tipo_chamada") == "0B", F.lit("Chamada RDSI-E inefetiva"))
+            .when(F.col("_tipo_chamada") == "0A", F.lit("RDSI_E_efetiva"))
+            .when(F.col("_tipo_chamada") == "0B", F.lit("RDSI_E_inefetiva"))
             .otherwise(F.lit(None).cast(T.StringType())),
         )
 
