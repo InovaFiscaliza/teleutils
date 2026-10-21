@@ -26,51 +26,69 @@ import e requer um `SparkContext` ativo.
 
 ## `teleutils.preprocessing`
 
-Funções para normalização de números telefônicos brasileiros e validação de
-CNPJ. O subpacote reexporta cinco interfaces.
+Funções para extração de números telefônicos brasileiros e validação de
+CNPJ.
 
-### `normalize_number(subscriber_number, national_destination_code="")`
+### `extract_number(subscriber_number) -> ExtractionResult`
 
-Normaliza e valida um número telefônico brasileiro.
+Extrai um número reconhecido pelos padrões implementados em
+[`phone_number_extractor.py`](../src/teleutils/preprocessing/phone_number_extractor.py).
 
-- `subscriber_number`: valor a normalizar. Pode conter pontuação, letras,
-  caracteres de preenchimento e, quando conversível, qualquer valor textual.
-- `national_destination_code`: DDD opcional usado para completar números locais
-  válidos de oito ou nove dígitos.
-- Retorno: tupla `(numero, valido)`. Para entrada vazia, retorna
-  `("5599999999999", False)`; para uma entrada inválida não vazia, retorna o
-  valor processado e `False`.
+- `subscriber_number`: único argumento, obrigatório e sem anotação de tipo.
+  Valores falsy são tratados como vazios; os demais são convertidos com `str`.
+  Não há argumento para adicionar DDD.
+- Retorno: `ExtractionResult(number: str, success: bool)`, uma tupla nomeada.
+  Entrada vazia ou extração malsucedida retorna
+  `(SUBSCRIBER_NUMBER_NULL_SENTINEL_VALUE, False)`; o sentinela atual é
+  `"99999999999"`, não o texto original inválido.
+- A limpeza converte para minúsculas, remove um `f` final, zeros iniciais e
+  sufixos de oito ou mais dígitos iguais. Não remove pontuação e espaços em geral.
+- A busca inicial depende do comprimento. O fallback prioriza móveis, fixos
+  e CNG, com buscas no fim e início; depois chamada a cobrar e buscas em
+  qualquer posição, conforme `FALLBACK_PATTERNS`.
+- `success` indica extração aceita pelas expressões regulares, não confirmação
+  de existência ou atribuição do número. O padrão de rejeição de repetições
+  também é aplicado a serviços: por exemplo, `"199"` retorna falha.
 
 ```python
-from teleutils.preprocessing import normalize_number
+from teleutils.preprocessing import extract_number
 
-numero, valido = normalize_number("(11) 99999-9999")
+extraction_result = extract_number(subscriber_number="5511987654321")
+assert extraction_result.number == "11987654321"
+assert extraction_result.success is True
 ```
 
-### `normalize_number_pair(number_a, number_b, national_destination_code="")`
+### Integração com o transformador base
 
-Normaliza dois números e, quando `number_a` é válido e tem dez ou onze
-dígitos, usa seus dois primeiros dígitos como DDD de `number_b` caso não tenha
-sido informado um DDD. Retorna
-`(numero_a, numero_a_valido, numero_b, numero_b_valido)`.
-
-### `spark_normalize_number(number_series)`
-
-Pandas UDF para uso em expressões Spark. Recebe uma série pandas e retorna um
-`pandas.DataFrame` com o schema estruturado:
+A pandas UDF privada `_extract_numbers(subscriber_number_series)` fica em
+[`base_transformer.py`](../src/teleutils/core/transformers/base_transformer.py),
+não no namespace público de pré-processamento. Ela chama
+`extract_number(subscriber_number=...)` para cada elemento e converte
+explicitamente os atributos do resultado para colunas em português:
 
 | Campo | Tipo |
 | :-- | :-- |
-| `numero_formatado` | string anulável |
-| `numero_valido` | booleano anulável |
+| `numero_extraido` | string anulável |
+| `extracao_sucesso` | booleano anulável |
 
-```python
-from pyspark.sql import functions as F
-from teleutils.preprocessing import spark_normalize_number
+`CDRBaseTransformer._extract_phone_numbers` aplica a UDF à origem e ao
+destino. Os structs temporários `_extracao_numero_origem` e
+`_extracao_numero_destino` são expandidos e removidos. O mapeamento em
+[`TARGET_SCHEMA`](../src/teleutils/_config.py) preserva o contrato final:
 
-df = df.withColumn("normalizado", spark_normalize_number("numero"))
-df = df.select(F.col("normalizado.numero_formatado"))
-```
+| Coluna intermediária | Coluna final | Conteúdo |
+| :-- | :-- | :-- |
+| `numero_origem_extraido` | `nu_origem` | Número extraído ou sentinela |
+| `sucesso_extracao_origem` | `ic_origem_valido` | Sucesso da extração da origem |
+| `numero_destino_extraido` | `nu_destino` | Número extraído ou sentinela |
+| `sucesso_extracao_destino` | `ic_destino_valido` | Sucesso da extração do destino |
+
+Os nomes finais `ic_*_valido` permanecem por compatibilidade, com valores
+provenientes de `success`. Essa etapa final é apenas renomeação e conversão
+para os tipos já existentes. A extração é a transformação do conteúdo.
+`numero_origem` e `numero_destino` preservam os valores brutos; quando existem,
+`_numero_origem_original` e `_numero_destino_original` são restaurados após a
+extração. Não há complemento de DDD nem inferência entre origem e destino.
 
 ### `validar_cnpj(cnpj)`
 

@@ -10,7 +10,20 @@ Responsabilidades principais:
     - Extrair números de origem e destino com indicador de sucesso.
     - Derivar status de autenticação a partir de metadados de sinalização.
     - Consolidar o schema final e persistir o resultado em parquet.
-    - Fornecer pré-processamentos específicos de layout quando necessário.
+    - Garantir que os valores nulos das colunas da chave primária sejam
+      substituídos por valores padrão.
+
+Os pré-processamentos específicos de cada layout não fazem parte deste módulo;
+eles são implementados pelas subclasses (por exemplo, ``CDRTransformer`` em
+``teleutils.core.transformers.transformers``), que chamam
+``_apply_standard_pipeline`` e ``_write_parquet``.
+
+Fluxo geral (executado pelas subclasses):
+    DataFrame pré-processado
+      ↓ ``_apply_standard_pipeline``
+    DataFrame com colunas de origem de ``TARGET_SCHEMA`` padronizadas
+      ↓ ``_write_parquet`` (usa ``_select_transformed_columns``)
+    Parquet final particionado por ``no_tipo_chamada``
 
 Principais funcionalidades:
     - Pipeline comum de transformação reutilizável.
@@ -19,7 +32,8 @@ Principais funcionalidades:
 
 Dependências relevantes:
     - pyspark.sql (DataFrame, funções e tipos)
-    - teleutils._config.MIN_SAFE_DATE
+    - teleutils._config (``MIN_SAFE_DATE``, ``NULL_SENTINEL_VALUE``,
+      ``PRIMARY_KEY_COLUMNS`` e ``TARGET_SCHEMA``)
     - teleutils.preprocessing.phone_number_extractor.extract_number
 
 Example:
@@ -71,8 +85,10 @@ def _extract_numbers(subscriber_number_series: pd.Series) -> pd.DataFrame:
 
     Returns:
         pd.DataFrame: DataFrame com as seguintes colunas:
-            - ``numero_extraido`` (str): Número extraído ou
-              ``NULL_SENTINEL_VALUE`` quando a extração falha.
+            - ``numero_extraido`` (str): Número extraído quando a extração
+              tem sucesso. Quando falha, mantém o valor de entrada, exceto
+              para entradas vazias/nulas, para as quais ``extract_number``
+              retorna ``SUBSCRIBER_NUMBER_NULL_SENTINEL_VALUE``.
             - ``extracao_sucesso`` (bool): Indicador de sucesso da extração.
 
     Notes:
@@ -112,8 +128,16 @@ class CDRBaseTransformer:
 
     Attributes:
         spark:
-            Sessão Spark ativa utilizada para executar transformações
-            distribuídas sobre DataFrames.
+            Nova sessão Spark derivada da sessão recebida, com
+            ``spark.sql.timestampType`` definido como ``TIMESTAMP_NTZ``.
+        min_safe_date:
+            Expressão de coluna com ``MIN_SAFE_DATE`` convertida para
+            ``TimestampNTZType``, usada como limite inferior e valor padrão
+            para timestamps.
+        null_sentinel_value:
+            Expressão de coluna com ``NULL_SENTINEL_VALUE`` convertida para
+            string, usada como valor padrão em colunas de chave primária não
+            numéricas e não temporais.
 
     Notes:
         Pontos de extensão devem priorizar métodos de pré-processamento por
@@ -159,20 +183,28 @@ class CDRBaseTransformer:
 
         Args:
             df: DataFrame Spark de entrada.
-            date_time_fmt: Máscara de parsing para conversão de ``data_hora``.
+            date_time_fmt: Máscara de parsing para conversão de ``data_hora``
+                e ``data_hora_fim``.
+            ref_date_time_fmt: Máscara de parsing para
+                ``data_hora_referencia``. Quando vazia, é utilizado
+                ``date_time_fmt``.
 
         Returns:
             DataFrame: DataFrame com ``duracao`` normalizada e os campos
             temporais convertidos para timestamp.
 
         Notes:
-                        - Regra de negócio: duração nula ou não conversível é tratada como
-                            0 para manter consistência em métricas downstream.
+            - Regra de negócio: duração nula ou não conversível é tratada como
+              0 para manter consistência em métricas downstream.
             - As colunas ``duracao``, ``data_hora``, ``data_hora_fim`` e
               ``data_hora_referencia`` devem existir antes desta etapa.
-                        - ``try_to_timestamp`` produz nulo para valores não conversíveis;
-                            ``greatest`` aplica ``MIN_SAFE_DATE`` como limite inferior aos
-                            valores temporais resultantes.
+            - ``try_to_timestamp`` produz nulo para valores não conversíveis;
+              ``greatest`` ignora nulos e aplica ``MIN_SAFE_DATE`` como limite
+              inferior, de modo que valores nulos, inválidos ou anteriores a
+              esse limite resultam em ``MIN_SAFE_DATE``.
+            - Regra de negócio: ``data_hora_fim`` informada é convertida com a
+              mesma normalização; quando é nula, é calculada como
+              ``data_hora`` somada a ``duracao`` (em segundos), já normalizadas.
         """
 
         timestamp_format = F.lit(date_time_fmt)
@@ -223,11 +255,17 @@ class CDRBaseTransformer:
         Returns:
             DataFrame: DataFrame com ``numero_origem_extraido``,
             ``numero_destino_extraido``, ``sucesso_extracao_origem`` e
-            ``sucesso_extracao_destino``. Falhas usam o sentinela telefônico.
+            ``sucesso_extracao_destino``. O valor de ``numero_*_extraido`` em
+            caso de falha é definido por ``extract_number`` (ver
+            ``_extract_numbers``).
 
         Notes:
             - A UDF retorna struct; por isso são criadas colunas temporárias
               intermediárias e depois expandidas.
+            - Quando o pré-processamento fornece ``_numero_origem_original``
+              e/ou ``_numero_destino_original``, esses valores brutos
+              sobrescrevem ``numero_origem``/``numero_destino`` após a
+              extração, e as colunas temporárias são removidas.
             - Efeito colateral lógico: colunas temporárias são removidas ao final
               para manter o schema limpo.
         """
@@ -328,6 +366,10 @@ class CDRBaseTransformer:
             As colunas ausentes são adicionadas como ``NULL`` sem conversão de
             tipo. Isso preserva valores textuais, especialmente timestamps,
             para que ``_format_date_time`` possa aplicar o formato recebido.
+
+            Anotação de manutenção: a mensagem de aviso registrada em log cita
+            ``NULL_SENTINEL_VALUE`` como valor padrão, mas as colunas são
+            efetivamente criadas com ``F.lit(None)`` (NULL).
         """
         available_columns = set(df.columns)
         missing_columns = [
@@ -407,9 +449,13 @@ class CDRBaseTransformer:
         Args:
             df: DataFrame de entrada.
             date_time_fmt: Formato de data/hora esperado para parsing.
+            ref_date_time_fmt: Formato de ``data_hora_referencia``; quando
+                vazio, ``date_time_fmt`` é utilizado.
 
         Returns:
-            DataFrame: DataFrame transformado conforme regras padrão.
+            DataFrame: DataFrame transformado conforme regras padrão, ainda
+            com os nomes de origem das colunas; a seleção e a renomeação para
+            o contrato final ocorrem em ``_write_parquet``.
 
         Notes:
             Decisão arquitetural: centralizar o pipeline reduz risco de regras
@@ -437,11 +483,12 @@ class CDRBaseTransformer:
             DataFrame: DataFrame no schema padronizado de saída.
 
         Notes:
-            - Regra de negócio: ``tipo_chamada`` é forçado para string para
-              uniformizar integração entre diferentes origens.
-                        - Todas as colunas presentes em ``TARGET_SCHEMA`` são selecionadas,
-                            convertidas para o tipo configurado e renomeadas para o nome final
-                            do contrato. Colunas fora desse contrato não são incluídas.
+            - Regra de negócio: ``tipo_chamada`` é convertido para string
+              (conforme ``TARGET_SCHEMA``) e renomeado para ``no_tipo_chamada``,
+              uniformizando a integração entre diferentes origens.
+            - Todas as colunas presentes em ``TARGET_SCHEMA`` são selecionadas,
+              convertidas para o tipo configurado e renomeadas para o nome final
+              do contrato. Colunas fora desse contrato não são incluídas.
             - Anotação de manutenção: qualquer alteração de contrato de saída
               deve ocorrer neste método para preservar consistência.
         """
@@ -464,9 +511,12 @@ class CDRBaseTransformer:
             None: Método com efeito colateral de escrita em armazenamento.
 
         Notes:
-            - A escrita usa ``overwrite`` para permitir reprocessamento idempotente.
-                        - O schema é padronizado imediatamente antes da gravação e a saída é
-                            particionada pela coluna final ``no_tipo_chamada``.
+            - A escrita usa o modo ``overwrite``, que substitui o conteúdo
+              existente em ``target_file``.
+            - O schema é padronizado por ``_select_transformed_columns``
+              imediatamente antes da gravação e a saída é particionada pela
+              coluna final ``no_tipo_chamada``.
+            - Esta é a ação Spark que materializa as transformações lazy.
         """
         logger.info("Escrevendo DataFrame transformado para parquet: %s", target_file)
         df = self._select_transformed_columns(df)

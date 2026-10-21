@@ -14,8 +14,9 @@ Exports:
 
 Notes:
     Os transformadores de layout são métodos ``transform_<layout>`` de
-    ``CDRTransformer``. ``CDRTransformer.transform`` procura essas funções no
-    namespace global de ``transformers.py``, não nos métodos da instância;
+    ``CDRTransformer``. ``CDRTransformer.transform`` procura funções globais
+    ``transform_<cdr_schema>`` no namespace de ``transformers.py``, não os
+    métodos da instância; como esse módulo não define tais funções globais,
     consulte a docstring desse método antes de usá-lo como despachante.
 
 Example:

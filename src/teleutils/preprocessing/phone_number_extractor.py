@@ -3,9 +3,10 @@
 O módulo define expressões regulares para números STFC, SME, SMP, CNG e
 números de serviços, e usa esses padrões para localizar e classificar um
 número em uma entrada. ``extract_number`` retorna o número encontrado e
-um indicador de sucesso. Quando a entrada é vazia ou nenhuma extração é
-válida, o número retornado é ``SUBSCRIBER_NUMBER_NULL_SENTINEL_VALUE``,
-definido em ``teleutils._config``.
+um indicador de sucesso. Quando a entrada é vazia (falsy), o número retornado
+é ``SUBSCRIBER_NUMBER_NULL_SENTINEL_VALUE``, definido em ``teleutils._config``.
+Quando a entrada não é vazia e nenhuma extração é válida, o valor de entrada
+original é devolvido sem alteração, com ``success=False``.
 
 O processamento converte a entrada não vazia em texto minúsculo, remove um
 ``f`` final e aplica ``CLEAN_PATTERN``. Em seguida, tenta o padrão associado
@@ -36,8 +37,9 @@ class ExtractionResult(NamedTuple):
     """Resultado da tentativa de extração de um número.
 
     Attributes:
-        number: Número extraído ou, quando a entrada é vazia ou a extração
-            falha, ``SUBSCRIBER_NUMBER_NULL_SENTINEL_VALUE``.
+        number: Número extraído. Quando a entrada é vazia, é
+            ``SUBSCRIBER_NUMBER_NULL_SENTINEL_VALUE``; quando a extração falha
+            para uma entrada não vazia, é o valor de entrada original.
         success: Indica se um número foi extraído e não foi rejeitado pelo
             padrão de números repetidos.
     """
@@ -311,8 +313,10 @@ def extract_number(subscriber_number) -> ExtractionResult:
 
     Returns:
         ExtractionResult: Tupla nomeada com o número extraído e o indicador de
-        sucesso. Para uma entrada falsy ou quando nenhuma extração é válida,
-        retorna ``(SUBSCRIBER_NUMBER_NULL_SENTINEL_VALUE, False)``.
+        sucesso. Para uma entrada falsy, retorna
+        ``(SUBSCRIBER_NUMBER_NULL_SENTINEL_VALUE, False)``. Quando nenhuma
+        extração é válida, retorna ``(subscriber_number, False)``, com o valor
+        de entrada original, sem limpeza nem conversão para texto.
 
     Notes:
         O texto é convertido para minúsculas, tem um ``f`` final removido e

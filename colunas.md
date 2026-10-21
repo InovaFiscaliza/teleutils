@@ -42,8 +42,16 @@ O `CDRBaseTransformer._apply_standard_pipeline` executa estas operações:
 | Ordem | Operação | Efeito principal |
 |---|---|---|
 | 1 | `_format_date_time` | Cria `data_hora` a partir de `_data` e `_hora` quando necessário; cria `data_hora_fim` a partir de `_data` e `_hora_fim`; converte ambas para timestamp; normaliza `duracao`. |
-| 2 | `_format_numbers` | Normaliza `numero_origem` e `numero_destino`, criando os campos formatados e os indicadores de validade. |
+| 2 | `_extract_phone_numbers` | Aplica `extract_number` a `numero_origem` e `numero_destino`, criando números extraídos e indicadores de sucesso. |
 | 3 | `_add_tn_validation_status` | Converte `_autenticacao` em `autenticacao`; quando a origem não fornece autenticação, cria o campo com valor nulo. |
+
+A extração usa `extract_number(subscriber_number)` e retorna
+`ExtractionResult(number, success)`. Falhas recebem
+`SUBSCRIBER_NUMBER_NULL_SENTINEL_VALUE` (`"99999999999"`), sem substituir os
+valores brutos de origem/destino. Os campos finais `ic_origem_valido` e
+`ic_destino_valido` mantêm seus nomes por compatibilidade, mas representam
+`success`. A renomeação final não modifica o conteúdo extraído.
+Consulte o [contrato de extração](docs/teleutils_api.md#integração-com-o-transformador-base).
 
 ## Ericsson
 
@@ -61,11 +69,11 @@ mais de uma origem, a coluna é derivada pela combinação das etapas indicadas.
 | `dh_chamada` | `dateForStartOfCharge` -> `_data`; `timeForStartOfCharge` -> `_hora`; `_data` + `_hora` -> `data_hora` -> `dh_chamada` | Concatenação, parsing para timestamp e alias final. |
 | `dh_fim_chamada` | `dateForStartOfCharge` -> `_data`; `timeForStopOfCharge` -> `_hora_fim`; `_data` + `_hora_fim` -> `data_hora_fim` -> `dh_fim_chamada` | Concatenação, parsing para timestamp e alias final. |
 | `qt_duracao_segundos` | `chargeableDuration` -> `duracao` -> `qt_duracao_segundos` | Ericsson converte `HH:mm:ss` em segundos inteiros antes do pipeline comum. |
-| `nu_origem` | `callingPartyNumber.digits` -> `numero_origem` -> `numero_origem_formatado` -> `nu_origem` | Normalização do número. |
-| `ic_origem_valido` | `callingPartyNumber.digits` -> `numero_origem` -> `numero_origem_valido` -> `ic_origem_valido` | Indicador produzido pela normalização. |
+| `nu_origem` | `callingPartyNumber.digits` -> `numero_origem` -> `numero_origem_extraido` -> `nu_origem` | Extração do número. |
+| `ic_origem_valido` | `callingPartyNumber.digits` -> `numero_origem` -> `sucesso_extracao_origem` -> `ic_origem_valido` | Indicador de sucesso da extração. |
 | `nu_origem_original` | `callingPartyNumber.digits` -> `numero_origem` -> `nu_origem_original` | Valor intermediário antes da formatação final. |
-| `nu_destino` | `calledPartyNumber.digits` -> `numero_destino` -> `numero_destino_formatado` -> `nu_destino` | Substitui `#` por `c` e `*` por `b`, depois normaliza. |
-| `ic_destino_valido` | `calledPartyNumber.digits` -> `numero_destino` -> `numero_destino_valido` -> `ic_destino_valido` | Indicador produzido pela normalização. |
+| `nu_destino` | `calledPartyNumber.digits` -> `numero_destino` -> `numero_destino_extraido` -> `nu_destino` | Substitui `#` por `c` e `*` por `b`, depois extrai. |
+| `ic_destino_valido` | `calledPartyNumber.digits` -> `numero_destino` -> `sucesso_extracao_destino` -> `ic_destino_valido` | Indicador de sucesso da extração. |
 | `nu_destino_original` | `calledPartyNumber.digits` -> `numero_destino` -> `nu_destino_original` | Valor intermediário após a substituição de caracteres especiais. |
 | `no_resultado_chamada` | `callPosition` -> `status_chamada` -> `no_resultado_chamada` | Seleção e alias final. |
 | `co_resposta_sip` | Não existe no schema Ericsson -> `codigo_resposta_sip` -> `co_resposta_sip` | Criada como inteiro nulo. |
@@ -121,11 +129,11 @@ explicitamente.
 | `dh_chamada` | `recordOpeningTime` -> `data_hora` -> `dh_chamada` | Parsing com `yyyy-MM-dd HH:mm:ssxxx` e alias final. |
 | `dh_fim_chamada` | coluna não mapeada | Em backlog de desenvolvimento: o schema não fornece data/hora de fim. |
 | `qt_duracao_segundos` | `duration` -> `duracao` -> `qt_duracao_segundos` | Conversão defensiva para inteiro no pipeline comum. |
-| `nu_origem` | `list-Of-Calling-Party-Address_tEL-URI` -> `numero_origem` -> `numero_origem_formatado` -> `nu_origem` | Remove os dois primeiros caracteres antes da normalização. |
-| `ic_origem_valido` | `numero_origem` -> `numero_origem_valido` -> `ic_origem_valido` | Indicador produzido pela normalização. |
+| `nu_origem` | `list-Of-Calling-Party-Address_tEL-URI` -> `numero_origem` -> `numero_origem_extraido` -> `nu_origem` | Remove os dois primeiros caracteres antes da extração. |
+| `ic_origem_valido` | `numero_origem` -> `sucesso_extracao_origem` -> `ic_origem_valido` | Indicador de sucesso da extração. |
 | `nu_origem_original` | `numero_origem` -> `nu_origem_original` | Valor intermediário após a remoção do prefixo. |
-| `nu_destino` | `called-Party-Address_tEL-URI` -> `numero_destino` -> `numero_destino_formatado` -> `nu_destino` | Remove os dois primeiros caracteres antes da normalização. |
-| `ic_destino_valido` | `numero_destino` -> `numero_destino_valido` -> `ic_destino_valido` | Indicador produzido pela normalização. |
+| `nu_destino` | `called-Party-Address_tEL-URI` -> `numero_destino` -> `numero_destino_extraido` -> `nu_destino` | Remove os dois primeiros caracteres antes da extração. |
+| `ic_destino_valido` | `numero_destino` -> `sucesso_extracao_destino` -> `ic_destino_valido` | Indicador de sucesso da extração. |
 | `nu_destino_original` | `numero_destino` -> `nu_destino_original` | Valor intermediário após a remoção do prefixo. |
 | `no_resultado_chamada` | coluna não mapeada | Em backlog de desenvolvimento: o schema não fornece `status_chamada`. |
 | `co_resposta_sip` | coluna não mapeada | Em backlog de desenvolvimento: o schema não fornece código de resposta SIP. |
@@ -156,11 +164,11 @@ explicitamente.
 | `dh_chamada` | `dateForStartOfCharge` -> `_data`; `timeForStartOfCharge` -> `_hora`; `_data` + `_hora` -> `data_hora` -> `dh_chamada` | Parsing com `yyyyMMdd HHmmss` e alias final. |
 | `dh_fim_chamada` | coluna não mapeada | Em backlog de desenvolvimento: o schema não fornece horário de fim. |
 | `qt_duracao_segundos` | `chargeableDurat` -> `duracao` -> `qt_duracao_segundos` | Conversão defensiva para inteiro no pipeline comum. |
-| `nu_origem` | `callingPartyNumber` -> `_numero_origem` -> `numero_origem` -> `numero_origem_formatado` -> `nu_origem` | O pré-processamento separa o número do token de autenticação antes da normalização. |
-| `ic_origem_valido` | `numero_origem` -> `numero_origem_valido` -> `ic_origem_valido` | Indicador produzido pela normalização. |
+| `nu_origem` | `callingPartyNumber` -> `_numero_origem` -> `numero_origem` -> `numero_origem_extraido` -> `nu_origem` | O pré-processamento separa o número do token de autenticação antes da extração. |
+| `ic_origem_valido` | `numero_origem` -> `sucesso_extracao_origem` -> `ic_origem_valido` | Indicador de sucesso da extração. |
 | `nu_origem_original` | `callingPartyNumber` -> `_numero_origem` -> `numero_origem` -> `nu_origem_original` | Valor após a separação do token de autenticação. |
-| `nu_destino` | `calledPartyNumber` -> `numero_destino` -> `numero_destino_formatado` -> `nu_destino` | Normalização do número. |
-| `ic_destino_valido` | `numero_destino` -> `numero_destino_valido` -> `ic_destino_valido` | Indicador produzido pela normalização. |
+| `nu_destino` | `calledPartyNumber` -> `numero_destino` -> `numero_destino_extraido` -> `nu_destino` | Extração do número. |
+| `ic_destino_valido` | `numero_destino` -> `sucesso_extracao_destino` -> `ic_destino_valido` | Indicador de sucesso da extração. |
 | `nu_destino_original` | `calledPartyNumber` -> `numero_destino` -> `nu_destino_original` | Valor intermediário antes da formatação final. |
 | `no_resultado_chamada` | coluna não mapeada | Em backlog de desenvolvimento: o schema não fornece status de chamada. |
 | `co_resposta_sip` | coluna não mapeada | Em backlog de desenvolvimento: o schema não fornece código de resposta SIP. |
@@ -191,11 +199,11 @@ explicitamente.
 | `dh_chamada` | `in_channel_allocated_time` -> `data_hora_alocacao_canal`; fallback `data_hora_referencia`; `coalesce(...)` -> `data_hora` -> `dh_chamada` | Usa o horário de alocação do canal e recorre ao horário de referência quando necessário. |
 | `dh_fim_chamada` | coluna não mapeada | Em backlog de desenvolvimento: o schema não fornece horário de fim. |
 | `qt_duracao_segundos` | `orig_mcz_duration`, `term_mcz_duration`, `forw_mcz_duration`, `roam_mcz_duration`, `iaz_duration`, `oaz_duration`, `chargeable_duration`, `char_band_duration` -> `_duracao_*` -> `duracao` -> `qt_duracao_segundos` | Consolida os campos de duração com `coalesce`; o primeiro valor disponível é usado. |
-| `nu_origem` | `calling_number` -> `numero_origem`; fallback `orig_calling_number` -> `numero_origem_original`; `coalesce(...)` -> `numero_origem` -> `numero_origem_formatado` -> `nu_origem` | Para chamadas `FORW`, o destino usa a regra específica de encaminhamento. |
-| `ic_origem_valido` | `numero_origem` -> `numero_origem_valido` -> `ic_origem_valido` | Indicador produzido pela normalização. |
+| `nu_origem` | `calling_number` -> `numero_origem`; fallback `orig_calling_number` -> `numero_origem_original`; `coalesce(...)` -> `numero_origem` -> `numero_origem_extraido` -> `nu_origem` | Para chamadas `FORW`, o destino usa a regra específica de encaminhamento. |
+| `ic_origem_valido` | `numero_origem` -> `sucesso_extracao_origem` -> `ic_origem_valido` | Indicador de sucesso da extração. |
 | `nu_origem_original` | `orig_calling_number` -> `numero_origem_original` -> `nu_origem_original` | Seleção e alias final. |
-| `nu_destino` | `called_number` -> `numero_destino`; para `FORW`, `forwarding_number` -> `numero_origem_encaminhamento`; seleção -> `numero_destino_formatado` -> `nu_destino` | O destino de chamadas encaminhadas é derivado do número de encaminhamento. |
-| `ic_destino_valido` | `numero_destino` -> `numero_destino_valido` -> `ic_destino_valido` | Indicador produzido pela normalização. |
+| `nu_destino` | `called_number` -> `numero_destino`; para `FORW`, `forwarding_number` -> `numero_origem_encaminhamento`; seleção -> `numero_destino_extraido` -> `nu_destino` | O destino de chamadas encaminhadas é derivado do número de encaminhamento. |
+| `ic_destino_valido` | `numero_destino` -> `sucesso_extracao_destino` -> `ic_destino_valido` | Indicador de sucesso da extração. |
 | `nu_destino_original` | `orig_called_number` -> `numero_destino_original` -> `nu_destino_original` | Seleção e alias final. |
 | `no_resultado_chamada` | coluna não mapeada | Em backlog de desenvolvimento: o layout Nokia não possui `status_chamada`; `record_type` representa o tipo da chamada. |
 | `co_resposta_sip` | coluna não mapeada | Em backlog de desenvolvimento: o schema não fornece código de resposta SIP. |

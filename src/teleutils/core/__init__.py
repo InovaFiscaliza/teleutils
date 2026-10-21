@@ -9,8 +9,10 @@ Subpacotes:
       (texto/CSV e Teleparser) para um formato intermediário comum.
     - teleutils.core.transformers: normalização de dados intermediários
       (datas, números telefônicos, autenticação) para o contrato final.
+    - teleutils.core.loaders: carga do Parquet padronizado em tabelas Iceberg
+      compartilhadas com o Trino (``TrinoLoader``), executada pelo Spark.
 
 Notes:
-    Este pacote não reexporta classes ou funções. As APIs de extração e
-    transformação devem ser importadas pelos respectivos subpacotes.
+    Este pacote não reexporta classes ou funções. As APIs de extração,
+    transformação e carga devem ser importadas pelos respectivos subpacotes.
 """

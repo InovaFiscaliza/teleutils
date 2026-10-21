@@ -439,7 +439,8 @@ class CDRTransformer(CDRBaseTransformer):
 
     Contexto de uso:
         - Etapa de transformação após extração/parsing bruto dos CDRs.
-        - Invocada por rotinas de ingestão para geração do dataset curado.
+        - Cada método ``transform_*`` recebe o caminho do Parquet intermediário
+          e o caminho de saída, e retorna o caminho de saída.
 
     Attributes:
         spark:
@@ -852,16 +853,19 @@ class CDRTransformer(CDRBaseTransformer):
               autenticação extraídos por regras distintas. Os atributos de célula, IMEI e
               IMSI são atribuídos à origem ou ao destino apenas para os papéis
               ``oRIGINATING-ROLE`` e ``tERMINATING-ROLE``.
-            - Os timestamps são truncados aos 19 primeiros caracteres antes do pipeline
-                comum, que usa ``yyyy-MM-dd HH:mm:ss``; a informação posterior,
-                inclusive o fuso, não participa do parsing. O IMSI é obtido apenas do primeiro objeto do JSON em ``_info_imsi``
-                quando seu tipo é ``eND-USER-IMSI``.
+            - Os timestamps são truncados aos 19 primeiros caracteres antes do
+              pipeline comum, que usa ``yyyy-MM-dd HH:mm:ss``; a informação
+              posterior, inclusive o fuso, não participa do parsing.
+            - O IMSI é obtido apenas do primeiro objeto do JSON em
+              ``_info_imsi`` quando seu tipo é ``eND-USER-IMSI``.
             - A origem ATS usa ``$[0].tEL-URI`` e a origem IBCF usa
-                ``$[0].sIP-URI`` de ``_numero_origem_ats_ibcf``. Os valores anteriores
-                à normalização são guardados nas colunas ``_numero_*_original``.
-                A autenticação extrai ``verstat=`` seguido de letras ou hífens,
-                de ``_numero_origem_auth`` para ATS e do campo compartilhado para
-                os demais registros. IMEI só é mantido quando ``_info_imei == "iMEI"``.
+              ``$[0].sIP-URI`` de ``_numero_origem_ats_ibcf``. Os valores
+              anteriores à normalização são guardados nas colunas
+              ``_numero_*_original``.
+            - A autenticação extrai ``verstat=`` seguido de letras ou hífens,
+              de ``_numero_origem_auth`` para ATS e de ``_numero_origem_ats_ibcf``
+              para os demais registros. IMEI só é mantido quando
+              ``_info_imei == "iMEI"``.
             - ``codigo_resposta_sip`` é preenchido somente para valores de
               ``_resultado_chamada`` maiores ou iguais a 200; a mesma coluna é então
               classificada em faixas e códigos específicos para compor ``resultado_chamada``.
@@ -1146,7 +1150,7 @@ class CDRTransformer(CDRBaseTransformer):
             out_col_cell_id=None,
         )
 
-        # Extrair autenticação e prefixos adicionais dos números.
+        # Separa o número de origem do marcador de autenticação.
         # A autenticação está contida na coluna _numero_origem_original,
         # por exemplo: 551136128860;verstat=TN-Validation-Passe
         df = (
