@@ -42,6 +42,13 @@ def _quote_identifier(identifier: str) -> str:
 
     O argumento representa um único nome literal, não um caminho qualificado.
     Pontos no argumento permanecem parte do identificador delimitado.
+
+    Args:
+        identifier: Nome literal de um único componente (catálogo, schema ou
+            tabela, ou nome da view temporária).
+
+    Returns:
+        O nome entre crases, com cada crase interna duplicada.
     """
     return "`" + identifier.replace("`", "``") + "`"
 

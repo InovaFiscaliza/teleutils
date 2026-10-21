@@ -159,6 +159,10 @@ class CDRTextExtractor:
                 lidas; um argumento contiver somente espaços; ou algum metadado
                 obrigatório não puder ser inferido do caminho. A verificação de
                 índices não é realizada no ramo de largura fixa.
+            FileNotFoundError: No ramo ``read_rdd``, se algum caminho de entrada
+                não corresponder a nenhum item no filesystem.
+            RuntimeError: No ramo ``read_rdd``, se a sessão Spark não possuir
+                contexto Hadoop ativo.
 
         Notes:
             Cada chamada deve receber dados de uma única prestadora e de um
@@ -191,6 +195,9 @@ class CDRTextExtractor:
             Com ``column_sizes``, os campos são recortados da coluna ``value``
             por ``substring``. Os índices seguem a convenção dessa função
             (primeiro caractere na posição 1), sem ajuste ou validação de largura.
+            A coluna ``value`` vem de ``read_rdd=True`` ou de um schema CSV que a
+            defina (por exemplo, ``schema="value string"``); o código não verifica
+            sua existência antes de recortar.
             Se ``fill_char`` não estiver vazio, o padrão ``fill_char + '+$'``
             remove o preenchimento final; seu conteúdo é usado como expressão
             regular, sem escape. Em seguida, ``trim`` remove espaços das bordas.

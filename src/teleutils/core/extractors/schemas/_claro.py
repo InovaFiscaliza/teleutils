@@ -1,5 +1,32 @@
+"""Schemas Spark posicionais dos CDRs STFC textuais da Claro (PIT e SS8BF).
+
+Este módulo é de uso interno do pacote ``schemas`` e apenas declara
+``StructType`` sem lógica de execução. Os schemas são importados por
+``schemas.text`` e repassados como ``schema=`` ao leitor CSV do Spark por
+``CDRTextExtractor.extract`` (com ``inferSchema=False``) nos layouts
+``stfc_pit_claro`` e ``stfc_ss8bf_claro`` de ``TEXT_DEFAULT_SCHEMAS``.
+
+Todos os campos são ``StringType`` e anuláveis: nenhuma conversão de tipo é
+feita na leitura. A ordem dos ``StructField`` é a ordem posicional das colunas
+do arquivo, pois esses layouts não possuem cabeçalho (``has_header=False``).
+Os ``column_indices`` de cada contrato em ``schemas.text`` são índices
+baseados em zero nessa mesma ordem; portanto, inserir, remover ou reordenar
+campos aqui desloca a seleção feita por esses índices.
+
+Schemas definidos:
+    stfc_pit_claro_schema: 110 campos do layout PIT.
+    stfc_ss8bf_claro_schema: 222 campos do layout SS8BF.
+
+Dependências:
+    - ``pyspark.sql.types``: ``StructType``, ``StructField`` e ``StringType``.
+"""
+
 from pyspark.sql.types import StringType, StructField, StructType
 
+# Layout PIT (110 campos). O contrato "stfc_pit_claro" seleciona os índices
+# 0-5, 9-11, 42, 43 e 108 (recordtype, recordingentity, mscincomingroute,
+# mscoutgoingroute, callingnumber, callednumber, releasetime, callduration,
+# causeforterm, networkcallreference, setuptime e originatingoperator).
 stfc_pit_claro_schema = StructType(
     [
         StructField("recordtype", StringType(), True),
@@ -115,6 +142,13 @@ stfc_pit_claro_schema = StructType(
     ]
 )
 
+# Layout SS8BF (222 campos). O contrato "stfc_ss8bf_claro" seleciona os
+# índices 2-5, 10, 11, 17, 39, 40, 64, 125 e 126 (start_time,
+# duration_of_call, switch_id, record_id, terminating_number_called_party,
+# originating_number_calling_party, attempt_indicator,
+# originating_party_identifier, terminating_party_identifier,
+# forwarded_from_dn, ingress_sip_endpoint_address e
+# egress_sip_endpoint_address).
 stfc_ss8bf_claro_schema = StructType(
     [
         StructField("sequential_record_number", StringType(), True),

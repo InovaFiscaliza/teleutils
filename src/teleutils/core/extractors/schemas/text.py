@@ -420,6 +420,8 @@ TEXT_DEFAULT_SCHEMAS: dict[str, CDRTextSchema] = {
     "stfc_pit_claro": CDRTextSchema(
         name="Pit Claro",
         delimiter=",",
+        # column_indices referem-se à posição dos campos em stfc_pit_claro_schema.
+        # O filtro mantém apenas registros cujo primeiro campo (_tipo_registro) é "5".
         schema=stfc_pit_claro_schema,
         has_header=False,
         lines_to_keep=(("_tipo_registro", "5")),
@@ -444,6 +446,8 @@ TEXT_DEFAULT_SCHEMAS: dict[str, CDRTextSchema] = {
     "stfc_ss8bf_claro": CDRTextSchema(
         name="SS8BF Claro",
         delimiter=",",
+        # column_indices referem-se à posição dos campos em stfc_ss8bf_claro_schema.
+        # O filtro descarta registros com _data_hora (start_time) nulo.
         schema=stfc_ss8bf_claro_schema,
         has_header=False,
         lines_to_keep=(("_data_hora", "is not null")),

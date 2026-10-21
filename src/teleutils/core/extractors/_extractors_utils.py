@@ -1,4 +1,25 @@
-"""Enriquecimento compartilhado de metadados dos extratores de CDR."""
+"""Enriquecimento compartilhado de metadados dos extratores de CDR.
+
+Funções de apoio usadas por ``CDRTextExtractor`` e ``CDRParquetExtractor``:
+
+* ``suppress_spark_loggers``: decorator que reduz temporariamente o nível de
+  loggers Log4j2 do Spark durante a execução de um método de extração
+  (aplicado em ``CDRParquetExtractor.extract``).
+* ``read_text_with_source``: leitura de linhas via RDD que preserva o arquivo
+  de origem de cada linha (usada quando ``read_rdd=True``).
+* ``validate_metadata_arguments``: validação de ``operator``, ``service`` e
+  ``cdr_type``.
+* ``add_source_metadata``: adição das colunas ``esquema``, ``prestadora``,
+  ``servico``, ``tipo_cdr`` e ``arquivo_origem`` ao DataFrame extraído.
+
+Fluxo de metadados: o extrator garante a coluna interna
+``SOURCE_PATH_COLUMN`` (caminho do arquivo de cada registro), mantém-na
+na seleção de colunas e, ao final, ``add_source_metadata`` deriva os metadados
+a partir dela e a remove do resultado.
+
+Dependências:
+    - ``pyspark``: DataFrames, funções SQL e acesso à JVM (Log4j2 e Hadoop).
+"""
 
 from __future__ import annotations
 
@@ -12,6 +33,9 @@ from pyspark.sql import functions as F
 DecoratorMethod = TypeVar("DecoratorMethod", bound=Callable[..., Any])
 
 
+# Coluna interna que carrega o caminho do arquivo de origem de cada registro.
+# É criada pela leitura (``read_text_with_source`` ou ``input_file_name``),
+# consumida por ``add_source_metadata`` e removida do resultado final.
 SOURCE_PATH_COLUMN = "__teleutils_source_path"
 
 
@@ -26,6 +50,21 @@ def suppress_spark_loggers(
     explícitos e a herança anteriores no finally, inclusive quando o método
     falha. A alteração afeta o contexto Log4j2 compartilhado da JVM do driver;
     não há isolamento entre chamadas concorrentes.
+
+    Args:
+        *logger_names: Nomes dos loggers Log4j2 a alterar. Ao menos um é
+            obrigatório.
+        level: Nome do nível temporário (sem diferenciar maiúsculas de
+            minúsculas), resolvido em ``log4j.Level``. O padrão é ``"ERROR"``.
+
+    Returns:
+        Decorator para métodos de instância. O wrapper acessa a JVM por
+        ``self.spark.sparkContext``, portanto o objeto decorado deve ter o
+        atributo ``spark``. O resultado do método é repassado inalterado.
+
+    Raises:
+        ValueError: Se nenhum nome de logger for informado (levantada ao
+            aplicar a fábrica, antes da decoração).
     """
     if not logger_names:
         raise ValueError("Informe ao menos um logger.")
@@ -97,6 +136,21 @@ def read_text_with_source(
     Arquivos e diretórios ocultos são ignorados, como nas leituras Spark.
     Cada arquivo é lido com ``textFile``; somente os caminhos são enumerados
     no driver, sem carregar o conteúdo inteiro dos arquivos em memória.
+
+    Args:
+        spark: Sessão Spark cujo contexto Hadoop resolve os caminhos.
+        source_file: Caminho, diretório ou glob, ou lista deles.
+
+    Returns:
+        DataFrame com as colunas ``value`` (linha de texto) e
+        ``SOURCE_PATH_COLUMN`` (URI do arquivo de origem em ASCII). O DataFrame
+        é criado vazio, com esse schema, se nenhum arquivo for encontrado em
+        diretórios existentes.
+
+    Raises:
+        RuntimeError: Se a sessão não possuir JVM ou contexto Java ativo.
+        FileNotFoundError: Se algum caminho informado não corresponder a
+            nenhum item no filesystem.
     """
     context = spark.sparkContext
     jvm = cast(Any, context._jvm)
@@ -140,6 +194,11 @@ def validate_metadata_arguments(
     ``None`` e strings vazias indicam que o valor não foi informado.
     Strings válidas são preservadas sem normalização.
 
+    Args:
+        operator: Prestadora informada pelo chamador, ou ``None``/vazio.
+        service: Serviço informado pelo chamador, ou ``None``/vazio.
+        cdr_type: Tipo de CDR informado pelo chamador, ou ``None``/vazio.
+
     Raises:
         TypeError: Se um valor informado não for uma string.
         ValueError: Se um valor contiver somente espaços em branco.
@@ -180,6 +239,23 @@ def add_source_metadata(
 
     A verificação de campos inferidos executa uma ação Spark antes da escrita.
     Quando nenhum campo depende do caminho, essa verificação é dispensada.
+
+    Args:
+        df: DataFrame extraído, com a coluna ``SOURCE_PATH_COLUMN``.
+        cdr_schema: Chave do schema, gravada na coluna ``esquema``.
+        operator: Valor de ``prestadora``; se vazio, é inferido do quarto
+            segmento a partir do fim do caminho.
+        service: Valor de ``servico``; se vazio, é inferido do terceiro
+            segmento a partir do fim.
+        cdr_type: Valor de ``tipo_cdr``; se vazio, é inferido do penúltimo
+            segmento do caminho.
+        logger: Logger usado ao registrar que ``_tipo_cdr`` prevaleceu; se
+            ``None``, usa o logger do módulo.
+
+    Returns:
+        DataFrame com as colunas ``esquema``, ``prestadora``, ``servico`` e
+        ``tipo_cdr`` e, se ainda não existir, ``arquivo_origem`` (nome do
+        arquivo extraído do caminho). ``SOURCE_PATH_COLUMN`` é removida.
 
     Raises:
         TypeError: Se um argumento de metadados tiver tipo inválido.

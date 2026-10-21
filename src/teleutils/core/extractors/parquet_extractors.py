@@ -16,9 +16,11 @@ Responsabilidades principais:
     - Escrever parquet intermediário para consumo pelos transformadores.
 
 Principais funcionalidades:
-        - Mapeamento dos layouts SMP Ericsson GSM, Ericsson VoLTE Vivo,
-            Huawei VoLTE TIM e Nokia GSM definidos no catálogo padrão.
+        - Mapeamento dos layouts SMP Ericsson GSM, Nokia GSM, Huawei VoLTE TIM,
+            Ericsson VoLTE Vivo, STFC Italtel NGN TIM e STFC Sigma Claro
+            definidos no catálogo padrão (``PARQUET_DEFAULT_SCHEMAS``).
         - Leitura com união de schemas e preenchimento de campos ausentes com nulos.
+        - Ignora arquivos Parquet corrompidos na leitura (``ignoreCorruptFiles``).
         - Tratamento literal de nomes de colunas que contêm pontos.
         - Remoção opcional de duplicatas antes do ajuste final de ``tipo_cdr``.
 
@@ -30,8 +32,10 @@ Dependências relevantes:
 Notes:
     ``extract`` recebe uma chave de ``PARQUET_DEFAULT_SCHEMAS`` ou do catálogo
     fornecido ao construtor. A seleção renomeia campos sem normalizar números
-    telefônicos nem interpretar datas. Colunas existentes preservam seus tipos;
-    campos ausentes no DataFrame lido são criados como nulos do tipo string.
+    telefônicos nem interpretar datas. Colunas existentes preservam seus tipos,
+    exceto quando o contrato define ``fill_char``: nesse caso a coluna passa
+    por ``regexp_replace`` e o resultado é string. Campos ausentes no
+    DataFrame lido são criados como nulos do tipo string.
 
     As transformações constroem o plano distribuído, materializado pela escrita
     Parquet em modo ``overwrite``. O destino é sobrescrito, sem particionamento
@@ -135,12 +139,15 @@ class CDRParquetExtractor:
 
         Fluxo de processamento:
             1. Resolve ``cdr_schema`` no catálogo da instância.
-            2. Lê um caminho ou uma lista de caminhos com ``mergeSchema=true``.
+            2. Lê um caminho ou uma lista de caminhos com ``mergeSchema=true``
+               e ``ignoreCorruptFiles=true``.
             3. Seleciona e renomeia os campos mapeados, usando nulos do tipo
-               string para aqueles ausentes no DataFrame lido.
+               string para aqueles ausentes no DataFrame lido. Se o contrato
+               define ``fill_char``, remove o seu preenchimento final de cada
+               campo mapeado.
             4. Adiciona a chave do contrato e os metadados do arquivo de entrada.
             5. Remove duplicatas, se ``unique`` estiver habilitado.
-                6. Remove a coluna intermediária ``_tipo_cdr``, se existir.
+            6. Remove a coluna intermediária ``_tipo_cdr``, se existir.
             7. Sobrescreve o destino com o Parquet intermediário.
 
         Args:
@@ -189,6 +196,17 @@ class CDRParquetExtractor:
             não separadamente em cada arquivo. Ausências são registradas em
             nível de aviso; não interrompem a extração. Não há conversão
             explícita dos tipos das colunas existentes neste método.
+
+            ``ignoreCorruptFiles=true`` faz o Spark ignorar arquivos Parquet
+            ilegíveis na leitura, sem interromper a extração; este método não
+            registra quais arquivos foram ignorados. Durante a execução, o
+            decorator ``suppress_spark_loggers`` reduz temporariamente o nível
+            dos loggers ``PARQUET_EXTRACTOR_LOGGERS_TO_SUPPRESS`` para ``ERROR``
+            e restaura a configuração anterior ao final, mesmo em caso de falha.
+
+            Se o contrato define ``fill_char``, o conteúdo é usado sem escape
+            no padrão ``fill_char + "+$"`` de ``regexp_replace``, removendo as
+            repetições finais em todas as colunas mapeadas.
 
             A projeção preserva a ordem de ``column_mapping`` e descarta campos
             não mapeados. Nomes de origem com pontos são envolvidos em crases:

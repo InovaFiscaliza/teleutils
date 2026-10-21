@@ -2,12 +2,14 @@
 
 Este módulo centraliza a configuração ``CDRParquetSchema`` e os contratos
 padronizados dos fornecedores e layouts suportados pelo Teleparser. Cada
-contrato informa o nome do layout, os pares de coluna de origem e destino e a
-descrição usada pelo job de extração. O extrator aplica esses pares ao parquet
-de entrada; este módulo não lê, transforma ou grava DataFrames.
+contrato informa o nome do layout, os pares de coluna de origem e destino, uma
+descrição de job e, opcionalmente, um caractere de preenchimento a remover. O
+extrator aplica esses pares ao parquet de entrada; este módulo não lê,
+transforma ou grava DataFrames.
 
 A separação entre configuração (este módulo) e execução
-(``teleparser_extractors.py``) permite adicionar ou atualizar layouts sem
+(``parquet_extractors.py``, classe ``CDRParquetExtractor``) permite adicionar
+ou atualizar layouts sem
 alterar a lógica de extração. A validação realizada na criação do contrato é
 estrutural: garante que o mapeamento não esteja vazio e que seus itens sejam
 tuplas de duas strings, mas não verifica se as colunas existem na origem.
@@ -24,7 +26,7 @@ Example:
     ... )
     >>> schema = PARQUET_DEFAULT_SCHEMAS["smp_ericsson_gsm"]
     >>> schema.name
-    'SMP Ericsson GSM'
+    'Ericsson GSM'
 """
 
 from __future__ import annotations
@@ -38,7 +40,7 @@ class CDRParquetSchema:
 
     A estrutura define quais colunas da origem devem ser selecionadas e como
     elas serão nomeadas no dataset intermediário. A classe
-    ``CDRTeleparserExtractor`` consome esse contrato durante a extração, enquanto
+    ``CDRParquetExtractor`` consome esse contrato durante a extração, enquanto
     cada instância de ``CDRParquetSchema`` concentra as regras de um layout.
 
     O dataclass é congelado e o mapeamento é armazenado como uma tupla de
@@ -54,8 +56,14 @@ class CDRParquetSchema:
             colunas da entrada para o nome padronizado intermediário. Deve
             conter pelo menos um par, e cada par deve ter duas strings.
         job_description:
-            Descrição textual da operação, armazenada para uso do fluxo de
-            extração e observabilidade.
+            Descrição textual da operação. Não é lida por
+            ``CDRParquetExtractor.extract``; fica disponível apenas como
+            metadado do contrato.
+        fill_char:
+            Caractere de preenchimento. Quando não vazio, o extrator remove
+            ocorrências repetidas dele no fim do valor de cada coluna mapeada,
+            via ``regexp_replace`` com o padrão ``fill_char + "+$"``, sem
+            escape de metacaracteres. O padrão ``""`` desativa a remoção.
     """
 
     name: str
@@ -277,6 +285,7 @@ PARQUET_DEFAULT_SCHEMAS: dict[str, CDRParquetSchema] = {
             ("a_sequence_number", "referencia"),
         ),
         job_description="Extraindo CDR Parquet: SMP Sigma Claro",
+        # Remove hífens repetidos ao final dos valores de todas as colunas mapeadas.
         fill_char="-",
     ),
 }

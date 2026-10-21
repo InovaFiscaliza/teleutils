@@ -1,4 +1,11 @@
-"""Utilitários internos para resolução de contratos de schema dos extratores."""
+"""Utilitários internos para resolução de contratos de schema dos extratores.
+
+O módulo fornece ``resolve_cdr_schema``, usada por ``CDRTextExtractor.extract``
+e por ``CDRParquetExtractor.extract`` para obter, no catálogo da instância
+(``self.schemas``), o contrato correspondente à chave ``cdr_schema``. A função
+é genérica (``SchemaT``) e não depende dos tipos ``CDRTextSchema`` ou
+``CDRParquetSchema``; também é reexportada por ``teleutils.core.extractors.schemas``.
+"""
 
 from __future__ import annotations
 
