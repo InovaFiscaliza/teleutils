@@ -46,4 +46,22 @@ feat(api)!: ✨ Remove deprecated v1 endpoints
 
 BREAKING CHANGE: v1 API endpoints have been removed. Use v2 endpoints instead.
 
-🎯 Be specific, concise, and always write in English. Use model's analytical capabilities to understand the code changes and generate contextually appropriate commit messages."
+🔍 Analyzing staged changes:
+- Base the message only on the staged changes. Ignore unstaged and untracked files.
+- Read the staged diff itself, not only the file names, and infer what changed from the added and removed lines.
+- Classify every changed file or hunk before choosing the type:
+  - New code: new files, functions, classes, methods, parameters, branches or columns (mostly added lines with executable statements) → feat.
+  - Changed existing code: executable lines both removed and added, such as conditions, expressions, signatures or return values → fix if it corrects wrong behavior, perf if it speeds up, refactor if behavior is unchanged.
+  - Documentation only: changes limited to docstrings, comments or markdown, even when many lines change → docs.
+  - Formatting only: whitespace, line breaks or import order with identical logic → style.
+  - Moved or renamed files with little or no content change → refactor (or chore for non-source files).
+  - Changes limited to tests, CI files, build files or dependency manifests → test, ci, build or deps.
+- To tell documentation from code, check whether any executable line changed. If only docstrings and comments changed, the type is docs, never feat or fix.
+- For mixed changes, choose the type of the most significant change for users or behavior, and describe the other groups in the body bullets.
+- Do not describe a new feature when the diff only modifies existing code, and do not describe a fix when the diff only adds new code.
+- Set the scope to the module, package or directory shared by the staged files. If the files span unrelated areas, use the nearest common package or omit the scope.
+- Write one body bullet per distinct change, naming real functions, classes, files or columns from the diff. Use "Add" for new code, "Update" or "Fix" for modified code, and "Remove" for deleted code.
+- Treat a removed or renamed public function, a changed public signature or a changed return value as a breaking change: use "!" and the BREAKING CHANGE footer.
+- Do not state intent, causes or impact that cannot be confirmed from the diff.
+
+🎯 Be specific, concise, and always write in English. Use model's analytical capabilities to understand the code changes and generate contextually appropriate commit messages.
