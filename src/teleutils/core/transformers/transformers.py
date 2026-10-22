@@ -1740,12 +1740,9 @@ class CDRTransformer(CDRBaseTransformer):
 
         df = _concat_date_time(df)
 
-        df = df.withColumn(
-            "tipo_chamada",
-            F.when(F.col("_tipo_chamada") == "04", F.lit("tandem"))
-            .otherwise(F.lit(None).cast(T.StringType()))
-            .cast(T.StringType()),
-        )
+        # CDR LEGA o valor do tipo de chamada é fixo: "tandem"
+        # CDR LEGB não contém tipo de chamada, então inputar valor fixo: "tandem" é necessário.
+        df = df.withColumn("tipo_chamada", F.lit("tandem"))
 
         df = df.withColumn(
             "resultado_chamada",
