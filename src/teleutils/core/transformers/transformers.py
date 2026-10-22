@@ -1306,6 +1306,9 @@ class CDRTransformer(CDRBaseTransformer):
         ref_date_time_fmt = "yyyy-MM-dd HH:mm:ss"
 
         df = self.spark.read.parquet(source_file)
+        df = df.withColumn(
+            "tipo_chamada", F.regexp_replace(F.col("_tipo_chamada"), " ", "_")
+        )
 
         df = _concat_date_time(df)
 

@@ -263,7 +263,7 @@ PARQUET_DEFAULT_SCHEMAS: dict[str, CDRParquetSchema] = {
                 "rota_saida",
             ),
             ("network_call_reference_switch_identity", "bilhetador"),
-            ("type_of_call", "tipo_chamada"),
+            ("type_of_call", "_tipo_chamada"),
         ),
         job_description="Extraindo CDR Parquet: SMP Italtel NGN TIM",
     ),
