@@ -9,6 +9,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     procps \
     ca-certificates \
     locales \
+    jq \
+    shellcheck \
+    bats \
     && sed -i '/^# *en_US.UTF-8 UTF-8/s/^# *//' /etc/locale.gen \
     && locale-gen en_US.UTF-8 \
     && update-locale LANG=en_US.UTF-8 LC_ALL=en_US.UTF-8 \

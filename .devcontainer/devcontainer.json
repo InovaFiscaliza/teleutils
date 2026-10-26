@@ -16,6 +16,17 @@
       "type": "bind",
       "source": "${localEnv:HOME}/.ssh",
       "target": "/home/devuser/.ssh"
+    },
+    {
+      "type": "bind",
+      "source": "/usr/local/bin/mc",
+      "target": "/usr/local/bin/mc",
+      "readonly": true
+    },
+    {
+      "type": "bind",
+      "source": "${localEnv:HOME}/.mc",
+      "target": "/home/devuser/.mc"
     }
   ],
   "runArgs": [
