@@ -6,7 +6,8 @@ O pacote `teleutils` oferece utilitários de pré-processamento e um pipeline
 Spark para extrair CDRs, gravar um Parquet intermediário e transformá-lo em um
 contrato analítico padronizado. A API pública é exposta pelos subpacotes
 `teleutils.preprocessing`, `teleutils.core.extractors`,
-`teleutils.core.extractors.schemas` e `teleutils.core.transformers`.
+`teleutils.core.extractors.schemas`, `teleutils.core.transformers` e
+`teleutils.core.orchestrators`.
 
 O pacote raiz não reexporta essas interfaces. Importe-as dos subpacotes
 indicados.
@@ -213,6 +214,189 @@ classificam autenticação quando disponível e preenchem nulos da chave primár
 O contrato final possui 35 colunas, definido em `TARGET_SCHEMA`. A referência
 de origem e transformação por coluna está em
 [Linhagem e Transformações dos Dados](teleutils_linhagem_transformacoes_dados.md).
+
+## `teleutils.core.orchestrators`
+
+Coordena extração e transformação sem implementar regras de CDR. A importação
+da API não carrega Spark nem os transformadores. A validação reutiliza a função
+de metadados dos extratores (e suas dependências Python), sem iniciar uma sessão
+ou executar ações Spark. Os componentes de execução são instanciados somente
+quando há itens preparados para executar.
+
+### `get_config(config: Mapping[str, object]) -> ConfigPaths`
+
+Valida um mapping sem modificá-lo e constrói caminhos S3A ou locais.
+
+| Campo | Contrato |
+|---|---|
+| `storage_type` | Opcional: `"s3a"` (padrão quando ausente) ou `"local"`, sem normalização. |
+| `source_folder` | String obrigatória com a pasta de origem, conforme storage_type. |
+| `pattern` | String obrigatória com padrão relativo, incluindo glob. Barras iniciais são removidas. |
+| `schema` | String obrigatória; chave preservada sem normalização. |
+| `extracted_folder` | String obrigatória com a pasta intermediária, conforme storage_type. |
+| `transformed_folder` | String obrigatória com a pasta final, conforme storage_type. |
+| `output_file_prefix` | String obrigatória; prefixo sem separadores ou curingas. |
+| `operator`, `service`, `cdr_type` | Opcionais: strings ou `None`; vazio/`None` preservam a inferência dos extratores. |
+
+Não há aliases de configuração: qualquer chave desconhecida é rejeitada.
+Os metadados não são normalizados; strings compostas somente por espaços são
+inválidas. `_tipo_cdr` presente no conteúdo mantém a precedência implementada
+pelos extratores.
+
+Em `"s3a"`, pastas aceitam `bucket/caminho` ou `s3a://bucket/caminho`.
+O protocolo é acrescentado somente quando ausente; barras finais são removidas,
+mas barras internas e espaços internos das chaves são preservados. Caminhos
+iniciados por `/` agora são rejeitados nesse modo, em vez de serem interpretados
+como S3A. Configurações antigas com bucket/caminho continuam válidas sem
+`storage_type`.
+
+Em `"local"`, as três pastas devem ser caminhos absolutos Linux, como `/dados/cdr`.
+Não são aceitos caminhos relativos, expansão de `~`, caminhos Windows ou
+protocolos na entrada, inclusive `file:///`. A construção normaliza barras
+redundantes e finais lexicalmente, preservando a raiz, e gera caminhos
+`file:///dados/cdr/...` compatíveis com Spark/Hadoop. Isso evita depender de
+`fs.defaultFS`. Caracteres locais, como espaços, Unicode, `+`, `@`, `#` e `%`,
+são encaminhados literalmente ao construtor de caminhos do Hadoop, sem
+percent-encoding adicional pela biblioteca. Os curingas do padrão são preservados.
+
+Não há conversão silenciosa de `storage_type`: `None`, booleanos e outros tipos
+não textuais geram `TypeError`; valores como `"LOCAL"`, `" local "` ou `"s3"`
+geram `ValueError`. Um item usa o tipo selecionado nos três diretórios.
+Não há armazenamento separado para origem e destino ou cópia entre tipos.
+
+Em ambos os modos, protocolos incompatíveis, bucket vazio no modo S3A, espaços nas bordas das pastas,
+caracteres de controle, barras invertidas e segmentos `.`/`..` são rejeitados.
+A checagem de segmentos considera também percent-encoding. Curingas são
+permitidos no padrão, não nas pastas nem no prefixo.
+
+`ConfigPaths` é uma `NamedTuple` com:
+
+- `schema`;
+- `source_file`: pasta de origem e padrão, com `s3a://` ou `file:///`;
+- `extracted_file`: pasta intermediária e `<prefix>_extracted.parquet`;
+- `transformed_file`: pasta final e `<prefix>_transformed.parquet`.
+
+Os destinos representam diretórios/datasets Parquet. A validação não consulta
+S3 nem filesystem local, verifica existência ou certifica integridade.
+Suporte ao schema e conflitos
+de caminhos são verificados por `run_etl`, não por `get_config`.
+
+Tipos inválidos levantam `TypeError`; campos ausentes, desconhecidos, vazios
+ou com valores inválidos levantam `ValueError`.
+
+### `run_etl(configs, *, spark, base_folder=None, week_dir=None) -> ETLReport`
+
+Recebe uma sequência finita de mappings e uma `SparkSession` existente.
+Strings, mappings no lugar da sequência e iteradores são rejeitados com
+`TypeError`, registrado em log. Uma sequência vazia retorna relatório vazio,
+sem instanciar componentes.
+
+`base_folder` e `week_dir` são opcionais, mas devem ser informados juntos.
+Quando ambos são fornecidos, cada `source_folder` configurado é composto como
+`{base_folder}/{week_dir}/{source_folder}`. A configuração original não é
+alterada. Informar apenas um deles levanta `ValueError`.
+
+O lote:
+
+1. Valida cada configuração e constrói todos os caminhos.
+2. Rejeita itens envolvidos em destinos iguais/sobrepostos ou sobreposição
+   entre destino e pasta de origem, inclusive entre itens.
+3. Seleciona formatos pelos catálogos existentes; schemas ausentes ou
+   ambíguos são rejeitados.
+4. Instancia os extratores necessários e o transformador uma vez por lote.
+5. Resolve um extrator e um método chamável `transform_<schema>` por item.
+6. Executa extração e transformação sequencialmente para cada item válido.
+7. Retorna os resultados na ordem original, continuando após falhas individuais.
+
+A comparação distingue protocolo e autoridade/bucket antes dos segmentos:
+armazenamentos ou buckets diferentes não conflitam por semelhança de nomes.
+Em S3A, mantém-se a comparação conservadora de percent-encoding e barras
+redundantes. Em local, os nomes são literais (`a%20b` e `a b` são distintos)
+e as barras são normalizadas na preparação. A raiz local sobrepõe qualquer
+descendente local. Não resolve globs, links simbólicos ou montagens.
+Todos os participantes de um conflito são rejeitados; itens independentes
+continuam. Não existe encadeamento de saída de um item como entrada de outro.
+Destinos preexistentes fora do lote não são consultados: permanece `overwrite`.
+Cada item pode escolher seu armazenamento, mas nenhum item pode ser híbrido.
+Não há alteração na seleção de extratores e transformadores por armazenamento.
+
+A seleção usa os catálogos do pacote; não há registro público adicional nem
+parâmetro de catálogo customizado nesta API. Os extratores recebem cópias
+rasas dos catálogos. Não há tratamento específico de LEGB: seu alias passa pela
+mesma resolução dinâmica dos demais métodos.
+
+O contexto Spark fornecido não é criado nem encerrado. A sessão SQL derivada
+criada pelo transformador mantém seu comportamento original. O orquestrador
+não configura credenciais, conectores, Iceberg, handlers de logging ou níveis
+globais; utiliza um logger de módulo. Os decoradores dos componentes continuam
+registrando suas operações e, quando aplicável, ajustando temporariamente
+loggers Spark conforme o comportamento preexistente.
+
+### `run_etl_item(config, *, spark) -> ETLItemResult`
+
+Executa um lote de um item e retorna seu resultado, com `index=0`. Possui as
+mesmas validações, resultados e política de erros de `run_etl`.
+
+### Resultados imutáveis
+
+`ETLItemResult` e `ETLReport` são dataclasses congeladas.
+
+| Campo de `ETLItemResult` | Conteúdo |
+|---|---|
+| `index` | Posição do item na sequência, iniciando em zero. |
+| `schema` | Chave informada, quando identificável; caso contrário `None`. |
+| `paths` | `ConfigPaths` planejado ou `None` se a configuração não foi resolvida. |
+| `status` | `success`, `validation_error` ou `execution_error`. |
+| `stage` | `configuration`, `paths`, `resolution`, `initialization`, `extraction`, `transformation` ou `completed`. |
+| `completed_stages` | Tupla das etapas concluídas: vazia, `("extraction",)` ou `("extraction", "transformation")`. |
+| `error_type` | Nome da classe da exceção, ou `None` no sucesso. |
+| `error_message` | Mensagem da exceção, ou `None` no sucesso. |
+
+`ETLReport.items` é uma tupla ordenada, com um resultado por item.
+As propriedades `total`, `successes`, `validation_errors` e `execution_errors`
+são calculadas a partir dessa tupla:
+
+```text
+total = successes + validation_errors + execution_errors
+```
+
+Erros de configuração, caminhos e resolução têm status `validation_error`.
+Falhas de inicialização ou das etapas têm status `execution_error`, mesmo
+quando a exceção original é `ValueError`. Falha de inicialização compartilhada
+é reportada para todos os itens ainda válidos.
+
+Uma extração malsucedida impede a transformação daquele item. Falha na
+transformação preserva o registro de extração concluída, mas não é sucesso.
+`KeyboardInterrupt` e `SystemExit` propagam; não há relatório final garantido
+após interrupção do usuário.
+
+### Limites e validação local
+
+O escopo é apenas extração e transformação. Não há carga, retry, paralelismo,
+CLI, retomada, rollback ou exclusão automática de saídas parciais.
+Não se usa existência de arquivo como prova de conclusão. Os componentes
+mantêm suas políticas de tolerância a colunas ausentes/arquivos corrompidos;
+portanto, sucesso técnico não certifica completude ou qualidade dos CDRs.
+
+Os testes unitários usam fakes, inclusive para lotes mistos S3A/local. Os testes
+de integração utilizam a API pública com `storage_type="local"`, Spark local,
+diretórios temporários e dados sintéticos, sem substituição da construção de
+caminhos. Exercitam globs e caracteres especiais, comparando conteúdo, schema
+e particionamento com chamadas diretas. MinIO não é necessário para os testes.
+
+O ambiente Spark/Hadoop é responsável pelos conectores, endpoint e credenciais
+do MinIO/S3A. O modo local força o filesystem `file`, mas não distribui arquivos:
+em um cluster, os executores precisam ter acesso aos caminhos locais necessários
+em suas próprias máquinas. A existência apenas no driver não é suficiente.
+Não se verifica existência, permissões, links simbólicos ou equivalência de
+montagens; a detecção de conflitos é lexical.
+
+A correção de LEGB pertence ao transformador e não ao orquestrador. O teste
+de regressão local sinaliza `xfail` somente após confirmar a falha conhecida
+de resolução de `_tipo_chamada`; outros erros falham normalmente. Quando essa
+correção independente estiver disponível, o teste poderá concluir com sucesso.
+
+Para uso no Jupyter, consulte o [exemplo do README](../README.md#orquestração-de-lotes-no-jupyter).
 
 ## Erros e efeitos colaterais
 
