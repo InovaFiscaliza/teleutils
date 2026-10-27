@@ -11,8 +11,11 @@ Subpacotes:
       (datas, números telefônicos, autenticação) para o contrato final.
     - teleutils.core.loaders: carga do Parquet padronizado em tabelas Iceberg
       compartilhadas com o Trino (``TrinoLoader``), executada pelo Spark.
+    - teleutils.core.orchestrators: coordenação sequencial de extração e
+      transformação por configuração, com resultados por item e por lote.
 
 Notes:
     Este pacote não reexporta classes ou funções. As APIs de extração,
-    transformação e carga devem ser importadas pelos respectivos subpacotes.
+    transformação, carga e orquestração devem ser importadas pelos respectivos
+    subpacotes.
 """
