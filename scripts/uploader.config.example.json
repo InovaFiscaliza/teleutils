@@ -1,0 +1,38 @@
+{
+  "teleparser_folder": "/assets/data/cdr/teleparser/",
+  "text_folder": "/assets/monitoring/cdr/cdr_bruto/",
+  "minio_config": {
+    "alias": "bganatel",
+    "destination": "sandbox-sfi/cdr/uploaded",
+    "batchsize": 100
+  },
+  "folder_mapping": {
+    "text": [
+      {"source_folder": "Algar/FIXA/NGN",                           "destination_folder": "algar/stfc/huawei_ngn",  "pattern": "*.gz"},
+      {"source_folder": "Claro/home/*/*/coleta/coletados/*_AXE",    "destination_folder": "claro/stfc/axe",         "pattern": "*.gz"},
+      {"source_folder": "Claro/home/*/*/coleta/coletados/*_HUAWEI", "destination_folder": "claro/stfc/huawei_ngn",  "pattern": "*.gz"},
+      {"source_folder": "Claro/home/*/*/coleta/coletados/*_PCL",    "destination_folder": "claro/stfc/pcl",         "pattern": "*.gz"},
+      {"source_folder": "Claro/home/*/*/coleta/coletados/*_PIT",    "destination_folder": "claro/stfc/pit",         "pattern": "*.gz"},
+      {"source_folder": "Claro/home/*/*/coleta/coletados/*_SIGMA",  "destination_folder": "claro/stfc/sigma",       "pattern": "*.gz"},
+      {"source_folder": "Claro/home/*/*/coleta/coletados/*_SS8BF",  "destination_folder": "claro/stfc/ss8bf",       "pattern": "*.gz"},
+      {"source_folder": "Claro/home/*/*/coleta/coletados/*_HRI",    "destination_folder": "claro/stfc/tropico",     "pattern": "*.gz"},
+      {"source_folder": "Oi/CDR",                                   "destination_folder": "oi/stfc/7n",             "pattern": "*7N*.gz"},
+      {"source_folder": "Oi/CDR",                                   "destination_folder": "oi/stfc/tropico",        "pattern": "*TN*.gz"},
+      {"source_folder": "Tim/FIXA/NGN_Huawei",                      "destination_folder": "tim/stfc/huawei_ngn",    "pattern": "*.gz"},
+      {"source_folder": "Vivo/FIXA",                                "destination_folder": "vivo/stfc/fcdr",         "pattern": "*.gz"}
+    ],
+    "teleparser": [
+      {"source_folder": "algar/voz",        "destination_folder": "algar/smp/nokia",      "pattern": "*.parquet"},
+      {"source_folder": "claro/ericsson",   "destination_folder": "claro/smp/ericsson",   "pattern": "*.parquet"},
+      {"source_folder": "claro/fixa_bds",   "destination_folder": "claro/stfc/bds",       "pattern": "*.parquet"},
+      {"source_folder": "claro/fixa_sigma", "destination_folder": "claro/stfc/sigma",     "pattern": "*.parquet"},
+      {"source_folder": "claro/nokia",      "destination_folder": "claro/smp/nokia",      "pattern": "*.parquet"},
+      {"source_folder": "claro/volte",      "destination_folder": "claro/smp/volte",      "pattern": "*.parquet"},
+      {"source_folder": "tim/ericsson",     "destination_folder": "tim/smp/ericsson",     "pattern": "*.parquet"},
+      {"source_folder": "tim/ngn_italtel",  "destination_folder": "tim/stfc/ngn_italtel", "pattern": "*.parquet"},
+      {"source_folder": "tim/volte",        "destination_folder": "tim/smp/volte",        "pattern": "*.parquet"},
+      {"source_folder": "vivo/ericsson",    "destination_folder": "vivo/smp/ericsson",    "pattern": "*.parquet"},
+      {"source_folder": "vivo/volte",       "destination_folder": "vivo/smp/volte",       "pattern": "*.parquet"}
+    ]
+  }
+}
