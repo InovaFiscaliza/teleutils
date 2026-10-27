@@ -20,6 +20,22 @@ O ambiente de desenvolvimento é definido por dois artefatos versionados em
 Entender a diferença entre esses dois níveis é a base para saber onde uma
 alteração feita durante o desenvolvimento realmente é persistida.
 
+### MinIO Client (`mc`) do host
+
+Os bind mounts de [`devcontainer.json`](../.devcontainer/devcontainer.json)
+compartilham o executável `/usr/local/bin/mc` do host no mesmo caminho do
+container, em modo somente leitura, e a pasta `${localEnv:HOME}/.mc` do host
+em `/home/devuser/.mc`, com leitura e escrita.
+
+Antes de iniciar ou reconstruir o container, esses caminhos devem existir
+no host. O binário deve ser executável e compatível com o sistema e a
+arquitetura do container; a pasta de configuração deve estar acessível ao
+usuário `devuser`. Alterações de configuração feitas pelo `mc` no container
+também afetam o host. Essa pasta pode conter credenciais, que ficam
+disponíveis dentro do container.
+
+Para aplicar esses mapeamentos, execute **Dev Containers: Rebuild Container**.
+
 ## 2. Onde as alterações "moram"
 
 A raiz do projeto (`/workspaces/<nome-do-projeto>` dentro do container) é um
