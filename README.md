@@ -198,6 +198,8 @@ for item in report.items:
 ```
 
 Para um único item, utilize `run_etl_item(cdr_config[0], spark=spark)`.
+Atribua um `output_file_prefix` distinto a cada item do lote: duplicatas
+levantam `ValueError` antes de qualquer escrita, mesmo em destinos diferentes.
 A configuração aceita os seis campos obrigatórios mostrados, os três metadados
 opcionais e `storage_type`, com valores exatos `"s3a"` (padrão) ou `"local"`.
 Em S3A, pastas aceitam `bucket/caminho` ou `s3a://bucket/caminho`, nunca

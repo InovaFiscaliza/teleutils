@@ -291,6 +291,14 @@ Strings, mappings no lugar da sequência e iteradores são rejeitados com
 `TypeError`, registrado em log. Uma sequência vazia retorna relatório vazio,
 sem instanciar componentes.
 
+Cada `output_file_prefix` não vazio deve ser único no lote, mesmo quando os
+destinos são diferentes. A comparação é exata e diferencia maiúsculas de
+minúsculas. Se houver duplicatas, `run_etl` registra e levanta `ValueError`,
+indicando os prefixos e índices envolvidos, antes de inicializar componentes ou
+escrever dados. Essa verificação não abrange outros lotes ou execuções.
+Itens malformados e prefixos ausentes, vazios ou de tipo inválido permanecem
+sujeitos à validação individual no relatório.
+
 `base_folder` e `week_dir` são opcionais, mas devem ser informados juntos.
 Quando ambos são fornecidos, cada `source_folder` configurado é composto como
 `{base_folder}/{week_dir}/{source_folder}`. A configuração original não é

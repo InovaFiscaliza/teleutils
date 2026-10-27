@@ -13,6 +13,7 @@ Fluxo de ``_prepare_config``:
 
 Principais componentes:
     - ``get_config``: API pública; retorna somente ``ConfigPaths``.
+    - ``_validate_unique_prefixes``: verifica prefixos repetidos no lote.
     - ``_prepare_config``: validação completa. Além dos caminhos, preserva a
       ``source_folder`` normalizada e os metadados, usados pelo orquestrador
       (``etl.py``) para detectar sobreposição entre origem e destinos e para
@@ -103,7 +104,7 @@ Exemplo:
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import NamedTuple
 from urllib.parse import unquote
@@ -160,6 +161,31 @@ class _PreparedConfig:
     operator: str | None
     service: str | None
     cdr_type: str | None
+
+
+def _validate_unique_prefixes(configs: Sequence[Mapping[str, object]]) -> None:
+    """Rejeita prefixos não vazios repetidos, comparados exatamente.
+
+    Itens que não são mappings e prefixos ausentes, vazios ou de tipo inválido
+    são deixados para a validação individual.
+
+    Raises:
+        ValueError: Se um prefixo ocorrer mais de uma vez, com seus índices.
+    """
+    indices: dict[str, list[int]] = {}
+    for index, config in enumerate(configs):
+        if not isinstance(config, Mapping):
+            continue
+        prefix = config.get("output_file_prefix")
+        if isinstance(prefix, str) and prefix.strip():
+            indices.setdefault(prefix, []).append(index)
+    duplicates = [
+        f"{prefix!r}: índices {positions}"
+        for prefix, positions in indices.items()
+        if len(positions) > 1
+    ]
+    if duplicates:
+        raise ValueError(f"output_file_prefix duplicado: {'; '.join(duplicates)}.")
 
 
 def _required_string(config: Mapping[str, object], key: str) -> str:

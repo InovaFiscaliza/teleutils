@@ -53,6 +53,7 @@ from teleutils.core.orchestrators.config import (
     ConfigPaths,
     _prepare_config,
     _PreparedConfig,
+    _validate_unique_prefixes,
 )
 
 if TYPE_CHECKING:
@@ -433,6 +434,7 @@ def run_etl(
 
     Args:
         configs: Sequência finita de configurações aceitas por get_config.
+            Prefixos de saída não vazios devem ser únicos no lote.
             Todos os caminhos são preparados antes das escritas. Itens
             envolvidos em conflitos são rejeitados, inclusive entre itens.
             Uma sequência vazia retorna relatório vazio sem criar componentes.
@@ -452,7 +454,7 @@ def run_etl(
     Raises:
         TypeError: Se configs não for sequência ou for string/mapping.
         ValueError: Se apenas um entre ``base_folder`` e ``week_dir`` for
-            informado.
+            informado, se um deles for vazio ou se houver prefixos duplicados.
         KeyboardInterrupt: Interrupções do usuário não são capturadas.
 
     Notes:
@@ -477,6 +479,11 @@ def run_etl(
             if not folder.strip():
                 logger.error("%s não pode ser vazio.", name)
                 raise ValueError(f"{name} não pode ser vazio.")
+    try:
+        _validate_unique_prefixes(configs)
+    except ValueError as error:
+        logger.error("Configuração do lote inválida: %s", error)
+        raise
     results: dict[int, ETLItemResult] = {}
     prepared: dict[int, _PreparedConfig] = {}
     # Etapa 1: configurações inválidas são registradas e não participam das demais.
