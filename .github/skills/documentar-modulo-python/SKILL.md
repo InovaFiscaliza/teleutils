@@ -1,12 +1,34 @@
 ---
-name: skill-documentar-modulo-python
-description: Documenta módulos Python utilizando docstrings Google Style, comentários explicativos e anotações de manutenção, sem alterar o código ou a lógica de negócio.
-user-invocable: false
+name: documentar-modulo-python
+description: "Documenta o módulo Python aberto no editor ou explicitamente indicado, utilizando docstrings Google Style, comentários explicativos e anotações de manutenção em pt-BR. Use para criar, revisar ou atualizar a documentação de módulos Python e PySpark sem alterar código executável, assinaturas, type hints ou lógica de negócio."
+user-invocable: true
 ---
 
 # Documentar módulo Python
 
 Analise cuidadosamente o módulo Python em contexto e produza uma versão tecnicamente bem documentada, adicionando ou aperfeiçoando **docstrings**, **comentários explicativos** e **anotações de manutenção**, sem alterar o comportamento, a lógica de negócio ou a estrutura funcional do código.
+
+## Módulo alvo
+
+Por padrão, o módulo a ser documentado é o módulo Python atualmente aberto no editor. Se o usuário indicar explicitamente outro módulo, utilize o módulo indicado.
+
+Analise cuidadosamente o módulo alvo e atualize sua documentação conforme as instruções desta skill.
+
+Considere o código atual e os componentes diretamente relacionados, quando necessários para compreensão, como fonte da verdade.
+
+A documentação deve refletir exclusivamente o comportamento efetivamente implementado.
+
+Não altere a lógica de negócio, o comportamento funcional, as assinaturas, os type hints ou qualquer instrução executável.
+
+Limite as alterações a:
+
+* docstrings;
+* comentários explicativos;
+* anotações de manutenção previstas por esta skill.
+
+Não modifique outros módulos. Eles podem ser analisados apenas quando necessário para compreender corretamente o módulo alvo.
+
+Antes de concluir, valide que o módulo alvo foi documentado de acordo com todos os critérios definidos nesta skill.
 
 ## Objetivo
 
