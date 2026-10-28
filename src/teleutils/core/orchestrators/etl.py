@@ -620,15 +620,32 @@ def run_etl(
     return report
 
 
-def run_etl_item(config: Mapping[str, object], *, spark: SparkSession) -> ETLItemResult:
+def run_etl_item(
+    config: Mapping[str, object],
+    *,
+    spark: SparkSession,
+    base_folder: str | None = None,
+    week_dir: str | None = None,
+) -> ETLItemResult:
     """Executa um único item usando o mesmo contrato e tratamento do lote.
 
     Args:
         config: Configuração de extração e transformação aceita por get_config.
         spark: Sessão Spark existente, não encerrada pelo orquestrador.
+        base_folder: Pasta base opcional a prefixar à origem; deve ser
+            informada junto com ``week_dir``.
+        week_dir: Pasta da semana opcional, entre ``base_folder`` e a origem
+            configurada.
 
     Returns:
         Resultado com index=0. Falhas do item são registradas e retornadas,
         sem converter operações incompletas em sucesso.
+
+    Raises:
+        TypeError: Se um dos parâmetros de pasta não for string.
+        ValueError: Se apenas um dos parâmetros de pasta for informado ou
+            se algum deles for vazio.
     """
-    return run_etl((config,), spark=spark).items[0]
+    return run_etl(
+        (config,), spark=spark, base_folder=base_folder, week_dir=week_dir
+    ).items[0]

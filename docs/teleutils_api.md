@@ -351,10 +351,12 @@ globais; utiliza um logger de módulo. Os decoradores dos componentes continuam
 registrando suas operações e, quando aplicável, ajustando temporariamente
 loggers Spark conforme o comportamento preexistente.
 
-### `run_etl_item(config, *, spark) -> ETLItemResult`
+### `run_etl_item(config, *, spark, base_folder=None, week_dir=None) -> ETLItemResult`
 
 Executa um lote de um item e retorna seu resultado, com `index=0`. Possui as
 mesmas validações, resultados e política de erros de `run_etl`.
+Os argumentos opcionais `base_folder` e `week_dir` são repassados a `run_etl`
+e devem ser informados juntos; eles prefixam a origem sem alterar `config`.
 
 ### Resultados imutáveis
 

@@ -245,6 +245,61 @@ def test_source_folder_can_be_prefixed_with_base_and_week(harness):
 
 
 @pytest.mark.parametrize(
+    "storage,base,expected",
+    [
+        (
+            "s3a",
+            "s3a://bucket/cdr/",
+            "s3a://bucket/cdr/2026-W01/operator/service/type/*.gz",
+        ),
+        (
+            "local",
+            "/dados/cdr/",
+            "file:///dados/cdr/2026-W01/operator/service/type/*.gz",
+        ),
+    ],
+)
+def test_single_item_can_prefix_source_folder(harness, storage, base, expected):
+    config = make_config()
+    config["source_folder"] = "operator/service/type"
+    if storage == "local":
+        config.update(
+            storage_type="local",
+            extracted_folder="/dados/extracted",
+            transformed_folder="/dados/transformed",
+        )
+    original_config = config.copy()
+
+    result = run_etl_item(
+        config, spark=harness.spark, base_folder=base, week_dir="/2026-W01/"
+    )
+
+    assert result.status == "success"
+    assert result.index == 0
+    assert result.paths.source_file == expected
+    assert harness.events[0][3] == expected
+    assert config == original_config
+
+
+@pytest.mark.parametrize(
+    "kwargs,error,message",
+    [
+        ({"base_folder": "bucket/cdr"}, ValueError, "informados em conjunto"),
+        ({"week_dir": "2026-W01"}, ValueError, "informados em conjunto"),
+        ({"base_folder": "", "week_dir": "week"}, ValueError, "base_folder"),
+        ({"base_folder": "bucket", "week_dir": ""}, ValueError, "week_dir"),
+        ({"base_folder": 1, "week_dir": "week"}, TypeError, "base_folder"),
+        ({"base_folder": "bucket", "week_dir": 1}, TypeError, "week_dir"),
+    ],
+)
+def test_single_item_reuses_prefix_argument_validation(harness, kwargs, error, message):
+    with pytest.raises(error, match=message):
+        run_etl_item(make_config(), spark=harness.spark, **kwargs)
+    harness.factory.assert_not_called()
+    assert harness.events == []
+
+
+@pytest.mark.parametrize(
     "kwargs", [{"base_folder": "bucket/cdr"}, {"week_dir": "2026-W01"}]
 )
 def test_source_folder_prefix_arguments_must_be_provided_together(
