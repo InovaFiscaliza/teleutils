@@ -1,8 +1,8 @@
-"""Validação de configurações ETL e construção de caminhos, sem acesso a dados.
+"""Leitura e validação de configurações ETL e construção de caminhos.
 
 Valida um item de configuração (mapping) e deriva os caminhos Spark/Hadoop da
-origem, do Parquet extraído e do Parquet transformado. Nenhuma leitura ou
-escrita em armazenamento é feita: os caminhos são apenas planejados.
+origem, do Parquet extraído e do Parquet transformado. ``load_config`` lê um
+arquivo JSON local ou S3A; a construção de caminhos não acessa armazenamento.
 
 Fluxo de ``_prepare_config``:
     mapping de entrada
@@ -12,6 +12,7 @@ Fluxo de ``_prepare_config``:
       ↓ ``ConfigPaths`` + ``_PreparedConfig``
 
 Principais componentes:
+    - ``load_config``: lê uma lista JSON e verifica a unicidade dos prefixos.
     - ``get_config``: API pública; retorna somente ``ConfigPaths``.
     - ``_validate_unique_prefixes``: verifica prefixos repetidos no lote.
     - ``_prepare_config``: validação completa. Além dos caminhos, preserva a
@@ -103,6 +104,8 @@ Exemplo:
 
 from __future__ import annotations
 
+import json
+import os
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -186,6 +189,91 @@ def _validate_unique_prefixes(configs: Sequence[Mapping[str, object]]) -> None:
     ]
     if duplicates:
         raise ValueError(f"output_file_prefix duplicado: {'; '.join(duplicates)}.")
+
+
+def _resolve_minio_setting(name: str, value: str | None, env_name: str) -> str:
+    value = value if value is not None else os.environ.get(env_name)
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{name} ou a variável {env_name} deve ser informada.")
+    return value
+
+
+def load_config(
+    path: str,
+    *,
+    endpoint: str | None = None,
+    access_key: str | None = None,
+    secret_key: str | None = None,
+    secure: bool = False,
+) -> list[dict[str, object]]:
+    """Lê uma lista JSON de configurações e rejeita prefixos repetidos.
+
+    Args:
+        path: Caminho absoluto Linux ou URI ``s3a://bucket/chave``.
+        endpoint: Hostname e porta opcionais do MinIO, sem protocolo. Se
+            omitido, usa ``MINIO_ENDPOINT`` do ambiente.
+        access_key: Chave de acesso; se omitida, usa ``MINIO_USER``.
+        secret_key: Chave secreta; se omitida, usa ``MINIO_SECRET``.
+        secure: Usa HTTPS quando True e HTTP quando False. Os parâmetros
+            MinIO são utilizados somente para caminhos S3A.
+
+    Returns:
+        Lista de dicionários, sem modificar os valores do arquivo.
+
+    Raises:
+        TypeError: Se path não for string ou o JSON não for uma lista de objetos.
+        ValueError: Se o caminho ou as opções MinIO forem inválidos ou se
+            houver prefixos duplicados.
+        OSError: Se houver erro ao ler o arquivo local.
+
+    Notes:
+        Exceções de leitura, JSON inválido e erros do SDK MinIO são propagados.
+        A validação dos demais campos ocorre individualmente em ``run_etl``.
+    """
+    if not isinstance(path, str):
+        raise TypeError("path deve ser uma string.")
+
+    config_data: object
+    if path.startswith("s3a://"):
+        bucket, separator, object_name = path[len("s3a://") :].partition("/")
+        if not bucket or not separator or not object_name:
+            raise ValueError("path S3A deve conter bucket e chave do arquivo.")
+        if not isinstance(secure, bool):
+            raise TypeError("secure deve ser booleano.")
+
+        endpoint = _resolve_minio_setting("endpoint", endpoint, "MINIO_ENDPOINT")
+        access_key = _resolve_minio_setting("access_key", access_key, "MINIO_USER")
+        secret_key = _resolve_minio_setting("secret_key", secret_key, "MINIO_SECRET")
+
+        from minio import Minio
+
+        client = Minio(
+            endpoint=endpoint,
+            access_key=access_key,
+            secret_key=secret_key,
+            secure=secure,
+        )
+        response = client.get_object(bucket, object_name)
+        try:
+            config_data = json.loads(response.read())
+        finally:
+            response.close()
+            response.release_conn()
+    elif path.startswith("/"):
+        with open(path, encoding="utf-8") as file:
+            config_data = json.load(file)
+    else:
+        raise ValueError("path deve ser absoluto Linux ou uma URI s3a://.")
+
+    if not isinstance(config_data, list):
+        raise TypeError("O JSON deve conter uma lista de configurações.")
+    for index, config in enumerate(config_data):
+        if not isinstance(config, dict):
+            raise TypeError(
+                f"A configuração no índice {index} deve ser um objeto JSON."
+            )
+    _validate_unique_prefixes(config_data)
+    return config_data
 
 
 def _required_string(config: Mapping[str, object], key: str) -> str:
