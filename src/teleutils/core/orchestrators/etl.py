@@ -542,11 +542,15 @@ def run_etl(
                 and isinstance(raw_config, Mapping)
             ):
                 source_folder = raw_config.get("source_folder")
+                output_file_prefix = raw_config.get("output_file_prefix")
                 if isinstance(source_folder, str):
                     item_config = dict(raw_config)
                     item_config["source_folder"] = (
                         f"{base_folder.rstrip('/')}/{week_dir.strip('/')}/"
                         f"{source_folder.lstrip('/')}"
+                    )
+                    item_config["output_file_prefix"] = (
+                        f"{week_dir.lower()}_{output_file_prefix}"
                     )
             prepared[index] = _prepare_config(item_config)
         except (TypeError, ValueError) as error:
