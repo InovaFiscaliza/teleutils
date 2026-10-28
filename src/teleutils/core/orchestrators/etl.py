@@ -26,6 +26,7 @@ Fluxo de ``run_etl``:
 Estruturas de dados:
     - ``ETLItemResult``: resultado imutável de um item.
     - ``ETLReport``: resultados na ordem original, com contagens derivadas.
+    - ``print_etl_report``: impressão formatada do relatório.
 
 Dependências:
     - ``teleutils.core.orchestrators.config``: validação e construção de
@@ -128,6 +129,47 @@ class ETLReport:
     def execution_errors(self) -> int:
         """Quantidade de falhas de inicialização, extração ou transformação."""
         return sum(item.status == "execution_error" for item in self.items)
+
+
+def print_etl_report(report: ETLReport) -> None:
+    """Imprime na saída padrão o resumo e os detalhes dos itens do lote.
+
+    Args:
+        report: Relatório retornado por ``run_etl``.
+
+    Notes:
+        Os índices começam em zero. Caminhos e mensagens de erro, quando
+        disponíveis, são exibidos sem alteração e podem conter dados sensíveis.
+    """
+    print("=" * 60)
+    print("RELATÓRIO ETL")
+    print("=" * 60)
+    print(f"Total de itens:       {report.total}")
+    print(f"Sucessos:             {report.successes}")
+    print(f"Erros de validação:   {report.validation_errors}")
+    print(f"Erros de execução:    {report.execution_errors}")
+
+    if not report.items:
+        print("\nNenhum item processado.")
+        return
+
+    for item in report.items:
+        print("\n" + "-" * 60)
+        print(f"Item:                 {item.index}")
+        print(f"Schema:               {item.schema or '-'}")
+        print(f"Status:               {item.status}")
+        print(f"Etapa:                {item.stage}")
+        print(f"Etapas concluídas:    {', '.join(item.completed_stages) or '-'}")
+
+        if item.paths is not None:
+            print(f"Origem:               {item.paths.source_file}")
+            print(f"Parquet extraído:     {item.paths.extracted_file}")
+            print(f"Parquet transformado: {item.paths.transformed_file}")
+
+        if item.error_type is not None:
+            print(f"Tipo do erro:         {item.error_type}")
+        if item.error_message is not None:
+            print(f"Mensagem do erro:     {item.error_message}")
 
 
 class _Extractor(Protocol):

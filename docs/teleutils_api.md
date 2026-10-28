@@ -389,6 +389,14 @@ transformação preserva o registro de extração concluída, mas não é sucess
 `KeyboardInterrupt` e `SystemExit` propagam; não há relatório final garantido
 após interrupção do usuário.
 
+### `print_etl_report(report: ETLReport) -> None`
+
+Imprime na saída padrão as contagens do lote e, na ordem original, o índice,
+schema, status, etapa e etapas concluídas de cada item. Quando disponíveis,
+também imprime os caminhos planejados e os detalhes de erro. Um relatório vazio
+é identificado explicitamente. A função não altera o relatório nem certifica
+os dados processados. Caminhos e mensagens de erro podem conter dados sensíveis.
+
 ### Limites e validação local
 
 O escopo é apenas extração e transformação. Não há carga, retry, paralelismo,

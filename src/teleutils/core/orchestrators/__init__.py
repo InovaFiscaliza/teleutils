@@ -4,6 +4,7 @@ from teleutils.core.orchestrators.config import ConfigPaths, get_config, load_co
 from teleutils.core.orchestrators.etl import (
     ETLItemResult,
     ETLReport,
+    print_etl_report,
     run_etl,
     run_etl_item,
 )
@@ -14,6 +15,7 @@ __all__ = [
     "ETLReport",
     "get_config",
     "load_config",
+    "print_etl_report",
     "run_etl",
     "run_etl_item",
 ]
