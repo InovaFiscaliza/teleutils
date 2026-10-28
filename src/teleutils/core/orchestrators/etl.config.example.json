@@ -3,184 +3,184 @@
     "source_folder": "claro/smp/ericsson",
     "pattern": "*.parquet",
     "schema": "smp_ericsson_gsm",
-    "extracted_folder": "sandbox-sfi/cdr/temp/extracted",
-    "transformed_folder": "sandbox-sfi/cdr/temp/transformed",
+    "extracted_folder": "sandbox-sfi/cdr/processed/extracted",
+    "transformed_folder": "sandbox-sfi/cdr/processed/transformed",
     "output_file_prefix": "claro_smp_ericsson"
   },
   {
     "source_folder": "tim/smp/ericsson",
     "pattern": "*.parquet",
     "schema": "smp_ericsson_gsm",
-    "extracted_folder": "sandbox-sfi/cdr/temp/extracted",
-    "transformed_folder": "sandbox-sfi/cdr/temp/transformed",
+    "extracted_folder": "sandbox-sfi/cdr/processed/extracted",
+    "transformed_folder": "sandbox-sfi/cdr/processed/transformed",
     "output_file_prefix": "tim_smp_ericsson"
   },
   {
     "source_folder": "vivo/smp/ericsson",
     "pattern": "*.parquet",
     "schema": "smp_ericsson_gsm",
-    "extracted_folder": "sandbox-sfi/cdr/temp/extracted",
-    "transformed_folder": "sandbox-sfi/cdr/temp/transformed",
+    "extracted_folder": "sandbox-sfi/cdr/processed/extracted",
+    "transformed_folder": "sandbox-sfi/cdr/processed/transformed",
     "output_file_prefix": "vivo_smp_ericsson"
   },
   {
     "source_folder": "vivo/smp/volte",
     "pattern": "*.parquet",
     "schema": "smp_ericsson_volte_vivo",
-    "extracted_folder": "sandbox-sfi/cdr/temp/extracted",
-    "transformed_folder": "sandbox-sfi/cdr/temp/transformed",
+    "extracted_folder": "sandbox-sfi/cdr/processed/extracted",
+    "transformed_folder": "sandbox-sfi/cdr/processed/transformed",
     "output_file_prefix": "vivo_smp_volte"
   },
   {
     "source_folder": "tim/smp/volte",
     "pattern": "*.parquet",
     "schema": "smp_huawei_volte_tim",
-    "extracted_folder": "sandbox-sfi/cdr/temp/extracted",
-    "transformed_folder": "sandbox-sfi/cdr/temp/transformed",
+    "extracted_folder": "sandbox-sfi/cdr/processed/extracted",
+    "transformed_folder": "sandbox-sfi/cdr/processed/transformed",
     "output_file_prefix": "tim_smp_volte"
   },
   {
     "source_folder": "algar/smp/nokia",
     "pattern": "*.parquet",
     "schema": "smp_nokia_gsm",
-    "extracted_folder": "sandbox-sfi/cdr/temp/extracted",
-    "transformed_folder": "sandbox-sfi/cdr/temp/transformed",
+    "extracted_folder": "sandbox-sfi/cdr/processed/extracted",
+    "transformed_folder": "sandbox-sfi/cdr/processed/transformed",
     "output_file_prefix": "algar_smp_nokia"
   },
   {
     "source_folder": "claro/smp/nokia",
     "pattern": "*.parquet",
     "schema": "smp_nokia_gsm",
-    "extracted_folder": "sandbox-sfi/cdr/temp/extracted",
-    "transformed_folder": "sandbox-sfi/cdr/temp/transformed",
+    "extracted_folder": "sandbox-sfi/cdr/processed/extracted",
+    "transformed_folder": "sandbox-sfi/cdr/processed/transformed",
     "output_file_prefix": "claro_smp_nokia"
   },
   {
     "source_folder": "tim/stfc/ngn_italtel",
     "pattern": "*.parquet",
     "schema": "stfc_italtel_ngn_tim",
-    "extracted_folder": "sandbox-sfi/cdr/temp/extracted",
-    "transformed_folder": "sandbox-sfi/cdr/temp/transformed",
+    "extracted_folder": "sandbox-sfi/cdr/processed/extracted",
+    "transformed_folder": "sandbox-sfi/cdr/processed/transformed",
     "output_file_prefix": "tim_stfc_ngn_italtel"
   },
   {
     "source_folder": "claro/stfc/sigma",
     "pattern": "*.gz",
     "schema": "stfc_sigma_claro",
-    "extracted_folder": "sandbox-sfi/cdr/temp/extracted",
-    "transformed_folder": "sandbox-sfi/cdr/temp/transformed",
+    "extracted_folder": "sandbox-sfi/cdr/processed/extracted",
+    "transformed_folder": "sandbox-sfi/cdr/processed/transformed",
     "output_file_prefix": "claro_stfc_sigma"
   },
   {
     "source_folder": "algar/stfc/huawei_ngn",
     "pattern": "*.gz",
     "schema": "stfc_huawei_ngn",
-    "extracted_folder": "sandbox-sfi/cdr/temp/extracted",
-    "transformed_folder": "sandbox-sfi/cdr/temp/transformed",
+    "extracted_folder": "sandbox-sfi/cdr/processed/extracted",
+    "transformed_folder": "sandbox-sfi/cdr/processed/transformed",
     "output_file_prefix": "algar_stfc_huawei_ngn"
   },
   {
     "source_folder": "claro/smp/volte",
     "pattern": "*.parquet",
     "schema": "smp_huawei_volte_claro",
-    "extracted_folder": "sandbox-sfi/cdr/temp/extracted",
-    "transformed_folder": "sandbox-sfi/cdr/temp/transformed",
+    "extracted_folder": "sandbox-sfi/cdr/processed/extracted",
+    "transformed_folder": "sandbox-sfi/cdr/processed/transformed",
     "output_file_prefix": "claro_smp_volte"
   },
   {
     "source_folder": "claro/stfc/axe",
     "pattern": "*.gz",
     "schema": "stfc_axe_claro",
-    "extracted_folder": "sandbox-sfi/cdr/temp/extracted",
-    "transformed_folder": "sandbox-sfi/cdr/temp/transformed",
+    "extracted_folder": "sandbox-sfi/cdr/processed/extracted",
+    "transformed_folder": "sandbox-sfi/cdr/processed/transformed",
     "output_file_prefix": "claro_stfc_axe"
   },
   {
     "source_folder": "claro/stfc/bds",
     "pattern": "*.parquet",
     "schema": "stfc_bds_claro",
-    "extracted_folder": "sandbox-sfi/cdr/temp/extracted",
-    "transformed_folder": "sandbox-sfi/cdr/temp/transformed",
+    "extracted_folder": "sandbox-sfi/cdr/processed/extracted",
+    "transformed_folder": "sandbox-sfi/cdr/processed/transformed",
     "output_file_prefix": "claro_stfc_bds"
   },
   {
     "source_folder": "claro/stfc/huawei_ngn",
     "pattern": "*.gz",
     "schema": "stfc_huawei_ngn",
-    "extracted_folder": "sandbox-sfi/cdr/temp/extracted",
-    "transformed_folder": "sandbox-sfi/cdr/temp/transformed",
+    "extracted_folder": "sandbox-sfi/cdr/processed/extracted",
+    "transformed_folder": "sandbox-sfi/cdr/processed/transformed",
     "output_file_prefix": "claro_stfc_huawei_ngn"
   },
   {
     "source_folder": "claro/stfc/pcl",
     "pattern": "*.gz",
     "schema": "stfc_pcl_claro",
-    "extracted_folder": "sandbox-sfi/cdr/temp/extracted",
-    "transformed_folder": "sandbox-sfi/cdr/temp/transformed",
+    "extracted_folder": "sandbox-sfi/cdr/processed/extracted",
+    "transformed_folder": "sandbox-sfi/cdr/processed/transformed",
     "output_file_prefix": "claro_stfc_pcl"
   },
   {
     "source_folder": "claro/stfc/pit",
     "pattern": "*.gz",
     "schema": "stfc_pit_claro",
-    "extracted_folder": "sandbox-sfi/cdr/temp/extracted",
-    "transformed_folder": "sandbox-sfi/cdr/temp/transformed",
+    "extracted_folder": "sandbox-sfi/cdr/processed/extracted",
+    "transformed_folder": "sandbox-sfi/cdr/processed/transformed",
     "output_file_prefix": "claro_stfc_pit"
   },
   {
     "source_folder": "claro/stfc/ss8bf",
     "pattern": "*.gz",
     "schema": "stfc_ss8bf_claro",
-    "extracted_folder": "sandbox-sfi/cdr/temp/extracted",
-    "transformed_folder": "sandbox-sfi/cdr/temp/transformed",
+    "extracted_folder": "sandbox-sfi/cdr/processed/extracted",
+    "transformed_folder": "sandbox-sfi/cdr/processed/transformed",
     "output_file_prefix": "claro_stfc_ss8bf"
   },
   {
     "source_folder": "claro/stfc/tropico",
     "pattern": "*.gz",
     "schema": "stfc_tropico_claro_lega",
-    "extracted_folder": "sandbox-sfi/cdr/temp/extracted",
-    "transformed_folder": "sandbox-sfi/cdr/temp/transformed",
+    "extracted_folder": "sandbox-sfi/cdr/processed/extracted",
+    "transformed_folder": "sandbox-sfi/cdr/processed/transformed",
     "output_file_prefix": "claro_stfc_tropico_lega"
   },
   {
     "source_folder": "claro/stfc/tropico",
     "pattern": "*.gz",
     "schema": "stfc_tropico_claro_legb",
-    "extracted_folder": "sandbox-sfi/cdr/temp/extracted",
-    "transformed_folder": "sandbox-sfi/cdr/temp/transformed",
+    "extracted_folder": "sandbox-sfi/cdr/processed/extracted",
+    "transformed_folder": "sandbox-sfi/cdr/processed/transformed",
     "output_file_prefix": "claro_stfc_tropico_legb"
   },
   {
     "source_folder": "oi/stfc/tropico",
     "pattern": "*TN*.gz",
     "schema": "stfc_tropico_oi",
-    "extracted_folder": "sandbox-sfi/cdr/temp/extracted",
-    "transformed_folder": "sandbox-sfi/cdr/temp/transformed",
+    "extracted_folder": "sandbox-sfi/cdr/processed/extracted",
+    "transformed_folder": "sandbox-sfi/cdr/processed/transformed",
     "output_file_prefix": "oi_stfc_tropico"
   },
   {
     "source_folder": "tim/stfc/huawei_ngn",
     "pattern": "*.gz",
     "schema": "stfc_huawei_ngn_tim",
-    "extracted_folder": "sandbox-sfi/cdr/temp/extracted",
-    "transformed_folder": "sandbox-sfi/cdr/temp/transformed",
+    "extracted_folder": "sandbox-sfi/cdr/processed/extracted",
+    "transformed_folder": "sandbox-sfi/cdr/processed/transformed",
     "output_file_prefix": "tim_stfc_huawei_ngn"
   },
   {
     "source_folder": "vivo/stfc/fcdr",
     "pattern": "*.gz",
     "schema": "stfc_fcdr_vivo",
-    "extracted_folder": "sandbox-sfi/cdr/temp/extracted",
-    "transformed_folder": "sandbox-sfi/cdr/temp/transformed",
+    "extracted_folder": "sandbox-sfi/cdr/processed/extracted",
+    "transformed_folder": "sandbox-sfi/cdr/processed/transformed",
     "output_file_prefix": "vivo_stfc_fcdr"
   },
   {
     "source_folder": "claro/stfc/7n",
     "pattern": "*7N*.gz",
     "schema": "stfc_7n_oi",
-    "extracted_folder": "sandbox-sfi/cdr/temp/extracted",
-    "transformed_folder": "sandbox-sfi/cdr/temp/transformed",
+    "extracted_folder": "sandbox-sfi/cdr/processed/extracted",
+    "transformed_folder": "sandbox-sfi/cdr/processed/transformed",
     "output_file_prefix": "claro_stfc_7n"
   }
 ]
