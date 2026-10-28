@@ -238,6 +238,51 @@ Duplicatas levantam `ValueError` com os índices; erros de leitura, JSON e SDK
 são propagados. Os demais campos são validados por `run_etl`. Essa verificação
 abrange apenas o arquivo lido, não outros arquivos ou execuções.
 
+### `list_files(base_folder, pattern="", recursive=False, *, endpoint=None, access_key=None, secret_key=None, secure=False)`
+
+Lista arquivos lógicos no MinIO sem iniciar Spark ou ler o conteúdo dos objetos.
+Aceita uma pasta contêiner em `bucket[/prefixo]` ou
+`s3a://bucket[/prefixo]`, inclusive a raiz do bucket e barras finais.
+Retorna `list[str]` ordenada, sem duplicatas, sempre com `s3a://` e sem barra
+final. Reutiliza a validação de caminhos S3A da configuração.
+
+Um diretório com sufixo literal `.parquet` representa um único dataset:
+suas partições, arquivos `part-*` e auxiliares internos nunca são listados.
+A função não verifica o formato nem a integridade dos dados. Diretórios sem
+esse sufixo são pastas comuns; arquivos físicos `.parquet` fora dos datasets
+são arquivos comuns. A base não pode ser um dataset nem um caminho dentro dele.
+
+- `recursive=False`: somente arquivos e datasets imediatamente abaixo da base.
+- `recursive=True`: percorre subpastas comuns, mas nunca entra em datasets,
+  mesmo quando eles não correspondem à máscara.
+- `pattern=""`: inclui todos os tipos e arquivos auxiliares fora dos datasets.
+- A máscara usa `fnmatchcase` sobre o **nome**, não o caminho: aceita `*`, `?`
+  e classes `[]`, com comparação sensível a maiúsculas. Não aceita caminhos
+  ou protocolos e não expande alternativas `{a,b}`. Não confundir com o
+  `pattern` da configuração ETL, que compõe um caminho glob para Spark/Hadoop.
+- Marcadores de diretórios comuns não são retornados como arquivos.
+
+As opções de conexão seguem `load_config`: argumentos explícitos prevalecem
+sobre `MINIO_ENDPOINT`, `MINIO_USER` e `MINIO_SECRET`; endpoint sem protocolo.
+O padrão `secure=False` usa HTTP sem criptografia; use `secure=True` para HTTPS.
+Tipos inválidos geram `TypeError`; caminhos, máscaras ou configurações de conexão
+inválidos geram `ValueError`. Prefixos sem objetos ou sem correspondências
+retornam `[]`. Erros do SDK, inclusive durante a paginação, são propagados,
+sem retornar listas vazias ou resultados parciais para esconder falhas.
+
+```python
+from teleutils.core.orchestrators import list_files
+
+files = list_files(
+    "sandbox-sfi/cdr/processed/transformed",
+    pattern="*.parquet",
+    secure=True,
+)
+# Se esse for o único dataset correspondente:
+# ["s3a://sandbox-sfi/cdr/processed/transformed/"
+#  "semana110_algar_smp_nokia_transformed.parquet"]
+```
+
 ### `get_config(config: Mapping[str, object]) -> ConfigPaths`
 
 Valida um mapping sem modificá-lo e constrói caminhos S3A ou locais.

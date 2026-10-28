@@ -214,6 +214,31 @@ MinIO/S3A são responsabilidade do ambiente Spark/Hadoop, não da biblioteca.
 Os destinos são datasets com sufixos
 `_extracted.parquet` e `_transformed.parquet`, não necessariamente arquivos únicos.
 
+Para listar esses datasets no MinIO sem expor suas partições:
+
+```python
+from teleutils.core.orchestrators import list_files
+
+files = list_files(
+    "sandbox-sfi/cdr/processed/transformed",
+    pattern="*.parquet",
+    recursive=False,
+    secure=True,
+)
+# Exemplo de entrada na lista:
+# s3a://sandbox-sfi/cdr/processed/transformed/semana110_algar_smp_nokia_transformed.parquet
+```
+
+A base aceita `bucket/pasta` ou `s3a://bucket/pasta`; o retorno é uma lista
+ordenada de URIs `s3a://`, sem duplicatas ou barra final. Diretórios `.parquet`
+são tratados como arquivos lógicos e nunca são percorridos, mesmo com
+`recursive=True`; a base deve ser uma pasta contêiner, não um dataset ou seu
+interior. A máscara filtra nomes, com glob sensível a maiúsculas (`*`, `?`, `[]`,
+sem expansão `{a,b}`); `pattern=""` inclui todos os tipos. A conexão segue as
+opções e variáveis de ambiente de `load_config`, sem depender de Spark.
+Sem correspondências, retorna `[]`; erros MinIO são propagados.
+Consulte o [contrato completo da API](docs/teleutils_api.md#teleutilscoreorchestrators).
+
 Para execução totalmente local, informe diretórios absolutos Linux:
 
 ```python

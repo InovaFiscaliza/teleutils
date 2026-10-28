@@ -1,8 +1,9 @@
-"""Leitura e validação de configurações ETL e construção de caminhos.
+"""Configurações ETL, construção de caminhos e listagem de arquivos no MinIO.
 
 Valida um item de configuração (mapping) e deriva os caminhos Spark/Hadoop da
 origem, do Parquet extraído e do Parquet transformado. ``load_config`` lê um
-arquivo JSON local ou S3A; a construção de caminhos não acessa armazenamento.
+arquivo JSON local ou S3A; ``list_files`` lista arquivos e datasets no MinIO.
+A construção de caminhos não acessa armazenamento.
 
 Fluxo de ``_prepare_config``:
     mapping de entrada
@@ -13,6 +14,7 @@ Fluxo de ``_prepare_config``:
 
 Principais componentes:
     - ``load_config``: lê uma lista JSON e verifica a unicidade dos prefixos.
+    - ``list_files``: lista arquivos, tratando diretórios Parquet como datasets.
     - ``get_config``: API pública; retorna somente ``ConfigPaths``.
     - ``_validate_unique_prefixes``: verifica prefixos repetidos no lote.
     - ``_prepare_config``: validação completa. Além dos caminhos, preserva a
@@ -109,6 +111,7 @@ import os
 import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from fnmatch import fnmatchcase
 from typing import NamedTuple
 from urllib.parse import unquote
 
@@ -274,6 +277,112 @@ def load_config(
             )
     _validate_unique_prefixes(config_data)
     return config_data
+
+
+def list_files(
+    base_folder: str,
+    pattern: str = "",
+    recursive: bool = False,
+    *,
+    endpoint: str | None = None,
+    access_key: str | None = None,
+    secret_key: str | None = None,
+    secure: bool = False,
+) -> list[str]:
+    """Lista arquivos lógicos no MinIO, sem percorrer datasets ``.parquet``.
+
+    Diretórios com sufixo literal ``.parquet`` são retornados como uma única
+    entrada, independentemente do conteúdo e da quantidade de partições.
+    Outras pastas são percorridas somente quando ``recursive=True``.
+    Não requer Spark nem lê o conteúdo dos objetos.
+
+    Args:
+        base_folder: Pasta contêiner em ``bucket[/prefixo]`` ou
+            ``s3a://bucket[/prefixo]``. Não pode ser um dataset ``.parquet``
+            nem um caminho dentro dele. Barras finais são removidas.
+        pattern: Máscara aplicada ao nome do arquivo ou dataset, sensível a
+            maiúsculas, com ``*``, ``?`` e classes ``[]``. Não aceita caminhos
+            nem expande alternativas ``{a,b}``. Vazia inclui todos os tipos,
+            inclusive arquivos auxiliares fora dos datasets.
+        recursive: Se True, busca também em subpastas comuns. Nunca entra
+            em datasets, mesmo quando seus nomes não correspondem à máscara.
+        endpoint: Hostname e porta opcionais, sem protocolo. Se omitido,
+            usa ``MINIO_ENDPOINT``.
+        access_key: Chave de acesso; se omitida, usa ``MINIO_USER``.
+        secret_key: Chave secreta; se omitida, usa ``MINIO_SECRET``.
+        secure: Usa HTTPS quando True; o padrão False usa HTTP.
+
+    Returns:
+        URIs ``s3a://`` ordenadas, sem duplicatas ou barra final. Prefixos
+        sem objetos ou sem correspondências retornam uma lista vazia.
+        Arquivos físicos Parquet fora de datasets são arquivos comuns.
+
+    Raises:
+        TypeError: Se os argumentos tiverem tipos inválidos.
+        ValueError: Se a base, a máscara ou as opções MinIO forem inválidas,
+            ou se o SDK retornar um objeto sem nome.
+
+    Notes:
+        Erros do SDK, inclusive durante a paginação, são propagados sem
+        retornar resultados parciais. O sufixo não comprova integridade ou
+        formato: diretórios sem extensão não são reconhecidos como datasets.
+    """
+    if not isinstance(base_folder, str):
+        raise TypeError("base_folder deve ser uma string.")
+    if not isinstance(pattern, str):
+        raise TypeError("pattern deve ser uma string.")
+    if not isinstance(recursive, bool):
+        raise TypeError("recursive deve ser booleano.")
+    if not isinstance(secure, bool):
+        raise TypeError("secure deve ser booleano.")
+
+    folder = _s3a_folder(base_folder, "base_folder")
+    bucket, _, key = folder[len("s3a://") :].partition("/")
+    if any(part.endswith(".parquet") for part in key.split("/")):
+        raise ValueError(
+            "base_folder deve ser uma pasta contêiner, não um dataset "
+            ".parquet ou um caminho dentro dele."
+        )
+    _validate_path(pattern, "pattern", glob=True)
+    if "/" in unquote(pattern):
+        raise ValueError("pattern deve ser uma máscara de nome, sem caminhos.")
+
+    endpoint = _resolve_minio_setting("endpoint", endpoint, "MINIO_ENDPOINT")
+    access_key = _resolve_minio_setting("access_key", access_key, "MINIO_USER")
+    secret_key = _resolve_minio_setting("secret_key", secret_key, "MINIO_SECRET")
+
+    from minio import Minio
+
+    client = Minio(
+        endpoint=endpoint,
+        access_key=access_key,
+        secret_key=secret_key,
+        secure=secure,
+    )
+    pending = [f"{key}/" if key else ""]
+    visited: set[str] = set()
+    files: set[str] = set()
+    while pending:
+        prefix = pending.pop()
+        if prefix in visited:
+            continue
+        visited.add(prefix)
+        for item in client.list_objects(bucket, prefix=prefix, recursive=False):
+            object_name = item.object_name
+            if not object_name:
+                raise ValueError("A listagem MinIO retornou um objeto sem nome.")
+            if object_name == prefix:
+                continue
+            logical_key = object_name.rstrip("/")
+            name = logical_key.rsplit("/", 1)[-1]
+            if item.is_dir and not name.endswith(".parquet"):
+                if recursive:
+                    pending.append(object_name)
+                continue
+            # A poda ocorre antes do filtro para não expor partições rejeitadas.
+            if not pattern or fnmatchcase(name, pattern):
+                files.add(f"s3a://{bucket}/{logical_key}")
+    return sorted(files)
 
 
 def _required_string(config: Mapping[str, object], key: str) -> str:
