@@ -131,16 +131,27 @@ class ETLReport:
         return sum(item.status == "execution_error" for item in self.items)
 
 
-def print_etl_report(report: ETLReport) -> None:
-    """Imprime na saída padrão o resumo e os detalhes dos itens do lote.
+def print_etl_report(report: ETLReport | ETLItemResult) -> None:
+    """Imprime na saída padrão o resumo e os detalhes dos itens processados.
 
     Args:
-        report: Relatório retornado por ``run_etl``.
+        report: Relatório retornado por ``run_etl`` ou resultado individual
+            retornado por ``run_etl_item``.
+
+    Raises:
+        TypeError: Se report não for ``ETLReport`` ou ``ETLItemResult``.
 
     Notes:
+        Um resultado individual é apresentado como um relatório de um item.
         Os índices começam em zero. Caminhos e mensagens de erro, quando
         disponíveis, são exibidos sem alteração e podem conter dados sensíveis.
     """
+    if isinstance(report, ETLItemResult):
+        report = ETLReport((report,))
+    elif not isinstance(report, ETLReport):
+        logger.error("report deve ser ETLReport ou ETLItemResult.")
+        raise TypeError("report deve ser ETLReport ou ETLItemResult.")
+
     print("=" * 60)
     print("RELATÓRIO ETL")
     print("=" * 60)

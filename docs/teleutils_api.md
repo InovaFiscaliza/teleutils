@@ -391,13 +391,16 @@ transformação preserva o registro de extração concluída, mas não é sucess
 `KeyboardInterrupt` e `SystemExit` propagam; não há relatório final garantido
 após interrupção do usuário.
 
-### `print_etl_report(report: ETLReport) -> None`
+### `print_etl_report(report: ETLReport | ETLItemResult) -> None`
 
 Imprime na saída padrão as contagens do lote e, na ordem original, o índice,
 schema, status, etapa e etapas concluídas de cada item. Quando disponíveis,
 também imprime os caminhos planejados e os detalhes de erro. Um relatório vazio
-é identificado explicitamente. A função não altera o relatório nem certifica
-os dados processados. Caminhos e mensagens de erro podem conter dados sensíveis.
+é identificado explicitamente. Um `ETLItemResult`, como o retornado por
+`run_etl_item`, é apresentado como relatório de um item, com as mesmas
+contagens e detalhes. Outros tipos levantam `TypeError`. A função não altera
+os resultados nem certifica os dados processados. Caminhos e mensagens de erro
+podem conter dados sensíveis.
 
 ### Limites e validação local
 

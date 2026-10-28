@@ -1,3 +1,5 @@
+import pytest
+
 from teleutils.core.orchestrators import (
     ConfigPaths,
     ETLItemResult,
@@ -79,3 +81,69 @@ def test_print_report_includes_success_and_failure_details(capsys):
     assert "Mensagem do erro:     configuração inválida" in output
     assert "Tipo do erro:         RuntimeError" in output
     assert "Mensagem do erro:     falha na transformação" in output
+
+
+@pytest.mark.parametrize(
+    "item,counts",
+    [
+        (
+            ETLItemResult(
+                7,
+                "schema",
+                ConfigPaths("schema", "source", "extracted", "transformed"),
+                "success",
+                "completed",
+                ("extraction", "transformation"),
+            ),
+            (1, 0, 0),
+        ),
+        (
+            ETLItemResult(
+                3,
+                None,
+                None,
+                "validation_error",
+                "configuration",
+                error_type="ValueError",
+                error_message="configuração inválida",
+            ),
+            (0, 1, 0),
+        ),
+        (
+            ETLItemResult(
+                5,
+                "schema",
+                None,
+                "execution_error",
+                "transformation",
+                ("extraction",),
+                "RuntimeError",
+                "falha",
+            ),
+            (0, 0, 1),
+        ),
+    ],
+)
+def test_print_single_item_matches_one_item_report(capsys, item, counts):
+    assert print_etl_report(item) is None
+    single_output = capsys.readouterr().out
+    print_etl_report(ETLReport((item,)))
+    assert single_output == capsys.readouterr().out
+    assert "Total de itens:       1" in single_output
+    assert f"Sucessos:             {counts[0]}" in single_output
+    assert f"Erros de validação:   {counts[1]}" in single_output
+    assert f"Erros de execução:    {counts[2]}" in single_output
+    assert f"Item:                 {item.index}" in single_output
+    assert f"Status:               {item.status}" in single_output
+    if item.error_message is not None:
+        assert f"Mensagem do erro:     {item.error_message}" in single_output
+    if item.paths is not None:
+        assert f"Origem:               {item.paths.source_file}" in single_output
+
+
+@pytest.mark.parametrize("value", [None, [], {}])
+def test_print_report_rejects_invalid_input_before_printing(capsys, caplog, value):
+    with pytest.raises(TypeError, match="ETLReport ou ETLItemResult"):
+        print_etl_report(value)
+    assert capsys.readouterr().out == ""
+    assert "report deve ser ETLReport ou ETLItemResult" in caplog.text
