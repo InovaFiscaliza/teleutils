@@ -223,6 +223,21 @@ de metadados dos extratores (e suas dependências Python), sem iniciar uma sess�
 ou executar ações Spark. Os componentes de execução são instanciados somente
 quando há itens preparados para executar.
 
+### `load_config(path, *, endpoint=None, access_key=None, secret_key=None, secure=False)`
+
+Lê um arquivo JSON em caminho absoluto Linux ou URI `s3a://bucket/chave` e
+retorna uma lista de dicionários. Em S3A, usa o SDK MinIO; opções omitidas são
+obtidas de `MINIO_ENDPOINT`, `MINIO_USER` e `MINIO_SECRET` no ambiente.
+O endpoint é o hostname com porta opcional, sem protocolo. `secure=True` usa
+HTTPS; o padrão `False` usa HTTP sem criptografia. Para arquivos locais, essas
+opções não são usadas.
+
+O arquivo deve conter uma lista de objetos; prefixos `output_file_prefix` não
+vazios devem ser únicos, com comparação exata e sensível a maiúsculas.
+Duplicatas levantam `ValueError` com os índices; erros de leitura, JSON e SDK
+são propagados. Os demais campos são validados por `run_etl`. Essa verificação
+abrange apenas o arquivo lido, não outros arquivos ou execuções.
+
 ### `get_config(config: Mapping[str, object]) -> ConfigPaths`
 
 Valida um mapping sem modificá-lo e constrói caminhos S3A ou locais.
@@ -291,13 +306,9 @@ Strings, mappings no lugar da sequência e iteradores são rejeitados com
 `TypeError`, registrado em log. Uma sequência vazia retorna relatório vazio,
 sem instanciar componentes.
 
-Cada `output_file_prefix` não vazio deve ser único no lote, mesmo quando os
-destinos são diferentes. A comparação é exata e diferencia maiúsculas de
-minúsculas. Se houver duplicatas, `run_etl` registra e levanta `ValueError`,
-indicando os prefixos e índices envolvidos, antes de inicializar componentes ou
-escrever dados. Essa verificação não abrange outros lotes ou execuções.
-Itens malformados e prefixos ausentes, vazios ou de tipo inválido permanecem
-sujeitos à validação individual no relatório.
+`run_etl` não verifica a unicidade global de prefixos em listas fornecidas
+diretamente. Para arquivos JSON, `load_config` faz essa verificação durante
+a leitura. Conflitos entre caminhos de destino continuam sendo rejeitados.
 
 `base_folder` e `week_dir` são opcionais, mas devem ser informados juntos.
 Quando ambos são fornecidos, cada `source_folder` configurado é composto como

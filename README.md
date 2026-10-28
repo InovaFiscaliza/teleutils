@@ -198,8 +198,14 @@ for item in report.items:
 ```
 
 Para um único item, utilize `run_etl_item(cdr_config[0], spark=spark)`.
-Atribua um `output_file_prefix` distinto a cada item do lote: duplicatas
-levantam `ValueError` antes de qualquer escrita, mesmo em destinos diferentes.
+Para ler um JSON, use `load_config("/dados/etl.json")` ou
+`load_config("s3a://bucket/caminho/etl.json", secure=True)`, importada de
+`teleutils.core.orchestrators`. A função rejeita prefixos duplicados no arquivo.
+Para MinIO, ela usa `MINIO_ENDPOINT`, `MINIO_USER` e `MINIO_SECRET` do ambiente
+se as opções não forem fornecidas; o endpoint não deve incluir o protocolo.
+O padrão `secure=False` usa HTTP sem criptografia; use HTTPS quando disponível.
+Listas passadas diretamente a `run_etl` não têm essa verificação de unicidade,
+embora conflitos de caminhos continuem sendo rejeitados.
 A configuração aceita os seis campos obrigatórios mostrados, os três metadados
 opcionais e `storage_type`, com valores exatos `"s3a"` (padrão) ou `"local"`.
 Em S3A, pastas aceitam `bucket/caminho` ou `s3a://bucket/caminho`, nunca
