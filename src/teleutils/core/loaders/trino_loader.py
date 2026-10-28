@@ -5,8 +5,8 @@ deve ter as extensões Iceberg e acesso ao catálogo utilizado pelo destino.
 
 Responsabilidades:
     - Ler o Parquet padronizado produzido pela etapa de transformação.
-    - Verificar as colunas finais obrigatórias e a chave de identificação.
-    - Deduplicar a origem e criar a tabela ou executar o MERGE INTO.
+    - Verificar as colunas finais obrigatórias e, quando utilizadas, as chaves.
+    - Criar a tabela ou carregar registros por MERGE INTO ou append.
 
 Dependências relevantes:
     - pyspark.sql.SparkSession: leitura, catálogo e execução da carga.
@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
+from typing import Literal
 from uuid import uuid4
 
 from pyspark.sql import SparkSession
@@ -87,15 +88,17 @@ class TrinoLoader:
         source_file: str,
         target_table: str,
         primary_keys: Sequence[str] = PRIMARY_KEY_COLUMNS,
+        *,
+        mode: Literal["merge", "insert_only", "append"] = "merge",
     ) -> None:
-        """Lê Parquet e insere ou atualiza registros pela chave composta.
+        """Lê Parquet e carrega registros conforme o modo de escrita.
 
         Fluxo de processamento:
-            1. Valida os nomes da chave e a estrutura do nome da tabela.
-            2. Lê o Parquet e verifica as colunas finais e as chaves solicitadas.
-            3. Deduplica a origem considerando somente primary_keys.
-            4. Cria a tabela Iceberg ausente com os dados deduplicados ou
-               executa MERGE na tabela existente por uma view temporária.
+            1. Valida o modo, o destino e, fora de append, os nomes da chave.
+            2. Lê o Parquet e verifica as colunas finais obrigatórias.
+            3. Fora de append, verifica as chaves e deduplica a origem por elas.
+            4. Cria a tabela Iceberg ausente ou escreve na existente usando
+               MERGE por uma view temporária ou append direto.
 
         Args:
             source_file: Caminho do arquivo ou diretório Parquet padronizado.
@@ -106,15 +109,20 @@ class TrinoLoader:
             primary_keys: Sequência não vazia de nomes de colunas existentes,
                 sem repetições nem nomes vazios ou compostos apenas por espaços.
                 Usa PRIMARY_KEY_COLUMNS por padrão e copia a sequência antes
-                de utilizá-la, sem modificar o objeto recebido.
+                de utilizá-la, sem modificar o objeto recebido. Ignorada em append.
+            mode: merge atualiza registros correspondentes e insere novos
+                (padrão); insert_only insere somente chaves ausentes no destino;
+                append insere todos os registros, inclusive duplicados, sem
+                validar, deduplicar ou comparar chaves.
 
         Returns:
             None: Os dados são persistidos na tabela; não retorna DataFrame
             nem contagem de registros inseridos ou atualizados.
 
         Raises:
-            ValueError: Se o destino ou a chave forem inválidos ou faltarem
-                colunas finais de TARGET_SCHEMA ou da chave no Parquet.
+            ValueError: Se o modo ou destino forem inválidos, faltarem colunas
+                finais de TARGET_SCHEMA ou, fora de append, a chave for inválida
+                ou suas colunas estiverem ausentes no Parquet.
 
         Notes:
             Todas as colunas finais de TARGET_SCHEMA devem estar presentes no
@@ -130,18 +138,20 @@ class TrinoLoader:
             A existência é consultada antes da escrita; criação concorrente por
             outro processo não é tratada por este método.
 
-            A origem é deduplicada pela chave; se registros da mesma chave
-            divergirem, não há garantia de qual registro será mantido.
+            Em merge e insert_only, a origem é deduplicada pela chave; se registros
+            da mesma chave divergirem, não há garantia de qual será mantido.
             Chaves nulas são comparadas com igualdade null-safe no MERGE.
             A correspondência exige igualdade em todas as colunas da chave.
-            Registros correspondentes são atualizados; os demais são inseridos.
+            Correspondentes são atualizados apenas em merge; os demais são
+            inseridos em ambos os modos. Em append, todas as linhas são mantidas,
+            inclusive na criação da tabela, sem consulta às chaves do destino.
             Não há remoção de registros do destino nem criação de restrição de
             chave primária. A deduplicação afeta apenas a origem desta chamada.
             UPDATE SET * e INSERT * pressupõem schemas compatíveis entre origem
             e destino. Não são reaplicadas as transformações de CDR.
 
-            dropDuplicates constrói um plano lazy; create() ou a execução do
-            MERGE materializam o processamento distribuído e a persistência.
+            dropDuplicates constrói um plano lazy; create(), append() ou MERGE
+            materializam o processamento distribuído e a persistência.
             O caminho de MERGE registra uma view local com sufixo UUID na sessão
             recebida e tenta removê-la no finally, inclusive se o SQL falhar.
             A remoção não possui tratamento próprio de exceções.
@@ -153,13 +163,21 @@ class TrinoLoader:
             Anotação de manutenção: alterações nos nomes finais de TARGET_SCHEMA
             impactam a validação de todo Parquet, mesmo com chaves personalizadas.
             Alterações em PRIMARY_KEY_COLUMNS impactam a deduplicação e o ON
-            quando o argumento primary_keys não é fornecido.
+            quando primary_keys não é fornecido, exceto em append.
         """
-        keys = list(primary_keys)
-        if not keys or any(not isinstance(key, str) or not key.strip() for key in keys):
-            raise ValueError("primary_keys deve conter nomes de colunas não vazios.")
-        if len(keys) != len(set(keys)):
-            raise ValueError("primary_keys não deve conter colunas repetidas.")
+        if mode not in ("merge", "insert_only", "append"):
+            raise ValueError("mode deve ser 'merge', 'insert_only' ou 'append'.")
+
+        keys = list(primary_keys) if mode != "append" else []
+        if mode != "append":
+            if not keys or any(
+                not isinstance(key, str) or not key.strip() for key in keys
+            ):
+                raise ValueError(
+                    "primary_keys deve conter nomes de colunas não vazios."
+                )
+            if len(keys) != len(set(keys)):
+                raise ValueError("primary_keys não deve conter colunas repetidas.")
 
         table_parts = target_table.split(".")
         if not 1 <= len(table_parts) <= 3 or any(
@@ -181,12 +199,18 @@ class TrinoLoader:
         if missing_keys:
             raise ValueError(f"Colunas da chave ausentes no Parquet: {missing_keys}")
 
-        df_deduped = df.dropDuplicates(keys)
+        if mode != "append":
+            df = df.dropDuplicates(keys)
         if not self.spark.catalog.tableExists(quoted_table):
             logger.info(
                 "Criando tabela Iceberg e inserindo registros: %s", target_table
             )
-            df_deduped.writeTo(quoted_table).using("iceberg").create()
+            df.writeTo(quoted_table).using("iceberg").create()
+            return
+
+        if mode == "append":
+            logger.info("Acrescentando todos os registros em %s", target_table)
+            df.writeTo(quoted_table).append()
             return
 
         temp_view_name = f"stg_source_updates_{uuid4().hex}"
@@ -194,17 +218,37 @@ class TrinoLoader:
             f"target.{_quote_identifier(key)} <=> source.{_quote_identifier(key)}"
             for key in keys
         )
-        df_deduped.createOrReplaceTempView(temp_view_name)
+        df.createOrReplaceTempView(temp_view_name)
         try:
-            logger.info("Atualizando e inserindo registros em %s", target_table)
+            if mode == "merge":
+                logger.info("Atualizando e inserindo registros em %s", target_table)
+            else:
+                logger.info(
+                    "Inserindo apenas registros com chaves novas em %s", target_table
+                )
+            matched_clause = "WHEN MATCHED THEN UPDATE SET *" if mode == "merge" else ""
             self.spark.sql(
                 f"""
                 MERGE INTO {quoted_table} AS target
                 USING {_quote_identifier(temp_view_name)} AS source
                 ON {join_condition}
-                WHEN MATCHED THEN UPDATE SET *
+                {matched_clause}
                 WHEN NOT MATCHED THEN INSERT *
                 """
             )
         finally:
             self.spark.catalog.dropTempView(temp_view_name)
+
+    def append_to_iceberg(self, source_file: str, target_table: str) -> None:
+        """Delega a carga para upsert_iceberg com mode="append".
+
+        Args:
+            source_file: Caminho do arquivo ou diretório Parquet padronizado.
+            target_table: Nome da tabela Iceberg de destino.
+
+        Notes:
+            Preserva todos os registros, inclusive duplicados, sem comparar
+            chaves. Reutiliza as validações, a criação da tabela ausente e os
+            logs de upsert_iceberg, propagando suas exceções.
+        """
+        self.upsert_iceberg(source_file, target_table, mode="append")
