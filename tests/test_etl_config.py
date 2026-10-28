@@ -2,7 +2,12 @@ from dataclasses import FrozenInstanceError
 
 import pytest
 
-from teleutils.core.orchestrators.config import ConfigPaths, _prepare_config, get_config
+from teleutils.core.orchestrators.config import (
+    ConfigPaths,
+    _prepare_config,
+    _validate_unique_prefixes,
+    get_config,
+)
 
 
 @pytest.fixture
@@ -26,6 +31,34 @@ def test_paths_and_input_are_preserved(config):
         "s3a://sandbox-sfi/cdr/transformado/algar_huawei_ngn_transformed.parquet",
     )
     assert config == original
+
+
+def test_unique_prefix_validation_reports_all_duplicates_and_indices():
+    configs = [
+        {"output_file_prefix": "a"},
+        {"output_file_prefix": "b"},
+        {"output_file_prefix": "a"},
+        {"output_file_prefix": "b"},
+        {"output_file_prefix": "a"},
+    ]
+    with pytest.raises(ValueError) as error:
+        _validate_unique_prefixes(configs)
+    assert "'a': índices [0, 2, 4]" in str(error.value)
+    assert "'b': índices [1, 3]" in str(error.value)
+
+
+def test_unique_prefix_validation_leaves_invalid_items_to_individual_validation():
+    _validate_unique_prefixes(
+        [
+            None,
+            {},
+            {"output_file_prefix": []},
+            {"output_file_prefix": ""},
+            {"output_file_prefix": ""},
+            {"output_file_prefix": "a"},
+            {"output_file_prefix": "A"},
+        ]
+    )
 
 
 @pytest.mark.parametrize("protocol", ["", "s3a://"])

@@ -264,23 +264,33 @@ def test_invalid_batch_container_is_logged_and_raised(harness, configs, caplog):
     harness.factory.assert_not_called()
 
 
-@pytest.mark.parametrize(
-    "case", ["duplicate", "nested", "source", "encoding", "slashes"]
-)
+def test_duplicate_prefixes_with_distinct_destinations_can_run(harness):
+    first, second = make_config("repeated"), make_config("repeated")
+    second["extracted_folder"] = "other-bucket/extracted"
+    second["transformed_folder"] = "other-bucket/transformed"
+    report = run_etl([first, make_config("independent"), second], spark=harness.spark)
+    assert report.successes == 3
+    assert len(harness.events) == 6
+
+
+def test_duplicate_prefixes_with_same_destinations_still_conflict(harness):
+    configs = [make_config("same"), make_config("same")]
+    report = run_etl(configs, spark=harness.spark)
+    assert [item.stage for item in report.items] == ["paths", "paths"]
+    harness.factory.assert_not_called()
+
+
+@pytest.mark.parametrize("case", ["nested", "source", "encoding", "slashes"])
 def test_conflicting_items_rejected_and_independent_item_runs(harness, case):
     first, second = make_config("a"), make_config("b")
-    if case == "duplicate":
-        second["output_file_prefix"] = "a"
-    elif case == "nested":
+    if case == "nested":
         second["transformed_folder"] = "bucket/extracted/a_extracted.parquet/sub"
     elif case == "source":
         second["source_folder"] = "bucket/transformed/a_transformed.parquet/sub"
     elif case == "encoding":
-        second["extracted_folder"] = "bucket/%65xtracted"
-        second["output_file_prefix"] = "a"
+        second["extracted_folder"] = "bucket/%65xtracted/a_extracted.parquet/sub"
     else:
-        second["extracted_folder"] = "bucket//extracted"
-        second["output_file_prefix"] = "a"
+        second["extracted_folder"] = "bucket//extracted/a_extracted.parquet/sub"
     report = run_etl([first, second, make_config("independent")], spark=harness.spark)
     assert [item.status for item in report.items] == [
         "validation_error",
@@ -326,9 +336,10 @@ root = logging.getLogger()
 before = list(root.handlers)
 import teleutils.core.orchestrators as api
 assert set(api.__all__) == {
-    'ConfigPaths', 'get_config', 'ETLItemResult', 'ETLReport', 'run_etl', 'run_etl_item'
+    'ConfigPaths', 'get_config', 'load_config', 'ETLItemResult', 'ETLReport', 'run_etl', 'run_etl_item'
 }
 assert 'pyspark' not in sys.modules
+assert 'minio' not in sys.modules
 assert 'teleutils.core.transformers' not in sys.modules
 assert 'teleutils.core.loaders' not in sys.modules
 assert root.handlers == before
@@ -353,18 +364,15 @@ def as_local(config):
     }
 
 
-@pytest.mark.parametrize("case", ["duplicate", "nested", "source", "slashes"])
+@pytest.mark.parametrize("case", ["nested", "source", "slashes"])
 def test_local_conflicts_before_writes(harness, case):
     first, second = as_local(make_config("a")), as_local(make_config("b"))
-    if case == "duplicate":
-        second["output_file_prefix"] = "a"
-    elif case == "nested":
+    if case == "nested":
         second["transformed_folder"] = "/bucket/extracted/a_extracted.parquet/sub"
     elif case == "source":
         second["source_folder"] = "/bucket/transformed/a_transformed.parquet/sub"
     else:
-        second["extracted_folder"] = "/bucket//extracted///"
-        second["output_file_prefix"] = "a"
+        second["extracted_folder"] = "/bucket//extracted/a_extracted.parquet///sub"
     report = run_etl([first, second], spark=harness.spark)
     assert [item.stage for item in report.items] == ["paths", "paths"]
     assert report.validation_errors == 2
@@ -373,7 +381,11 @@ def test_local_conflicts_before_writes(harness, case):
 
 
 def test_mixed_storage_batch_reuses_components_and_keeps_results(harness):
-    configs = [make_config(), as_local(make_config()), as_local(make_config("invalid"))]
+    configs = [
+        make_config(),
+        as_local(make_config("local")),
+        as_local(make_config("invalid")),
+    ]
     configs[2]["transformed_folder"] = "s3a://bucket/output"
     report = run_etl(configs, spark=harness.spark)
     assert [item.status for item in report.items] == [
