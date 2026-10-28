@@ -137,7 +137,7 @@
   },
   {
     "source_folder": "claro/stfc/tropico",
-    "pattern": "*.gz",
+    "pattern": "*LEGA*.gz",
     "schema": "stfc_tropico_claro_lega",
     "extracted_folder": "sandbox-sfi/cdr/processed/extracted",
     "transformed_folder": "sandbox-sfi/cdr/processed/transformed",
@@ -145,7 +145,7 @@
   },
   {
     "source_folder": "claro/stfc/tropico",
-    "pattern": "*.gz",
+    "pattern": "*LEGB*.gz",
     "schema": "stfc_tropico_claro_legb",
     "extracted_folder": "sandbox-sfi/cdr/processed/extracted",
     "transformed_folder": "sandbox-sfi/cdr/processed/transformed",
