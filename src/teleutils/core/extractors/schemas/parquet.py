@@ -240,6 +240,7 @@ PARQUET_DEFAULT_SCHEMAS: dict[str, CDRParquetSchema] = {
             ("calledSubscriberIMEI", "imei_destino"),
             ("calledSubscriberIMSI", "imsi_destino"),
             ("callPosition", "_resultado_chamada"),
+            ("source_filename", "arquivo_origem"),
         ),
         job_description="Extraindo CDR Parquet: SMP Ericsson VoLTE Vivo",
     ),
