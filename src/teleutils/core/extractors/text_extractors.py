@@ -2,7 +2,8 @@
 
 Este módulo lê arquivos com Spark, seleciona colunas ou recorta campos de
 largura fixa conforme um contrato ``CDRTextSchema`` e persiste o resultado em
-Parquet. O catálogo de layouts é definido em
+Parquet pelo método ``extract``; ``extract_dataframe`` retorna o plano
+sem essa escrita. O catálogo de layouts é definido em
 ``teleutils.core.extractors.schemas.text``. A extração atribui nomes aos campos,
 adiciona metadados e aplica o filtro do contrato, sem normalizar números
 telefônicos ou converter datas e horas para o schema final de destino.
@@ -46,7 +47,7 @@ from __future__ import annotations
 
 import logging
 
-from pyspark.sql import SparkSession
+from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
 
 from teleutils._logging import format_source_file_for_log, log_operation
@@ -239,6 +240,46 @@ class CDRTextExtractor:
             acessar o primeiro elemento de uma lista vazia.
         """
 
+        df = self.extract_dataframe(
+            source_file,
+            cdr_schema,
+            operator=operator,
+            service=service,
+            cdr_type=cdr_type,
+        )
+        logger.info("Escrevendo DataFrame extraído para parquet: %s", target_file)
+        df.write.mode("overwrite").parquet(target_file)
+        return target_file
+
+    @log_operation
+    def extract_dataframe(
+        self,
+        source_file: str | list[str],
+        cdr_schema: str,
+        *,
+        operator: str | None = "",
+        service: str | None = "",
+        cdr_type: str | None = "",
+    ) -> DataFrame:
+        """Constrói a extração sem gravar Parquet intermediário.
+
+        Args:
+            source_file: Caminho de entrada ou lista não vazia de caminhos.
+            cdr_schema: Chave do contrato de extração.
+            operator: Prestadora explícita ou inferida do caminho.
+            service: Serviço explícito ou inferido do caminho.
+            cdr_type: Tipo explícito ou inferido; ``_tipo_cdr`` prevalece.
+
+        Returns:
+            DataFrame associado a ``self.spark``, com campos e metadados
+            extraídos. Para consumo direto por um transformador, construa
+            este extrator com ``transformer.spark``.
+
+        Notes:
+            Preserva as validações de ``extract``, inclusive a ação Spark
+            para verificar metadados inferidos. O retorno não comprova que
+            todo o dataset foi processado; falhas podem surgir na ação final.
+        """
         if isinstance(source_file, list) and not source_file:
             raise ValueError("source_file deve conter ao menos um caminho de entrada.")
 
@@ -338,9 +379,4 @@ class CDRTextExtractor:
             df = df.filter(filter_expression)
 
         df = df.drop("_tipo_cdr")
-        logger.info(
-            "Escrevendo DataFrame extraído para parquet: %s",
-            target_file,
-        )
-        df.write.mode("overwrite").parquet(target_file)
-        return target_file
+        return df

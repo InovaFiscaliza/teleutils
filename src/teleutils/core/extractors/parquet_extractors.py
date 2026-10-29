@@ -3,7 +3,8 @@
 Este módulo consolida a lógica de extração de CDRs em parquet para diferentes
 fornecedores e layouts produzidos pelo Teleparser. O processo aplica mapeamento
 de colunas para um schema intermediário comum, enriquece metadados de origem e
-persiste o resultado para a etapa de transformação.
+persiste o resultado para a etapa de transformação com ``extract``.
+``extract_dataframe`` oferece o mesmo processamento sem escrita intermediária.
 
 As definições de schema (dataclass ``CDRParquetSchema`` e os contratos
 padrão por fornecedor) residem no módulo ``teleutils.core.extractors.schemas``,
@@ -53,7 +54,7 @@ from __future__ import annotations
 
 import logging
 
-from pyspark.sql import SparkSession  # type: ignore
+from pyspark.sql import DataFrame, SparkSession  # type: ignore
 from pyspark.sql import functions as F  # type: ignore
 
 from teleutils._logging import format_source_file_for_log, log_operation
@@ -235,6 +236,49 @@ class CDRParquetExtractor:
             não há recuperação de falhas de leitura, transformação ou escrita.
         """
 
+        df = self.extract_dataframe(
+            source_file,
+            cdr_schema,
+            unique,
+            operator=operator,
+            service=service,
+            cdr_type=cdr_type,
+        )
+        logger.info("Escrevendo DataFrame extraído para parquet: %s", target_file)
+        df.write.mode("overwrite").parquet(target_file)
+        return target_file
+
+    @log_operation
+    def extract_dataframe(
+        self,
+        source_file: str | list[str],
+        cdr_schema: str,
+        unique: bool = False,
+        *,
+        operator: str | None = "",
+        service: str | None = "",
+        cdr_type: str | None = "",
+    ) -> DataFrame:
+        """Constrói a extração Parquet sem persistir um intermediário.
+
+        Args:
+            source_file: Caminho Parquet ou lista não vazia de caminhos.
+            cdr_schema: Chave do contrato de extração.
+            unique: Remove duplicatas antes de descartar ``_tipo_cdr``.
+            operator: Prestadora explícita ou inferida do caminho.
+            service: Serviço explícito ou inferido do caminho.
+            cdr_type: Tipo explícito ou inferido; ``_tipo_cdr`` prevalece.
+
+        Returns:
+            DataFrame associado a ``self.spark``. Para consumo direto por
+            um transformador, construa o extrator com ``transformer.spark``.
+
+        Notes:
+            Preserva as validações e opções de leitura de ``extract``.
+            Metadados inferidos podem executar uma ação antecipada. Avisos
+            Spark da execução adiada não são suprimidos por este método;
+            somente ``extract`` envolve sua escrita nessa supressão.
+        """
         if isinstance(source_file, list) and not source_file:
             raise ValueError("source_file deve conter ao menos um caminho de entrada.")
         schema = resolve_cdr_schema(self.schemas, cdr_schema)
@@ -304,7 +348,4 @@ class CDRParquetExtractor:
         if "_tipo_cdr" in df.columns:
             df = df.drop("_tipo_cdr")
 
-        logger.info("Escrevendo DataFrame extraido para parquet: %s", target_file)
-        df.write.mode("overwrite").parquet(target_file)
-
-        return target_file
+        return df

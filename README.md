@@ -104,6 +104,7 @@ flowchart LR
     A[CDR Parquet ou CSV] --> B[Extrator do layout]
     B --> C[Parquet intermediário]
     C --> D[CDRTransformer]
+    B -->|Modo direto: DataFrame| D
     D --> E[Parquet padronizado]
 ```
 
@@ -168,6 +169,34 @@ resultado = transformer.transform_smp_ericsson_gsm(
 
 Os métodos retornam o caminho de destino. Tanto a extração quanto a
 transformação substituem dados já existentes no destino informado.
+
+#### Sem Parquet intermediário
+
+Crie o transformador primeiro e use sua sessão no extrator:
+
+```python
+transformer = CDRTransformer(spark)
+extractor = CDRParquetExtractor(transformer.spark)
+df = extractor.extract_dataframe(
+    source_file="dados/prestadora/smp/ericsson/entrada.parquet",
+    cdr_schema="smp_ericsson_gsm",
+)
+resultado = transformer.transform_smp_ericsson_gsm(
+    source_file=df,
+    target_file="saida/padronizado/ericsson",
+)
+```
+
+O mesmo contrato está disponível em `CDRTextExtractor.extract_dataframe`.
+Não há cache nem escrita intermediária automática. A validação de metadados
+inferidos ainda pode executar uma ação Spark; o processamento completo só é
+confirmado pela escrita final.
+
+A sessão do transformador é isolada e usa `TIMESTAMP_NTZ`. DataFrames de outra
+sessão são rejeitados com orientação para reconstruí-los com `transformer.spark`,
+mesmo que compartilhem o SparkContext. A biblioteca não altera a sessão do
+chamador nem copia seus overrides SQL de runtime. No modo direto, a extração
+também usa os defaults da sessão filha. Não altere essa sessão durante o pipeline.
 
 ### Orquestração de lotes no Jupyter
 
@@ -283,6 +312,65 @@ logging e não executa carga. Se necessário, configure logging no notebook.
 
 Consulte o [contrato da orquestração](docs/teleutils_api.md#teleutilscoreorchestrators)
 para validação, conflitos e resultados.
+
+Para ativar o modo direto no lote, sem administrar sessões:
+
+```python
+relatorio = run_etl(configs, spark=spark, materialize_intermediate=False)
+```
+
+`run_etl_item` e `get_config` aceitam a mesma opção. O padrão continua sendo
+`True`. No modo direto, `extracted_folder` pode ser omitido e
+`ConfigPaths.extracted_file` será `None`; intermediários antigos não são tocados.
+Falhas durante a execução conjunta aparecem na etapa `pipeline`, sem indicar
+extração concluída antes da escrita final. Avisos Spark da leitura adiada
+permanecem visíveis. Uma nova tentativa pode repetir a extração da origem.
+
+[⬆ Voltar ao topo](#sumário)
+
+### Carga Iceberg com controle de arquivos
+
+Após transformar os dados, use uma sessão Spark configurada com extensões e
+catálogo Iceberg compartilhado com o Trino:
+
+```python
+from teleutils.core.loaders import TrinoLoader
+
+loader = TrinoLoader(spark)
+loader.upsert_iceberg(
+    "/dados/cdr_padronizado.parquet",
+    "catalogo.schema.chamadas",
+    mode="insert_only",
+    control_table="catalogo.schema.controle_chamadas",
+)
+```
+
+O controle identifica arquivos pelo conteúdo de `no_arquivo_origem`, não pelo
+nome do Parquet. Em `append` e `insert_only`, origens já carregadas são puladas
+com log; `merge` permite recarga. Após sucesso, o controle mantém uma linha por
+origem com `dh_carga` em UTC, armazenado como timestamp **sem fuso horário**.
+`control_table` é a única opção de controle: strings iniciadas por `s3a://` ou
+`file://` identificam um **dataset Parquet**, lido internamente como DataFrame;
+outras strings identificam uma tabela Iceberg no catálogo compartilhado com
+Trino. Por exemplo, use `control_table="file:///dados/controle/chamadas.parquet"`
+ou `control_table="s3a://bucket/controle/chamadas.parquet"`. Não passe um
+DataFrame diretamente. `None` mantém o fluxo sem controle.
+
+Antes de ler a origem, o loader cria o controle vazio se necessário e testa
+leitura/gravação. Qualquer falha interrompe a carga, sem escrever dados no
+destino. Essas sondagens não alteram registros existentes, mas podem gerar
+metadados/snapshots Iceberg. Um controle vazio pode permanecer mesmo se a carga
+posterior falhar ou não houver origens elegíveis.
+
+**Limite de consistência:** a escrita dos dados e a do controle são commits
+separados. Falha no registro é propagada e registrada como falha parcial;
+repetir `append` pode duplicar dados. Serialize chamadas e use um controle
+exclusivo para cada destino. O controle Parquet é atualizado por sobrescrita
+direta, sem backup ou rollback: uma falha pode perder o controle anterior.
+Sondagens prévias não garantem o commit posterior. O loader não se conecta
+diretamente ao Trino.
+
+Consulte [o contrato e os exemplos da API](docs/teleutils_api.md#teleutilscoreloaders).
 
 [⬆ Voltar ao topo](#sumário)
 

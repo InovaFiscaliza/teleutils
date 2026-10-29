@@ -6,32 +6,33 @@ Este documento descreve exclusivamente o pipeline ativo em `src/teleutils/core` 
 `src/teleutils/preprocessing`. O pacote `src/teleutils/robocalls` está depreciado e
 foi deliberadamente excluído da análise.
 
-Há cinco fluxos de produção do mesmo contrato final:
-
-1. Parquet Ericsson: `CDRParquetExtractor.extract_cdr_ericsson` →
-   `CDRTransformer.transform_cdr_ericsson`.
-2. Parquet LTE Huawei TIM: `CDRParquetExtractor.extract_cdr_lte_huawei_tim` →
-   `CDRTransformer.transform_cdr_lte_huawei_tim`.
-3. Parquet LTE Ericsson Vivo: `CDRParquetExtractor.extract_cdr_lte_ericsson_vivo` →
-   `CDRTransformer.transform_cdr_lte_ericsson_vivo`.
-4. Parquet Nokia: `CDRParquetExtractor.extract_cdr_nokia` →
-   `CDRTransformer.transform_cdr_nokia`.
-5. Texto/CSV Algar Huawei: `CDRTextExtractor.extract_cdr_algar_huawei` →
-   `CDRTransformer.transform_cdr_algar_huawei`.
+Os layouts são selecionados por `cdr_schema` nos catálogos dos extratores.
+`CDRParquetExtractor` e `CDRTextExtractor` oferecem `extract` (persistido) e
+`extract_dataframe` (sem escrita intermediária). O orquestrador resolve o
+método específico `transform_<schema>` da instância de `CDRTransformer`,
+incluindo os aliases definidos pelo catálogo.
 
 Fluxo arquitetural:
 
 ```text
 CDR de origem
 → seleção e renomeação segundo CDRParquetSchema ou CDRTextSchema
-→ inclusão de prestadora, tipo_cdr e arquivo_origem
-→ Parquet extraído/intermediário
+→ inclusão de esquema, prestadora, servico, tipo_cdr e arquivo_origem
+→ Parquet intermediário (padrão) OU DataFrame extraído (modo direto)
 → pré-processamento específico do layout
 → _apply_standard_pipeline
 → _select_transformed_columns (cast + alias)
 → _write_parquet (overwrite, particionado por no_tipo_chamada)
 → Parquet final
 ```
+
+O modo direto é ativado por `materialize_intermediate=False` no orquestrador.
+Ele elimina a persistência entre extração e transformação, não muda os
+mapeamentos, filtros ou renomeações. Nesse modo, ambos os componentes usam
+a sessão isolada NTZ do transformador. No uso manual, construa o extrator com
+`transformer.spark`; DataFrames de outra sessão são rejeitados. Overrides SQL
+de runtime do chamador não são copiados. A validação de metadados inferidos
+pode executar uma ação antes da escrita final.
 
 O contrato final é determinado pela ordem de `TARGET_SCHEMA`, em
 `src/teleutils/_config.py`, e contém **35 colunas**. Colunas intermediárias fora
@@ -42,7 +43,7 @@ desse contrato são descartadas na seleção final.
 | Nível | Descrição |
 | :-- | :-- |
 | Colunas Originais | Campos presentes no Parquet bruto ou posições do CSV bruto. |
-| Colunas Extraídas | Nomes atribuídos pelo extrator e gravados no Parquet intermediário. |
+| Colunas Extraídas | Nomes atribuídos pelo extrator, presentes no DataFrame e, no modo materializado, gravados no Parquet intermediário. |
 | Coluna Intermediária | Coluna criada ou alterada durante a transformação. |
 | Coluna Final | Nome após o `cast` e o `alias` definidos em `TARGET_SCHEMA`. |
 

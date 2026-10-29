@@ -1,7 +1,7 @@
 """Pacote de transformadores de CDR do módulo core.
 
 Este pacote reexporta ``CDRTransformer``, responsável por transformar CDRs
-intermediários em Parquet, produzidos pelos extratores de ``core.extractors``
+intermediários em Parquet ou DataFrame, produzidos pelos extratores de ``core.extractors``
 (``CDRTextExtractor`` e ``CDRParquetExtractor``). A classe herda o pipeline
 comum de ``CDRBaseTransformer`` e aplica pré-processamentos específicos de
 fornecedor antes da persistência no contrato final.
@@ -10,7 +10,7 @@ O pacote não implementa transformações; ele fornece um ponto único de
 importação e restringe a API pública por meio de ``__all__``.
 
 Exports:
-    CDRTransformer: Transformador de CDRs intermediários em Parquet.
+    CDRTransformer: Transformador de CDRs extraídos para Parquet final.
 
 Notes:
     Os transformadores de layout são métodos ``transform_<layout>`` de

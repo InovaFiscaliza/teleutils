@@ -54,7 +54,7 @@ from __future__ import annotations
 from functools import reduce
 from operator import or_
 
-from pyspark.sql import SparkSession
+from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
 from pyspark.sql import types as T
 
@@ -435,12 +435,14 @@ class CDRTransformer(CDRBaseTransformer):
     A classe especializa o transformador base para lidar com peculiaridades de
     layouts de entrada em Parquet. Cada método de
     transformação encapsula ajustes de campos que antecedem a execução do
-    pipeline padrão.
+    pipeline padrão. Os métodos de layout aceitam caminho Parquet ou
+    DataFrame da própria sessão ``self.spark``; para o modo direto, crie
+    o extrator com ``transformer.spark``.
 
     Contexto de uso:
         - Etapa de transformação após extração/parsing bruto dos CDRs.
-        - Cada método ``transform_*`` recebe o caminho do Parquet intermediário
-          e o caminho de saída, e retorna o caminho de saída.
+        - Cada método ``transform_*`` recebe a entrada extraída e o caminho
+          de saída, e retorna o caminho de saída.
 
     Attributes:
         spark:
@@ -527,7 +529,10 @@ class CDRTransformer(CDRBaseTransformer):
 
     @log_operation
     def transform_smp_ericsson_gsm(
-        self, source_file: str, target_file: str, output_format: str = "default"
+        self,
+        source_file: str | DataFrame,
+        target_file: str,
+        output_format: str = "default",
     ) -> str:
         """Transforma CDR SMP GSM Ericsson para o contrato padronizado do domínio.
 
@@ -536,7 +541,7 @@ class CDRTransformer(CDRBaseTransformer):
             e aplicar o pipeline padrão de normalização.
 
         Args:
-            source_file: Caminho parquet com CDRs Ericsson de entrada.
+            source_file: Parquet extraído ou DataFrame Ericsson de ``self.spark``.
             target_file: Caminho parquet de saída transformada.
             output_format: Chave validada por ``_check_output_format``. Neste
                 método só interessa ao teste ``== "tim"``, que controla o
@@ -571,7 +576,7 @@ class CDRTransformer(CDRBaseTransformer):
         _check_output_format(output_format)
 
         date_time_fmt = "yy-MM-dd HH:mm:ss"
-        df = self.spark.read.parquet(source_file)
+        df = self._resolve_input(source_file)
 
         col = F.col("duracao")
         # Decompõe HH:mm:ss em segundos totais para unificar a métrica de duração.
@@ -642,7 +647,9 @@ class CDRTransformer(CDRBaseTransformer):
         return target_file
 
     @log_operation
-    def transform_smp_nokia_gsm(self, source_file: str, target_file: str) -> str:
+    def transform_smp_nokia_gsm(
+        self, source_file: str | DataFrame, target_file: str
+    ) -> str:
         """Transforma CDR SMP GSM Nokia para o contrato padronizado do domínio.
 
         Objetivo da operação:
@@ -650,7 +657,7 @@ class CDRTransformer(CDRBaseTransformer):
             cenários de encaminhamento antes do pipeline padrão.
 
         Args:
-            source_file: Caminho parquet com CDRs Nokia de entrada.
+            source_file: Parquet extraído ou DataFrame Nokia de ``self.spark``.
             target_file: Caminho parquet de saída transformada.
 
         Returns:
@@ -685,7 +692,7 @@ class CDRTransformer(CDRBaseTransformer):
             - Grava Parquet com sobrescrita pelo pipeline de escrita herdado.
         """
         date_time_fmt = "dd/MM/yyyy HH:mm:ss"
-        df = self.spark.read.parquet(source_file)
+        df = self._resolve_input(source_file)
 
         # Cada tipo de CDR pode preencher uma coluna de duração distinta; a
         # primeira coluna não nula, na ordem do DataFrame, torna-se ``duracao``.
@@ -814,7 +821,9 @@ class CDRTransformer(CDRBaseTransformer):
         return target_file
 
     @log_operation
-    def transform_smp_huawei_volte_tim(self, source_file: str, target_file: str) -> str:
+    def transform_smp_huawei_volte_tim(
+        self, source_file: str | DataFrame, target_file: str
+    ) -> str:
         """Transforma CDR SMP Huawei VoLTE TIM para o contrato padronizado do domínio.
 
         Objetivo da operação:
@@ -823,7 +832,8 @@ class CDRTransformer(CDRBaseTransformer):
             central.
 
         Args:
-            source_file: Caminho parquet com CDRs SMP Huawei VoLTE TIM de entrada.
+            source_file: Parquet extraído ou DataFrame Huawei VoLTE TIM
+                de ``self.spark``.
             target_file: Caminho parquet de saída transformada.
 
         Returns:
@@ -874,7 +884,7 @@ class CDRTransformer(CDRBaseTransformer):
               200 e as faixas SIP de 201 a 699; demais valores resultam em nulo.
         """
         date_time_fmt = "yyyy-MM-dd HH:mm:ss"
-        df = self.spark.read.parquet(source_file)
+        df = self._resolve_input(source_file)
 
         df = df.withColumns(
             # Data e hora nos CDR Tim Huawei trazem informação de fuso horário no final da string,
@@ -1092,7 +1102,7 @@ class CDRTransformer(CDRBaseTransformer):
 
     @log_operation
     def transform_smp_ericsson_volte_vivo(
-        self, source_file: str, target_file: str
+        self, source_file: str | DataFrame, target_file: str
     ) -> str:
         """Transforma CDR SMP Ericsson VoLTE Vivo para o contrato padronizado do domínio.
 
@@ -1101,7 +1111,8 @@ class CDRTransformer(CDRBaseTransformer):
             metadados embutidos e, em seguida, aplicar a normalização padrão.
 
         Args:
-            source_file: Caminho parquet com CDRs SMP Ericsson VoLTE Vivo de entrada.
+            source_file: Parquet extraído ou DataFrame Ericsson VoLTE Vivo
+                de ``self.spark``.
             target_file: Caminho parquet de saída transformada.
 
         Returns:
@@ -1131,7 +1142,7 @@ class CDRTransformer(CDRBaseTransformer):
             - Grava Parquet com sobrescrita pelo pipeline de escrita herdado.
         """
         date_time_fmt = "yyyyMMdd HHmmss"
-        df = self.spark.read.parquet(source_file)
+        df = self._resolve_input(source_file)
 
         df = _concat_date_time(df, stop_date="_data")
 
@@ -1195,7 +1206,9 @@ class CDRTransformer(CDRBaseTransformer):
         return target_file
 
     @log_operation
-    def transform_stfc_huawei_ngn(self, source_file: str, target_file: str) -> str:
+    def transform_stfc_huawei_ngn(
+        self, source_file: str | DataFrame, target_file: str
+    ) -> str:
         """Transforma registros do layout STFC Huawei NGN usando o pipeline padrão.
 
         Combina os campos de data e hora extraídos, converte os códigos de tipo
@@ -1203,7 +1216,8 @@ class CDRTransformer(CDRBaseTransformer):
         normalização restante ao pipeline comum.
 
         Args:
-            source_file: Caminho Parquet intermediário do layout STFC Huawei NGN.
+            source_file: Parquet extraído ou DataFrame STFC Huawei NGN
+                de ``self.spark``.
             target_file: Diretório de saída em parquet padronizado.
 
         Returns:
@@ -1223,7 +1237,7 @@ class CDRTransformer(CDRBaseTransformer):
         """
 
         date_time_fmt = "ddMMyyyy HHmmss"
-        df = self.spark.read.parquet(source_file)
+        df = self._resolve_input(source_file)
 
         df = _concat_date_time(df)
 
@@ -1254,14 +1268,17 @@ class CDRTransformer(CDRBaseTransformer):
         return target_file
 
     @log_operation
-    def transform_stfc_huawei_ngn_tim(self, source_file: str, target_file: str) -> str:
+    def transform_stfc_huawei_ngn_tim(
+        self, source_file: str | DataFrame, target_file: str
+    ) -> str:
         """Normaliza o layout STFC Huawei NGN TIM usando apenas o pipeline padrão.
 
         Não há pré-processamento específico: o método lê o Parquet, aplica
         ``_apply_standard_pipeline`` e grava o resultado.
 
         Args:
-            source_file: Caminho Parquet intermediário do layout Huawei NGN TIM.
+            source_file: Parquet extraído ou DataFrame Huawei NGN TIM
+                de ``self.spark``.
             target_file: Diretório de saída em parquet padronizado.
 
         Returns:
@@ -1276,7 +1293,7 @@ class CDRTransformer(CDRBaseTransformer):
         """
 
         date_time_fmt = "yyMMddHHmmss"
-        df = self.spark.read.parquet(source_file)
+        df = self._resolve_input(source_file)
 
         df = self._apply_standard_pipeline(df, date_time_fmt)
         self._write_parquet(df, target_file)
@@ -1284,11 +1301,14 @@ class CDRTransformer(CDRBaseTransformer):
         return target_file
 
     @log_operation
-    def transform_stfc_italtel_ngn_tim(self, source_file: str, target_file: str) -> str:
+    def transform_stfc_italtel_ngn_tim(
+        self, source_file: str | DataFrame, target_file: str
+    ) -> str:
         """Combina datas e normaliza o layout STFC Italtel NGN TIM.
 
         Args:
-            source_file: Caminho Parquet intermediário do layout Italtel NGN TIM.
+            source_file: Parquet extraído ou DataFrame Italtel NGN TIM
+                de ``self.spark``.
             target_file: Diretório de saída em parquet padronizado.
 
         Returns:
@@ -1305,7 +1325,7 @@ class CDRTransformer(CDRBaseTransformer):
         date_time_fmt = "dd/MM/yy HH:mm:ss"
         ref_date_time_fmt = "yyyy-MM-dd HH:mm:ss"
 
-        df = self.spark.read.parquet(source_file)
+        df = self._resolve_input(source_file)
         df = df.withColumn(
             "tipo_chamada", F.regexp_replace(F.col("_tipo_chamada"), " ", "_")
         )
@@ -1318,7 +1338,9 @@ class CDRTransformer(CDRBaseTransformer):
         return target_file
 
     @log_operation
-    def transform_stfc_fcdr_vivo(self, source_file: str, target_file: str) -> str:
+    def transform_stfc_fcdr_vivo(
+        self, source_file: str | DataFrame, target_file: str
+    ) -> str:
         """Transforma registros do layout STFC Vivo FCDR usando o pipeline padrão.
 
         Combina os campos de data e hora extraídos, converte os códigos de tipo
@@ -1326,7 +1348,8 @@ class CDRTransformer(CDRBaseTransformer):
         normalização restante ao pipeline comum.
 
         Args:
-            source_file: Caminho Parquet intermediário do layout STFC Vivo FCDR.
+            source_file: Parquet extraído ou DataFrame STFC Vivo FCDR
+                de ``self.spark``.
             target_file: Diretório de saída em parquet padronizado.
 
         Returns:
@@ -1346,7 +1369,7 @@ class CDRTransformer(CDRBaseTransformer):
         """
 
         date_time_fmt = "ddMMyy HHmmss"
-        df = self.spark.read.parquet(source_file)
+        df = self._resolve_input(source_file)
 
         df = _concat_date_time(df)
 
@@ -1403,11 +1426,14 @@ class CDRTransformer(CDRBaseTransformer):
         return target_file
 
     @log_operation
-    def transform_stfc_tropico_oi(self, source_file: str, target_file: str) -> str:
+    def transform_stfc_tropico_oi(
+        self, source_file: str | DataFrame, target_file: str
+    ) -> str:
         """Combina datas e classifica tipos e resultados do layout Trópico Oi.
 
         Args:
-            source_file: Caminho Parquet intermediário de CDRs STFC Trópico Oi.
+            source_file: Parquet extraído ou DataFrame STFC Trópico Oi
+                de ``self.spark``.
             target_file: Diretório Parquet de saída, sobrescrito na gravação.
 
         Returns:
@@ -1425,7 +1451,7 @@ class CDRTransformer(CDRBaseTransformer):
             que normaliza e grava a saída conforme o contrato herdado.
         """
         date_time_fmt = "ddMMyy HHmmss"
-        df = self.spark.read.parquet(source_file)
+        df = self._resolve_input(source_file)
 
         df = _concat_date_time(df)
 
@@ -1498,11 +1524,13 @@ class CDRTransformer(CDRBaseTransformer):
         return target_file
 
     @log_operation
-    def transform_stfc_7n_oi(self, source_file: str, target_file: str) -> str:
+    def transform_stfc_7n_oi(
+        self, source_file: str | DataFrame, target_file: str
+    ) -> str:
         """Combina datas e classifica resultados de chamadas do layout 7N Oi.
 
         Args:
-            source_file: Caminho Parquet intermediário de CDRs STFC 7N Oi.
+            source_file: Parquet extraído ou DataFrame STFC 7N Oi de ``self.spark``.
             target_file: Diretório Parquet de saída, sobrescrito na gravação.
 
         Returns:
@@ -1517,7 +1545,7 @@ class CDRTransformer(CDRBaseTransformer):
             pipeline comum. Não cria nem mapeia ``tipo_chamada`` nesta etapa.
         """
         date_time_fmt = "ddMMyyyy HHmmss"
-        df = self.spark.read.parquet(source_file)
+        df = self._resolve_input(source_file)
 
         df = _concat_date_time(df)
 
@@ -1551,11 +1579,14 @@ class CDRTransformer(CDRBaseTransformer):
         return target_file
 
     @log_operation
-    def transform_stfc_axe_claro(self, source_file: str, target_file: str) -> str:
+    def transform_stfc_axe_claro(
+        self, source_file: str | DataFrame, target_file: str
+    ) -> str:
         """Combina horários e classifica tipos e resultados do layout AXE Claro.
 
         Args:
-            source_file: Caminho Parquet intermediário de CDRs STFC AXE Claro.
+            source_file: Parquet extraído ou DataFrame STFC AXE Claro
+                de ``self.spark``.
             target_file: Diretório Parquet de saída, sobrescrito na gravação.
 
         Returns:
@@ -1573,7 +1604,7 @@ class CDRTransformer(CDRBaseTransformer):
             inclusive nulos, viram ``Desconexão Prematura`` antes da normalização.
         """
         date_time_fmt = "yyMMdd HHmmss"
-        df = self.spark.read.parquet(source_file)
+        df = self._resolve_input(source_file)
 
         df = _concat_date_time(
             df,
@@ -1677,11 +1708,14 @@ class CDRTransformer(CDRBaseTransformer):
         return target_file
 
     @log_operation
-    def transform_stfc_pcl_claro(self, source_file: str, target_file: str) -> str:
+    def transform_stfc_pcl_claro(
+        self, source_file: str | DataFrame, target_file: str
+    ) -> str:
         """Combina datas e prepara tipo e resultado de chamadas PCL Claro.
 
         Args:
-            source_file: Caminho Parquet intermediário de CDRs STFC PCL Claro.
+            source_file: Parquet extraído ou DataFrame STFC PCL Claro
+                de ``self.spark``.
             target_file: Diretório Parquet de saída, sobrescrito na gravação.
 
         Returns:
@@ -1695,7 +1729,7 @@ class CDRTransformer(CDRBaseTransformer):
             demais valores ficam nulos antes do pipeline comum e da gravação.
         """
         date_time_fmt = "yyyyMMdd HHmmss"
-        df = self.spark.read.parquet(source_file)
+        df = self._resolve_input(source_file)
 
         df = _concat_date_time(df)
 
@@ -1715,11 +1749,14 @@ class CDRTransformer(CDRBaseTransformer):
         return target_file
 
     @log_operation
-    def transform_stfc_tropico_claro(self, source_file: str, target_file: str) -> str:
+    def transform_stfc_tropico_claro(
+        self, source_file: str | DataFrame, target_file: str
+    ) -> str:
         """Combina datas e classifica chamadas do layout Trópico Claro.
 
         Args:
-            source_file: Caminho Parquet intermediário de CDRs STFC Trópico Claro.
+            source_file: Parquet extraído ou DataFrame STFC Trópico Claro
+                de ``self.spark``.
             target_file: Diretório Parquet de saída, sobrescrito na gravação.
 
         Returns:
@@ -1736,7 +1773,7 @@ class CDRTransformer(CDRBaseTransformer):
             usam strings, preservando a importância dos zeros iniciais.
         """
         date_time_fmt = "ddMMyyyy HHmmss"
-        df = self.spark.read.parquet(source_file)
+        df = self._resolve_input(source_file)
 
         df = _concat_date_time(df)
 
@@ -1811,11 +1848,14 @@ class CDRTransformer(CDRBaseTransformer):
     transform_stfc_tropico_claro_legb = transform_stfc_tropico_claro
 
     @log_operation
-    def transform_stfc_pit_claro(self, source_file: str, target_file: str) -> str:
+    def transform_stfc_pit_claro(
+        self, source_file: str | DataFrame, target_file: str
+    ) -> str:
         """Recorta timestamps e deriva o sentido de chamadas do layout PIT Claro.
 
         Args:
-            source_file: Caminho Parquet intermediário de CDRs STFC PIT Claro.
+            source_file: Parquet extraído ou DataFrame STFC PIT Claro
+                de ``self.spark``.
             target_file: Diretório Parquet de saída, sobrescrito na gravação.
 
         Returns:
@@ -1830,7 +1870,7 @@ class CDRTransformer(CDRBaseTransformer):
             ao pipeline comum e à gravação herdada.
         """
         date_time_fmt = "yyyyMMddHHmmss"
-        df = self.spark.read.parquet(source_file)
+        df = self._resolve_input(source_file)
 
         df = df.withColumns(
             {
@@ -1853,11 +1893,14 @@ class CDRTransformer(CDRBaseTransformer):
         return target_file
 
     @log_operation
-    def transform_stfc_ss8bf_claro(self, source_file: str, target_file: str) -> str:
+    def transform_stfc_ss8bf_claro(
+        self, source_file: str | DataFrame, target_file: str
+    ) -> str:
         """Recorta referências e classifica chamadas do layout SS8BF Claro.
 
         Args:
-            source_file: Caminho Parquet intermediário de CDRs STFC SS8BF Claro.
+            source_file: Parquet extraído ou DataFrame STFC SS8BF Claro
+                de ``self.spark``.
             target_file: Diretório Parquet de saída, sobrescrito na gravação.
 
         Returns:
@@ -1878,7 +1921,7 @@ class CDRTransformer(CDRBaseTransformer):
             verifica apenas nulidade. O número de destino não é substituído.
         """
         date_time_fmt = "yyyy-MM-dd'T'HH:mm:ss"
-        df = self.spark.read.parquet(source_file)
+        df = self._resolve_input(source_file)
 
         df = df.withColumns(
             {
@@ -1961,11 +2004,14 @@ class CDRTransformer(CDRBaseTransformer):
         return target_file
 
     @log_operation
-    def transform_stfc_sigma_claro(self, source_file: str, target_file: str) -> str:
+    def transform_stfc_sigma_claro(
+        self, source_file: str | DataFrame, target_file: str
+    ) -> str:
         """Compõe data e hora de início e fim do layout Sigma Claro.
 
         Args:
-            source_file: Caminho Parquet intermediário de CDRs STFC Sigma Claro.
+            source_file: Parquet extraído ou DataFrame STFC Sigma Claro
+                de ``self.spark``.
             target_file: Diretório Parquet de saída, sobrescrito na gravação.
 
         Returns:
@@ -1985,7 +2031,7 @@ class CDRTransformer(CDRBaseTransformer):
             delegadas ao pipeline comum e à gravação herdada.
         """
         date_time_fmt = "ddMMyy HH:mm:ss"
-        df = self.spark.read.parquet(source_file)
+        df = self._resolve_input(source_file)
 
         df = df.withColumns(
             {

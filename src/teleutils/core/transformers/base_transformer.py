@@ -168,6 +168,42 @@ class CDRBaseTransformer:
         self.min_safe_date = F.lit(MIN_SAFE_DATE).cast(T.TimestampNTZType())
         self.null_sentinel_value = F.lit(NULL_SENTINEL_VALUE).cast(T.StringType())
 
+    def _validate_timestamp_type(self) -> None:
+        """Rejeita alterações incompatíveis na sessão gerenciada."""
+        if self.spark.conf.get("spark.sql.timestampType") != "TIMESTAMP_NTZ":
+            message = (
+                "A sessão do transformador deve manter "
+                "spark.sql.timestampType=TIMESTAMP_NTZ. "
+                "Crie um novo transformador e reconstrua o DataFrame "
+                "com um extrator usando transformer.spark."
+            )
+            logger.error(message)
+            raise ValueError(message)
+
+    def _resolve_input(self, source_file: str | DataFrame) -> DataFrame:
+        """Lê Parquet ou aceita um DataFrame da própria sessão gerenciada.
+
+        Sessões que compartilham apenas o SparkContext não são equivalentes.
+        Nenhum plano é transferido e nenhuma configuração é corrigida
+        silenciosamente. O chamador não deve alterar a sessão durante o uso.
+        """
+        self._validate_timestamp_type()
+        if isinstance(source_file, str):
+            return self.spark.read.parquet(source_file)
+        if not isinstance(source_file, DataFrame):
+            message = "source_file deve ser um caminho str ou um DataFrame Spark."
+            logger.error(message)
+            raise TypeError(message)
+        if source_file.sparkSession is not self.spark:
+            message = (
+                "O DataFrame deve pertencer à sessão do transformador. "
+                "Crie o extrator com transformer.spark e reconstrua o DataFrame "
+                "usando extract_dataframe; compartilhar o SparkContext não basta."
+            )
+            logger.error(message)
+            raise ValueError(message)
+        return source_file
+
     def _format_date_time(
         self,
         df,
@@ -518,6 +554,7 @@ class CDRBaseTransformer:
               coluna final ``no_tipo_chamada``.
             - Esta é a ação Spark que materializa as transformações lazy.
         """
+        self._validate_timestamp_type()
         logger.info("Escrevendo DataFrame transformado para parquet: %s", target_file)
         df = self._select_transformed_columns(df)
         df.write.mode("overwrite").partitionBy("no_tipo_chamada").parquet(target_file)

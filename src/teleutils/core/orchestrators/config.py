@@ -44,6 +44,8 @@ Dicionário de configuração:
             na preparação do lote, pelo orquestrador.
         extracted_folder (str): Pasta do Parquet intermediário
             ``<extracted_folder>/<output_file_prefix>_extracted.parquet``.
+            Opcional quando ``materialize_intermediate=False`` é passado
+            à API; nesse modo, a pasta não é utilizada como destino.
         transformed_folder (str): Pasta do Parquet padronizado
             ``<transformed_folder>/<output_file_prefix>_transformed.parquet``.
         output_file_prefix (str): Prefixo dos nomes dos arquivos de saída.
@@ -107,6 +109,7 @@ Exemplo:
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 from collections.abc import Mapping, Sequence
@@ -114,6 +117,8 @@ from dataclasses import dataclass
 from fnmatch import fnmatchcase
 from typing import NamedTuple
 from urllib.parse import unquote
+
+logger = logging.getLogger(__name__)
 
 # Chaves obrigatórias de cada item de configuração.
 _REQUIRED_KEYS = (
@@ -136,13 +141,13 @@ class ConfigPaths(NamedTuple):
     Attributes:
         schema: Chave exata do contrato de extração.
         source_file: Caminho Spark/Hadoop s3a:// ou file:///, possivelmente com glob.
-        extracted_file: Diretório Parquet intermediário.
+        extracted_file: Diretório Parquet intermediário ou None no modo direto.
         transformed_file: Diretório Parquet padronizado.
     """
 
     schema: str
     source_file: str
-    extracted_file: str
+    extracted_file: str | None
     transformed_file: str
 
 
@@ -492,7 +497,17 @@ def _join_path(folder: str, name: str) -> str:
     return f"{folder}{'' if folder.endswith('/') else '/'}{name}"
 
 
-def _prepare_config(config: Mapping[str, object]) -> _PreparedConfig:
+def _validate_materialize_intermediate(materialize_intermediate: bool) -> None:
+    """Valida a seleção do modo sem coerção de strings ou inteiros."""
+    if not isinstance(materialize_intermediate, bool):
+        message = "materialize_intermediate deve ser bool."
+        logger.error(message)
+        raise TypeError(message)
+
+
+def _prepare_config(
+    config: Mapping[str, object], *, materialize_intermediate: bool = True
+) -> _PreparedConfig:
     """Valida um item completo e monta os caminhos e os dados auxiliares.
 
     Ordem das validações: tipo mapping, chaves desconhecidas, chaves
@@ -504,6 +519,8 @@ def _prepare_config(config: Mapping[str, object]) -> _PreparedConfig:
 
     Args:
         config: Item de configuração; não é modificado.
+        materialize_intermediate: Se False, permite omitir extracted_folder
+            e retorna extracted_file=None; uma pasta informada é validada.
 
     Returns:
         ``_PreparedConfig`` com ``ConfigPaths``, a ``source_folder``
@@ -521,12 +538,18 @@ def _prepare_config(config: Mapping[str, object]) -> _PreparedConfig:
         ``storage_type`` define uma única função de pasta para as três
         pastas do item; não há armazenamento misto.
     """
+    _validate_materialize_intermediate(materialize_intermediate)
     if not isinstance(config, Mapping):
         raise TypeError("Cada configuração deve ser um mapping.")
     unknown = [repr(key) for key in config if key not in _ALLOWED_KEYS]
     if unknown:
         raise ValueError(f"Chaves desconhecidas: {', '.join(unknown)}.")
-    missing = [key for key in _REQUIRED_KEYS if key not in config]
+    required_keys = tuple(
+        key
+        for key in _REQUIRED_KEYS
+        if materialize_intermediate or key != "extracted_folder"
+    )
+    missing = [key for key in required_keys if key not in config]
     if missing:
         raise ValueError(f"Chaves obrigatórias ausentes: {', '.join(missing)}.")
     storage_type = config.get("storage_type", "s3a")
@@ -534,7 +557,9 @@ def _prepare_config(config: Mapping[str, object]) -> _PreparedConfig:
         raise TypeError("storage_type deve ser uma string.")
     if storage_type not in ("s3a", "local"):
         raise ValueError("storage_type deve ser 's3a' ou 'local'.")
-    values = {key: _required_string(config, key) for key in _REQUIRED_KEYS}
+    values = {key: _required_string(config, key) for key in required_keys}
+    if not materialize_intermediate and "extracted_folder" in config:
+        values["extracted_folder"] = _required_string(config, "extracted_folder")
     metadata: dict[str, str | None] = {}
     for key in _METADATA_KEYS:
         value = config.get(key)
@@ -548,7 +573,11 @@ def _prepare_config(config: Mapping[str, object]) -> _PreparedConfig:
     validate_metadata_arguments(**metadata)
     build_folder = _s3a_folder if storage_type == "s3a" else _local_folder
     source_folder = build_folder(values["source_folder"], "source_folder")
-    extracted_folder = build_folder(values["extracted_folder"], "extracted_folder")
+    extracted_folder = (
+        build_folder(values["extracted_folder"], "extracted_folder")
+        if "extracted_folder" in values
+        else None
+    )
     transformed_folder = build_folder(
         values["transformed_folder"], "transformed_folder"
     )
@@ -567,7 +596,11 @@ def _prepare_config(config: Mapping[str, object]) -> _PreparedConfig:
     paths = ConfigPaths(
         schema=values["schema"],
         source_file=_join_path(source_folder, pattern),
-        extracted_file=_join_path(extracted_folder, f"{prefix}_extracted.parquet"),
+        extracted_file=(
+            _join_path(extracted_folder, f"{prefix}_extracted.parquet")
+            if materialize_intermediate and extracted_folder is not None
+            else None
+        ),
         transformed_file=_join_path(
             transformed_folder, f"{prefix}_transformed.parquet"
         ),
@@ -575,7 +608,9 @@ def _prepare_config(config: Mapping[str, object]) -> _PreparedConfig:
     return _PreparedConfig(paths, source_folder, **metadata)
 
 
-def get_config(config: Mapping[str, object]) -> ConfigPaths:
+def get_config(
+    config: Mapping[str, object], *, materialize_intermediate: bool = True
+) -> ConfigPaths:
     """Valida um item e constrói caminhos S3A ou locais sem acessar armazenamento.
 
     Args:
@@ -588,6 +623,9 @@ def get_config(config: Mapping[str, object]) -> ConfigPaths:
             caminhos absolutos Linux sem protocolo; as saídas usam file:///.
             Não são aceitas outras chaves nem armazenamentos híbridos no
             mesmo item. O mapping original não é modificado.
+        materialize_intermediate: Se False, extracted_folder é opcional e
+            extracted_file será None. A pasta informada ainda é validada,
+            mas não representa um destino de escrita.
 
     Returns:
         Caminhos Spark/Hadoop com os sufixos _extracted.parquet e
@@ -601,4 +639,6 @@ def get_config(config: Mapping[str, object]) -> ConfigPaths:
         ValueError: Se faltarem campos, houver chaves desconhecidas, valores
             vazios, metadados inválidos ou caminhos incompatíveis.
     """
-    return _prepare_config(config).paths
+    return _prepare_config(
+        config, materialize_intermediate=materialize_intermediate
+    ).paths

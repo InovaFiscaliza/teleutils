@@ -54,10 +54,11 @@ from teleutils.core.orchestrators.config import (
     ConfigPaths,
     _prepare_config,
     _PreparedConfig,
+    _validate_materialize_intermediate,
 )
 
 if TYPE_CHECKING:
-    from pyspark.sql import SparkSession
+    from pyspark.sql import DataFrame, SparkSession
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +71,7 @@ _Stage = Literal[
     "initialization",
     "extraction",
     "transformation",
+    "pipeline",
     "completed",
 ]
 _Format = Literal["parquet", "text"]
@@ -84,7 +86,9 @@ class ETLItemResult:
         schema: Chave informada, se identificável.
         paths: Caminhos planejados, ou None se a configuração não foi resolvida.
         status: success, validation_error ou execution_error.
-        stage: Etapa da falha, ou completed quando ambas as escritas terminaram.
+        stage: Etapa da falha, ou completed após a escrita final. No modo
+            direto, pipeline identifica a execução conjunta, cujas falhas
+            podem ter origem na extração lazy.
         completed_stages: Etapas concluídas, em ordem de execução.
         error_type: Nome da classe da exceção, ou None no sucesso.
         error_message: Mensagem original da falha, ou None no sucesso.
@@ -174,7 +178,10 @@ def print_etl_report(report: ETLReport | ETLItemResult) -> None:
 
         if item.paths is not None:
             print(f"Origem:               {item.paths.source_file}")
-            print(f"Parquet extraído:     {item.paths.extracted_file}")
+            print(
+                f"Parquet extraído:     "
+                f"{item.paths.extracted_file or 'não materializado (modo direto)'}"
+            )
             print(f"Parquet transformado: {item.paths.transformed_file}")
 
         if item.error_type is not None:
@@ -204,6 +211,16 @@ class _Extractor(Protocol):
         service: str | None = "",
         cdr_type: str | None = "",
     ) -> str: ...
+
+    def extract_dataframe(
+        self,
+        source_file: str | list[str],
+        cdr_schema: str,
+        *,
+        operator: str | None = "",
+        service: str | None = "",
+        cdr_type: str | None = "",
+    ) -> DataFrame: ...
 
 
 @dataclass(frozen=True)
@@ -254,7 +271,12 @@ def _schema_format(schema: str) -> _Format:
     raise ValueError(f"Schema '{schema}' não encontrado nos catálogos de extração.")
 
 
-def _create_components(spark: SparkSession, formats: set[_Format]) -> _Components:
+def _create_components(
+    spark: SparkSession,
+    formats: set[_Format],
+    *,
+    materialize_intermediate: bool = True,
+) -> _Components:
     """Instancia os extratores necessários e o transformador do lote.
 
     Args:
@@ -262,6 +284,8 @@ def _create_components(spark: SparkSession, formats: set[_Format]) -> _Component
         formats: Formatos presentes nos itens válidos; apenas os extratores
             correspondentes são criados, cada um com uma cópia do catálogo
             padrão de schemas.
+        materialize_intermediate: Se False, os extratores usam a sessão
+            isolada do transformador, sem copiar overrides SQL do chamador.
 
     Returns:
         Componentes compartilhados por todos os itens do lote.
@@ -277,17 +301,23 @@ def _create_components(spark: SparkSession, formats: set[_Format]) -> _Component
     )
     from teleutils.core.transformers import CDRTransformer
 
+    transformer = CDRTransformer(spark)
+    extraction_spark = spark if materialize_intermediate else transformer.spark
     extractors: list[_Extractor] = []
     if "parquet" in formats:
-        extractors.append(CDRParquetExtractor(spark, dict(PARQUET_DEFAULT_SCHEMAS)))
+        extractors.append(
+            CDRParquetExtractor(extraction_spark, dict(PARQUET_DEFAULT_SCHEMAS))
+        )
     if "text" in formats:
-        extractors.append(CDRTextExtractor(spark, dict(TEXT_DEFAULT_SCHEMAS)))
-    return _Components(tuple(extractors), CDRTransformer(spark))
+        extractors.append(
+            CDRTextExtractor(extraction_spark, dict(TEXT_DEFAULT_SCHEMAS))
+        )
+    return _Components(tuple(extractors), transformer)
 
 
 def _resolve_operations(
     components: _Components, schema: str
-) -> tuple[_Extractor, Callable[[str, str], object]]:
+) -> tuple[_Extractor, Callable[[str | DataFrame, str], object]]:
     """Resolve o extrator e o método de transformação de um schema.
 
     Args:
@@ -377,6 +407,7 @@ def _path_conflicts(prepared: Mapping[int, _PreparedConfig]) -> dict[int, str]:
         (index, path)
         for index, config in prepared.items()
         for path in (config.paths.extracted_file, config.paths.transformed_file)
+        if path is not None
     ]
     conflicts: dict[int, str] = {}
     for position, (index, path) in enumerate(outputs):
@@ -421,11 +452,13 @@ def _execute_item(
     index: int,
     config: _PreparedConfig,
     extractor: _Extractor,
-    transform: Callable[[str, str], object],
+    transform: Callable[[str | DataFrame, str], object],
 ) -> ETLItemResult:
     """Executa a extração e a transformação de um item já resolvido.
 
-    A transformação só é iniciada se a extração terminar sem exceção. Qualquer
+    A transformação só é iniciada se a chamada ao extrator terminar sem exceção.
+    No modo direto esse retorno não certifica a execução: a etapa conjunta
+    ``pipeline`` só conclui extração e transformação após a escrita final. Qualquer
     ``Exception`` é registrada em log e convertida em ``execution_error`` na
     etapa em que ocorreu, preservando em ``completed_stages`` as etapas
     concluídas antes da falha. Intermediários e saídas parciais não são
@@ -435,28 +468,40 @@ def _execute_item(
         index: Posição do item na entrada do lote.
         config: Configuração preparada do item.
         extractor: Extrator resolvido para o schema do item.
-        transform: Método ``transform_<schema>`` resolvido, chamado com os
-            caminhos do Parquet extraído e do Parquet transformado.
+        transform: Método ``transform_<schema>`` resolvido, chamado com o
+            caminho ou DataFrame extraído e o destino do Parquet transformado.
 
     Returns:
         Resultado de sucesso (etapa ``completed``) ou de ``execution_error``.
     """
     paths = config.paths
-    stage: _Step = "extraction"
+    stage: _Stage = "extraction"
     completed: tuple[_Step, ...] = ()
     logger.info("Iniciando item %d, schema=%r.", index, paths.schema)
     try:
-        extractor.extract(
-            paths.source_file,
-            paths.extracted_file,
-            paths.schema,
-            operator=config.operator,
-            service=config.service,
-            cdr_type=config.cdr_type,
-        )
-        completed = ("extraction",)
-        stage = "transformation"
-        transform(paths.extracted_file, paths.transformed_file)
+        source: str | DataFrame
+        if paths.extracted_file is None:
+            source = extractor.extract_dataframe(
+                paths.source_file,
+                paths.schema,
+                operator=config.operator,
+                service=config.service,
+                cdr_type=config.cdr_type,
+            )
+            stage = "pipeline"
+        else:
+            extractor.extract(
+                paths.source_file,
+                paths.extracted_file,
+                paths.schema,
+                operator=config.operator,
+                service=config.service,
+                cdr_type=config.cdr_type,
+            )
+            source = paths.extracted_file
+            completed = ("extraction",)
+            stage = "transformation"
+        transform(source, paths.transformed_file)
     except Exception as error:
         logger.exception(
             "Falha no item %d, schema=%r, etapa=%s.", index, paths.schema, stage
@@ -481,6 +526,7 @@ def run_etl(
     spark: SparkSession,
     base_folder: str | None = None,
     week_dir: str | None = None,
+    materialize_intermediate: bool = True,
 ) -> ETLReport:
     """Executa extração e transformação sequenciais, continuando após falhas.
 
@@ -495,6 +541,9 @@ def run_etl(
             Deve ser informada junto com ``week_dir``.
         week_dir: Pasta da semana opcional, concatenada entre ``base_folder``
             e a ``source_folder`` da configuração.
+        materialize_intermediate: Se False, passa o DataFrame diretamente,
+            usando a sessão isolada NTZ do transformador também na extração.
+            Overrides SQL de runtime do chamador não são copiados.
 
     Returns:
         Relatório com um resultado por item na ordem original. Falhas de
@@ -516,6 +565,7 @@ def run_etl(
         dados ausentes/corrompidos. Intermediários e saídas parciais não
         são removidos em caso de falha.
     """
+    _validate_materialize_intermediate(materialize_intermediate)
     if not isinstance(configs, Sequence) or isinstance(configs, (str, bytes, Mapping)):
         logger.error("configs deve ser uma sequência de configurações.")
         raise TypeError("configs deve ser uma sequência de configurações.")
@@ -552,7 +602,9 @@ def run_etl(
                     item_config["output_file_prefix"] = (
                         f"{week_dir.lower()}_{output_file_prefix}"
                     )
-            prepared[index] = _prepare_config(item_config)
+            prepared[index] = _prepare_config(
+                item_config, materialize_intermediate=materialize_intermediate
+            )
         except (TypeError, ValueError) as error:
             schema = (
                 raw_config.get("schema") if isinstance(raw_config, Mapping) else None
@@ -588,7 +640,9 @@ def run_etl(
             del prepared[index]
     if prepared:
         try:
-            components = _create_components(spark, formats)
+            components = _create_components(
+                spark, formats, materialize_intermediate=materialize_intermediate
+            )
         except Exception as error:
             logger.exception("Falha na inicialização dos componentes ETL.")
             for index, config in prepared.items():
@@ -603,7 +657,9 @@ def run_etl(
         else:
             # Todas as operações são resolvidas antes da primeira execução;
             # assim, uma falha de resolução não ocorre após escritas já feitas.
-            operations: dict[int, tuple[_Extractor, Callable[[str, str], object]]] = {}
+            operations: dict[
+                int, tuple[_Extractor, Callable[[str | DataFrame, str], object]]
+            ] = {}
             for index, config in prepared.items():
                 try:
                     operations[index] = _resolve_operations(
@@ -641,6 +697,7 @@ def run_etl_item(
     spark: SparkSession,
     base_folder: str | None = None,
     week_dir: str | None = None,
+    materialize_intermediate: bool = True,
 ) -> ETLItemResult:
     """Executa um único item usando o mesmo contrato e tratamento do lote.
 
@@ -651,6 +708,9 @@ def run_etl_item(
             informada junto com ``week_dir``.
         week_dir: Pasta da semana opcional, entre ``base_folder`` e a origem
             configurada.
+        materialize_intermediate: Mantém o Parquet intermediário por padrão.
+            Se False, extracted_folder é opcional e a sessão compartilhada
+            compatível é administrada internamente.
 
     Returns:
         Resultado com index=0. Falhas do item são registradas e retornadas,
@@ -662,5 +722,9 @@ def run_etl_item(
             se algum deles for vazio.
     """
     return run_etl(
-        (config,), spark=spark, base_folder=base_folder, week_dir=week_dir
+        (config,),
+        spark=spark,
+        base_folder=base_folder,
+        week_dir=week_dir,
+        materialize_intermediate=materialize_intermediate,
     ).items[0]

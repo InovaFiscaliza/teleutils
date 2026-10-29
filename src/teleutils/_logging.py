@@ -3,7 +3,10 @@ from __future__ import annotations
 import logging
 from functools import wraps
 from time import perf_counter
-from typing import Any, Callable, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Callable, TypeVar, cast
+
+if TYPE_CHECKING:
+    from pyspark.sql import DataFrame
 
 # Convenção para bibliotecas: NullHandler no pacote raiz.
 # Evita o aviso "No handlers could be found" quando o consumidor
@@ -15,7 +18,7 @@ logging.getLogger("teleutils").addHandler(logging.NullHandler())
 Method = TypeVar("Method", bound=Callable[..., Any])
 
 
-def format_source_file_for_log(source_file: str | list[str]) -> str:
+def format_source_file_for_log(source_file: str | list[str] | DataFrame) -> str:
     """Descreve a entrada para log, sem validar ou modificar os caminhos.
 
     Listas são resumidas pelo primeiro elemento e pela quantidade de caminhos.
@@ -27,7 +30,10 @@ def format_source_file_for_log(source_file: str | list[str]) -> str:
         first_path = repr(source_file[0]) if source_file else "[]"
         label = "caminho" if count == 1 else "caminhos"
         return f"{first_path} ({count} {label})"
-    return repr(source_file)
+    if isinstance(source_file, str):
+        return repr(source_file)
+    # Não importar Spark nem inspecionar o plano ao descrever uma entrada.
+    return f"<{type(source_file).__name__}>"
 
 
 def log_operation(method: Method) -> Method:
@@ -41,7 +47,7 @@ def log_operation(method: Method) -> Method:
 
     @wraps(method)
     def wrapper(
-        self: Any, source_file: str | list[str], *args: Any, **kwargs: Any
+        self: Any, source_file: str | list[str] | DataFrame, *args: Any, **kwargs: Any
     ) -> Any:
         source_file_log = format_source_file_for_log(source_file)
         logger = logging.getLogger(method.__module__)
@@ -58,8 +64,13 @@ def log_operation(method: Method) -> Method:
                 perf_counter() - started_at,
             )
             raise
+        success_message = (
+            "Plano [%s] preparado, sem persistência: %s (preparação/validação: %.3f s)"
+            if method.__name__ == "extract_dataframe"
+            else "Operação [%s] concluída com sucesso: %s (duração: %.3f s)"
+        )
         logger.info(
-            "Operação [%s] concluída com sucesso: %s (duração: %.3f s)",
+            success_message,
             operation,
             source_file_log,
             perf_counter() - started_at,

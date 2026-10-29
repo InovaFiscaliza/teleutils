@@ -142,70 +142,97 @@ Catálogos de schemas padrão. As chaves ativas são:
 
 ## `teleutils.core.extractors`
 
-Os extratores recebem uma `SparkSession` e escrevem sempre em modo `overwrite`.
-Todos retornam a string do caminho de destino, e não um DataFrame. Para derivar
-corretamente os metadados, cada arquivo de entrada deve estar em uma hierarquia
-cujo final seja `prestadora/tipo_cdr/arquivo`: os três últimos componentes de
-`input_file_name()` alimentam, nessa ordem, `prestadora`, `tipo_cdr` e
-`arquivo_origem`.
+Os extratores recebem uma `SparkSession`. `extract` grava com `overwrite` e
+retorna o caminho; `extract_dataframe` retorna o DataFrame sem essa escrita.
+Os argumentos `operator`, `service` e `cdr_type` prevalecem sobre a inferência
+da hierarquia `prestadora/servico/tipo_cdr/arquivo`. A coluna `_tipo_cdr`, quando
+presente, prevalece inclusive quando nula.
 
-### `CDRParquetExtractor(spark, schemas=None)`
+### `CDRParquetExtractor(spark, schemas=PARQUET_DEFAULT_SCHEMAS)`
 
 Extrai CDRs de Parquet.
 
 - `spark: SparkSession`: sessão usada para leitura, projeção e escrita;
-- `schemas: dict[str, CDRParquetSchema] | None`: catálogo opcional que substitui
-  integralmente `PARQUET_DEFAULT_SCHEMAS` na instância. Para continuar usando
-  os métodos específicos, o catálogo fornecido deve conter as respectivas
-  chaves esperadas.
+- `schemas: dict[str, CDRParquetSchema]`: catálogo que substitui os contratos
+  padrão quando fornecido; `cdr_schema` seleciona uma chave desse catálogo.
 
 | Método | Entrada | Comportamento e retorno |
 | :-- | :-- | :-- |
-| `extract_cdr(source_file: str, target_file: str, schema: CDRParquetSchema, unique: bool = False) -> str` | Caminho Parquet; a implementação também aceita uma lista de caminhos; schema `CDRParquetSchema` | Lê com `mergeSchema=true`, seleciona/renomeia campos, inclui metadados do caminho e grava o intermediário. `unique=True` executa `dropDuplicates()`. Retorna `target_file`. |
-| `extract_cdr_ericsson(source_file, target_file)` | Parquet Ericsson | Usa o schema `ericsson`; retorna `target_file`. |
-| `extract_cdr_lte_huawei_tim(source_file, target_file)` | Parquet LTE Huawei TIM | Usa `lte_huawei_tim` e remove duplicatas; retorna `target_file`. |
-| `extract_cdr_lte_ericsson_vivo(source_file, target_file)` | Parquet LTE Ericsson Vivo | Usa `lte_ericsson_vivo`; retorna `target_file`. |
-| `extract_cdr_nokia(source_file, target_file)` | Parquet Nokia | Usa `nokia`; retorna `target_file`. |
+| `extract(source_file, target_file, cdr_schema, unique=False, *, operator="", service="", cdr_type="") -> str` | Caminho Parquet ou lista não vazia de caminhos | Delega a `extract_dataframe`, grava com overwrite e retorna `target_file`. |
+| `extract_dataframe(source_file, cdr_schema, unique=False, *, operator="", service="", cdr_type="") -> DataFrame` | Mesma origem e chave do catálogo | Lê com `mergeSchema=true` e `ignoreCorruptFiles=true`, projeta campos e metadados, aplica deduplicação opcional e retorna o DataFrame sem escrita. |
 
 Quando uma coluna declarada no schema não existe no Parquet, o extrator a
 representa como literal nulo tipado como string. Os metadados `prestadora`,
-`tipo_cdr` e `arquivo_origem` são derivados de `input_file_name()`.
+`servico`, `tipo_cdr`, `esquema` e `arquivo_origem` seguem o contrato de
+metadados compartilhado. `unique=True` considera também os metadados e ocorre
+antes da remoção de `_tipo_cdr`.
 
-### `CDRTextExtractor(spark, schemas=None)`
+### `CDRTextExtractor(spark, schemas=TEXT_DEFAULT_SCHEMAS)`
 
 Extrai CDRs de arquivos CSV/texto.
 
 - `spark: SparkSession`: sessão usada para leitura, seleção e escrita;
-- `schemas: dict[str, CDRTextSchema] | None`: catálogo opcional que substitui
-  integralmente `TEXT_DEFAULT_SCHEMAS` na instância. O método específico requer
-  a chave `algar_huawei`.
+- `schemas: dict[str, CDRTextSchema]`: catálogo de contratos, selecionados
+  pela chave `cdr_schema`.
 
 | Método | Entrada | Comportamento e retorno |
 | :-- | :-- | :-- |
-| `extract_cdr(source_file: str, target_file: str, schema: CDRTextSchema) -> str` | CSV/texto e `CDRTextSchema` | Lê conforme o schema, seleciona por índice, adiciona metadados e grava o intermediário. Retorna `target_file`. Pode levantar `ValueError` se o arquivo não possuir o maior índice configurado. |
-| `extract_cdr_algar_huawei(source_file, target_file)` | CSV Algar Huawei | Usa o schema `algar_huawei`; retorna `target_file`. |
+| `extract(source_file, target_file, cdr_schema, *, operator="", service="", cdr_type="") -> str` | Caminho CSV/texto ou lista não vazia de caminhos | Delega a `extract_dataframe`, grava com overwrite e retorna `target_file`. |
+| `extract_dataframe(source_file, cdr_schema, *, operator="", service="", cdr_type="") -> DataFrame` | Mesma origem e chave do catálogo | Lê CSV ou RDD, seleciona campos ou recorta largura fixa, adiciona metadados e aplica `lines_to_keep`, sem escrita intermediária. |
 
-No fluxo textual, `arquivo_origem` passa por `url_decode`. Se o schema definir
-`column_to_filter`, registros com o valor configurado são removidos.
+`arquivo_origem` é decodificado preservando sinais de mais literais. O filtro
+`lines_to_keep` mantém os registros que atendem à condição do contrato.
+
+Em ambos os extratores, `extract_dataframe` mantém as validações existentes,
+inclusive a ação para verificar metadados inferidos. Seu retorno comprova
+construção do plano e validações antecipadas, não execução de todos os dados.
+A origem permanece necessária até a ação final. Não há cache automático.
+O método Parquet `extract` preserva a supressão temporária de loggers Spark
+durante sua execução; `extract_dataframe` não suprime avisos da leitura futura.
 
 ## `teleutils.core.transformers`
 
 ### `CDRTransformer(spark)`
 
-Transforma um Parquet intermediário no contrato final do projeto. Cada método
-lê `source_file`, aplica regras do layout, escreve `target_file` em Parquet com
+Transforma um Parquet intermediário ou DataFrame extraído no contrato final.
+Cada método específico aceita `source_file: str | DataFrame`, aplica regras do
+layout, escreve `target_file` em Parquet com
 `overwrite` e particionamento por `no_tipo_chamada`, e retorna `target_file`.
 O construtor recebe uma `SparkSession`, cria uma nova sessão com o mesmo
 `SparkContext` por meio de `newSession()` e configura
 `spark.sql.timestampType = TIMESTAMP_NTZ` nessa nova sessão.
 
+Para entrada DataFrame, é exigida a identidade com `transformer.spark`.
+Compartilhar o SparkContext ou ter NTZ configurado em outra sessão não basta.
+Use `CDRTextExtractor(transformer.spark)` ou
+`CDRParquetExtractor(transformer.spark)` e depois `extract_dataframe`.
+Não há migração via RDD, coleta, view ou arquivo temporário.
+
+O tipo configurado é validado na entrada e antes da escrita. Configuração
+incompatível gera `ValueError`, sem correção silenciosa. A sessão do chamador
+não é modificada e seus overrides SQL de runtime não são copiados para a filha.
+Não altere a sessão compartilhada durante o pipeline; a biblioteca não a encerra.
+Essa garantia cobre o plano construído nessa sessão, não corrige datas que
+já tenham sido interpretadas incorretamente antes da extração.
+
 | Método | Layout e comportamento específico |
 | :-- | :-- |
-| `transform_cdr_ericsson(source_file: str, target_file: str) -> str` | Converte duração `HH:mm:ss` em segundos e compõe célula, IMSI e IMEI a partir de componentes. |
-| `transform_cdr_lte_huawei_tim(source_file: str, target_file: str) -> str` | Trata registros ATS/IBCF, extrai dados JSON/SIP e atribui célula, IMEI e IMSI por papel de chamada. |
-| `transform_cdr_lte_ericsson_vivo(source_file: str, target_file: str) -> str` | Separa número e autenticação, mapeia códigos, remove hífens de IMEI e decodifica células hexadecimais. |
-| `transform_cdr_nokia(source_file: str, target_file: str) -> str` | Consolida duração e datas, aplica regras UCA/FORW, imputa MCC/MNC de células e agrupa status. |
-| `transform_cdr_algar_huawei(source_file: str, target_file: str) -> str` | Combina campos temporais do CSV e mapeia códigos de tipo e status. |
+| `transform_smp_ericsson_gsm` | Ericsson GSM; também recebe `output_format="default"`. |
+| `transform_smp_nokia_gsm` | Nokia GSM. |
+| `transform_smp_huawei_volte_tim` | Huawei VoLTE TIM. |
+| `transform_smp_ericsson_volte_vivo` | Ericsson VoLTE Vivo. |
+| `transform_stfc_huawei_ngn`, `transform_stfc_huawei_ngn_tim` | Huawei NGN e variante TIM. |
+| `transform_stfc_italtel_ngn_tim` | Italtel NGN TIM. |
+| `transform_stfc_fcdr_vivo` | FCDR Vivo. |
+| `transform_stfc_tropico_oi`, `transform_stfc_7n_oi` | Trópico e 7N Oi. |
+| `transform_stfc_axe_claro`, `transform_stfc_pcl_claro` | AXE e PCL Claro. |
+| `transform_stfc_tropico_claro` | Trópico Claro, incluindo os aliases do catálogo. |
+| `transform_stfc_pit_claro`, `transform_stfc_ss8bf_claro` | PIT e SS8BF Claro. |
+| `transform_stfc_sigma_claro` | Sigma Claro. |
+
+Esses métodos mantêm `target_file: str` e retorno `str`. O despachante genérico
+`transform` ainda procura funções globais; utilize os métodos de layout ou o
+orquestrador, que resolve os métodos da instância.
 
 Todos os métodos aplicam o pipeline comum interno antes da escrita: completam
 colunas ausentes do contrato, normalizam duração/datas, normalizam números,
@@ -283,7 +310,7 @@ files = list_files(
 #  "semana110_algar_smp_nokia_transformed.parquet"]
 ```
 
-### `get_config(config: Mapping[str, object]) -> ConfigPaths`
+### `get_config(config, *, materialize_intermediate=True) -> ConfigPaths`
 
 Valida um mapping sem modificá-lo e constrói caminhos S3A ou locais.
 
@@ -293,12 +320,14 @@ Valida um mapping sem modificá-lo e constrói caminhos S3A ou locais.
 | `source_folder` | String obrigatória com a pasta de origem, conforme storage_type. |
 | `pattern` | String obrigatória com padrão relativo, incluindo glob. Barras iniciais são removidas. |
 | `schema` | String obrigatória; chave preservada sem normalização. |
-| `extracted_folder` | String obrigatória com a pasta intermediária, conforme storage_type. |
+| `extracted_folder` | Pasta intermediária; obrigatória no padrão, opcional no modo direto. Quando informada, é validada mesmo sem ser usada. |
 | `transformed_folder` | String obrigatória com a pasta final, conforme storage_type. |
 | `output_file_prefix` | String obrigatória; prefixo sem separadores ou curingas. |
 | `operator`, `service`, `cdr_type` | Opcionais: strings ou `None`; vazio/`None` preservam a inferência dos extratores. |
 
 Não há aliases de configuração: qualquer chave desconhecida é rejeitada.
+`materialize_intermediate` é argumento da função, não chave do mapping.
+Exige `bool`, sem coerção de strings ou inteiros.
 Os metadados não são normalizados; strings compostas somente por espaços são
 inválidas. `_tipo_cdr` presente no conteúdo mantém a precedência implementada
 pelos extratores.
@@ -333,7 +362,8 @@ permitidos no padrão, não nas pastas nem no prefixo.
 
 - `schema`;
 - `source_file`: pasta de origem e padrão, com `s3a://` ou `file:///`;
-- `extracted_file`: pasta intermediária e `<prefix>_extracted.parquet`;
+- `extracted_file`: pasta intermediária e `<prefix>_extracted.parquet`, ou
+  `None` quando `materialize_intermediate=False`;
 - `transformed_file`: pasta final e `<prefix>_transformed.parquet`.
 
 Os destinos representam diretórios/datasets Parquet. A validação não consulta
@@ -344,7 +374,7 @@ de caminhos são verificados por `run_etl`, não por `get_config`.
 Tipos inválidos levantam `TypeError`; campos ausentes, desconhecidos, vazios
 ou com valores inválidos levantam `ValueError`.
 
-### `run_etl(configs, *, spark, base_folder=None, week_dir=None) -> ETLReport`
+### `run_etl(configs, *, spark, base_folder=None, week_dir=None, materialize_intermediate=True) -> ETLReport`
 
 Recebe uma sequência finita de mappings e uma `SparkSession` existente.
 Strings, mappings no lugar da sequência e iteradores são rejeitados com
@@ -354,6 +384,17 @@ sem instanciar componentes.
 `run_etl` não verifica a unicidade global de prefixos em listas fornecidas
 diretamente. Para arquivos JSON, `load_config` faz essa verificação durante
 a leitura. Conflitos entre caminhos de destino continuam sendo rejeitados.
+
+O padrão mantém escrita e leitura do intermediário. Com
+`materialize_intermediate=False`, o orquestrador passa o DataFrame retornado
+por `extract_dataframe` ao transformador e administra a sessão compatível.
+O parâmetro vale para todo o lote e exige `bool`.
+
+No modo direto, os extratores são criados na sessão isolada NTZ do transformador.
+No padrão, continuam usando a sessão recebida do chamador. Portanto, overrides
+SQL de runtime presentes apenas no chamador não governam a extração direta.
+Essa diferença é intencional; não se garante equivalência irrestrita para
+schemas customizados que dependam desses overrides.
 
 `base_folder` e `week_dir` são opcionais, mas devem ser informados juntos.
 Quando ambos são fornecidos, cada `source_folder` configurado é composto como
@@ -381,6 +422,8 @@ descendente local. Não resolve globs, links simbólicos ou montagens.
 Todos os participantes de um conflito são rejeitados; itens independentes
 continuam. Não existe encadeamento de saída de um item como entrada de outro.
 Destinos preexistentes fora do lote não são consultados: permanece `overwrite`.
+No modo direto, somente o destino final participa da detecção de conflitos e
+da escrita. Intermediários antigos não são lidos, sobrescritos nem removidos.
 Cada item pode escolher seu armazenamento, mas nenhum item pode ser híbrido.
 Não há alteração na seleção de extratores e transformadores por armazenamento.
 
@@ -396,12 +439,13 @@ globais; utiliza um logger de módulo. Os decoradores dos componentes continuam
 registrando suas operações e, quando aplicável, ajustando temporariamente
 loggers Spark conforme o comportamento preexistente.
 
-### `run_etl_item(config, *, spark, base_folder=None, week_dir=None) -> ETLItemResult`
+### `run_etl_item(config, *, spark, base_folder=None, week_dir=None, materialize_intermediate=True) -> ETLItemResult`
 
 Executa um lote de um item e retorna seu resultado, com `index=0`. Possui as
 mesmas validações, resultados e política de erros de `run_etl`.
 Os argumentos opcionais `base_folder` e `week_dir` são repassados a `run_etl`
 e devem ser informados juntos; eles prefixam a origem sem alterar `config`.
+`materialize_intermediate` é repassado com o mesmo contrato de `run_etl`.
 
 ### Resultados imutáveis
 
@@ -413,7 +457,7 @@ e devem ser informados juntos; eles prefixam a origem sem alterar `config`.
 | `schema` | Chave informada, quando identificável; caso contrário `None`. |
 | `paths` | `ConfigPaths` planejado ou `None` se a configuração não foi resolvida. |
 | `status` | `success`, `validation_error` ou `execution_error`. |
-| `stage` | `configuration`, `paths`, `resolution`, `initialization`, `extraction`, `transformation` ou `completed`. |
+| `stage` | `configuration`, `paths`, `resolution`, `initialization`, `extraction`, `transformation`, `pipeline` ou `completed`. |
 | `completed_stages` | Tupla das etapas concluídas: vazia, `("extraction",)` ou `("extraction", "transformation")`. |
 | `error_type` | Nome da classe da exceção, ou `None` no sucesso. |
 | `error_message` | Mensagem da exceção, ou `None` no sucesso. |
@@ -431,8 +475,13 @@ Falhas de inicialização ou das etapas têm status `execution_error`, mesmo
 quando a exceção original é `ValueError`. Falha de inicialização compartilhada
 é reportada para todos os itens ainda válidos.
 
-Uma extração malsucedida impede a transformação daquele item. Falha na
-transformação preserva o registro de extração concluída, mas não é sucesso.
+Uma extração malsucedida impede a transformação daquele item. No modo
+materializado, falha na transformação preserva o registro de extração concluída,
+mas não é sucesso. No modo direto, `completed_stages` permanece vazio até a
+escrita final concluir; falhas após obter o DataFrame usam `stage="pipeline"`,
+pois podem ter origem na extração lazy. No sucesso, ambos os modos registram
+`("extraction", "transformation")`. A impressão informa explicitamente quando
+o intermediário não foi materializado.
 `KeyboardInterrupt` e `SystemExit` propagam; não há relatório final garantido
 após interrupção do usuário.
 
@@ -451,6 +500,13 @@ podem conter dados sensíveis.
 
 O escopo é apenas extração e transformação. Não há carga, retry, paralelismo,
 CLI, retomada, rollback ou exclusão automática de saídas parciais.
+No modo direto, uma nova tentativa pode repetir a extração; não há checkpoint.
+Os logs de `extract_dataframe` medem construção/validação, não todo o trabalho
+adiado. O tempo relevante para comparar os modos termina na escrita final.
+Para benchmark A/B, use os mesmos dados, recursos e armazenamento, repita as
+medições controlando aquecimento/cache e observe bytes de I/O, tarefas,
+shuffle/spill e tempo Python. Os testes sintéticos verificam equivalência e
+ausência de I/O intermediário; não certificam ganho percentual de produção.
 Não se usa existência de arquivo como prova de conclusão. Os componentes
 mantêm suas políticas de tolerância a colunas ausentes/arquivos corrompidos;
 portanto, sucesso técnico não certifica completude ou qualidade dos CDRs.
