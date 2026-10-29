@@ -33,6 +33,30 @@ def test_paths_and_input_are_preserved(config):
     assert config == original
 
 
+@pytest.mark.parametrize("include_folder", [True, False])
+def test_direct_config_has_no_intermediate_path(config, include_folder):
+    if not include_folder:
+        del config["extracted_folder"]
+    original = config.copy()
+    paths = get_config(config, materialize_intermediate=False)
+    assert paths.extracted_file is None
+    assert paths.transformed_file.endswith("algar_huawei_ngn_transformed.parquet")
+    assert config == original
+
+
+@pytest.mark.parametrize("folder", [None, 0, "", "bucket/../extracted"])
+def test_direct_config_validates_supplied_intermediate_folder(config, folder):
+    config["extracted_folder"] = folder
+    with pytest.raises((TypeError, ValueError)):
+        get_config(config, materialize_intermediate=False)
+
+
+@pytest.mark.parametrize("invalid", [None, "false", 0, 1, [], {}])
+def test_config_requires_boolean_materialization_mode(config, invalid):
+    with pytest.raises(TypeError, match="materialize_intermediate"):
+        get_config(config, materialize_intermediate=invalid)
+
+
 def test_unique_prefix_validation_reports_all_duplicates_and_indices():
     configs = [
         {"output_file_prefix": "a"},

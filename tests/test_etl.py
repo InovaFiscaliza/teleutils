@@ -41,6 +41,13 @@ def harness(monkeypatch):
                 raise failures["extract", schema]
             return target
 
+        def extract_dataframe(self, source, schema, **metadata):
+            events.append(("extract_dataframe", self.kind, schema, source, metadata))
+            if ("extract_dataframe", schema) in failures:
+                raise failures["extract_dataframe", schema]
+            return frame
+
+    frame = object()
     transformer = SimpleNamespace()
 
     def method(schema):
@@ -66,6 +73,7 @@ def harness(monkeypatch):
         parquet=parquet,
         text=text,
         spark=Mock(),
+        frame=frame,
     )
 
 
@@ -93,7 +101,9 @@ def test_all_catalog_schemas_select_and_resolve(harness, schema):
             "s3a://bucket/transformed/item_transformed.parquet",
         ),
     ]
-    harness.factory.assert_called_once_with(harness.spark, {kind})
+    harness.factory.assert_called_once_with(
+        harness.spark, {kind}, materialize_intermediate=True
+    )
     assert harness.spark.mock_calls == []
 
 
@@ -106,6 +116,61 @@ def test_metadata_is_forwarded_without_changes(harness):
         "service": "",
         "cdr_type": None,
     }
+
+
+def test_direct_pipeline_passes_frame_and_ignores_unused_destination(harness):
+    config = make_config()
+    config["extracted_folder"] = config["source_folder"]
+    result = run_etl_item(config, spark=harness.spark, materialize_intermediate=False)
+    assert result.status == "success"
+    assert result.paths.extracted_file is None
+    assert result.completed_stages == ("extraction", "transformation")
+    assert harness.events[0][0] == "extract_dataframe"
+    assert harness.events[1][0] == "transform"
+    assert harness.events[1][2] is harness.frame
+    harness.factory.assert_called_once_with(
+        harness.spark, {"text"}, materialize_intermediate=False
+    )
+
+
+@pytest.mark.parametrize("stage", ["extract_dataframe", "transform"])
+def test_direct_failure_never_certifies_extraction(harness, stage):
+    config = make_config()
+    del config["extracted_folder"]
+    harness.failures[stage, config["schema"]] = ValueError("dados inválidos")
+    report = run_etl(
+        [config, make_config("next", "stfc_fcdr_vivo")],
+        spark=harness.spark,
+        materialize_intermediate=False,
+    )
+    failure, success = report.items
+    assert failure.status == "execution_error"
+    assert failure.stage == (
+        "extraction" if stage == "extract_dataframe" else "pipeline"
+    )
+    assert failure.completed_stages == ()
+    assert failure.error_message == "dados inválidos"
+    assert success.status == "success"
+
+
+def test_direct_destinations_cannot_overwrite_any_source(harness):
+    first = make_config("first")
+    second = make_config("second")
+    second["source_folder"] = "bucket/transformed/first_transformed.parquet/input"
+    report = run_etl(
+        [first, second], spark=harness.spark, materialize_intermediate=False
+    )
+    assert all(item.stage == "paths" for item in report.items)
+    harness.factory.assert_not_called()
+
+
+@pytest.mark.parametrize("invalid", [None, "false", 0, 1, [], {}])
+def test_invalid_materialization_mode_fails_before_initialization(harness, invalid):
+    with pytest.raises(TypeError, match="materialize_intermediate"):
+        run_etl_item(
+            make_config(), spark=harness.spark, materialize_intermediate=invalid
+        )
+    harness.factory.assert_not_called()
 
 
 @pytest.mark.parametrize("item", [None, "config", {}, {"schema": []}])

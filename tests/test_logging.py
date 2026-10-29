@@ -89,3 +89,26 @@ def test_log_operation_preserves_method_metadata_and_signature():
     assert inspect.signature(Probe.extract) == inspect.signature(
         Probe.extract.__wrapped__  # type: ignore
     )
+
+
+def test_dataframe_description_does_not_inspect_input(caplog):
+    class DataFrame:
+        def __repr__(self):
+            raise AssertionError("O logger não deve inspecionar o plano")
+
+    frame = DataFrame()
+    with caplog.at_level(logging.INFO):
+        assert Probe().extract(frame)[0] is frame
+    assert "<DataFrame>" in caplog.text
+
+
+def test_dataframe_builder_log_does_not_certify_execution(caplog):
+    class Extractor:
+        @log_operation
+        def extract_dataframe(self, source_file):
+            return object()
+
+    with caplog.at_level(logging.INFO):
+        Extractor().extract_dataframe("input")
+    assert "preparado, sem persistência" in caplog.text
+    assert "concluída com sucesso" not in caplog.text

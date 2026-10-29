@@ -147,8 +147,9 @@ def test_rdd_reader_preserves_each_filename(spark, tmp_path, source_mode):
 
 @pytest.mark.parametrize("format_name", ["csv", "rdd", "parquet"])
 @pytest.mark.parametrize("metadata_mode", ["inferred", "explicit", "content"])
+@pytest.mark.parametrize("materialized", [True, False])
 def test_extractors_share_metadata_contract(
-    spark, tmp_path, format_name, metadata_mode, caplog
+    spark, tmp_path, format_name, metadata_mode, materialized, caplog, monkeypatch
 ):
     from teleutils.core.extractors.parquet_extractors import CDRParquetExtractor
     from teleutils.core.extractors.schemas import CDRParquetSchema, CDRTextSchema
@@ -209,8 +210,19 @@ def test_extractors_share_metadata_contract(
     if has_content_type:
         expected = (expected[0], expected[1], "aTSRecord", "custom")
     with caplog.at_level(logging.INFO):
-        assert extractor.extract(source, target, "custom", **arguments) == target
-    result = spark.read.parquet(target).first()
+        if materialized:
+            assert extractor.extract(source, target, "custom", **arguments) == target
+            frame = spark.read.parquet(target)
+        else:
+            from pyspark.sql.readwriter import DataFrameWriter
+
+            def reject_write(*args, **kwargs):
+                pytest.fail("extract_dataframe não pode gravar Parquet")
+
+            monkeypatch.setattr(DataFrameWriter, "parquet", reject_write)
+            frame = extractor.extract_dataframe(source, "custom", **arguments)
+            assert frame.sparkSession is spark
+    result = frame.first()
     assert result.payload == "hello"
     assert (
         result.prestadora,

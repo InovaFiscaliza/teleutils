@@ -22,6 +22,23 @@ def test_print_empty_report(capsys):
     )
 
 
+def test_direct_report_shows_no_intermediate_and_pipeline_failure(capsys):
+    item = ETLItemResult(
+        0,
+        "schema",
+        ConfigPaths("schema", "source", None, "target"),
+        "execution_error",
+        "pipeline",
+        error_type="RuntimeError",
+        error_message="falha durante execução",
+    )
+    print_etl_report(item)
+    output = capsys.readouterr().out
+    assert "não materializado (modo direto)" in output
+    assert "Etapa:                pipeline" in output
+    assert "Etapas concluídas:    -" in output
+
+
 def test_print_report_includes_success_and_failure_details(capsys):
     paths = ConfigPaths("schema", "s3a://bucket/input/*", "extracted", "transformed")
     report = ETLReport(

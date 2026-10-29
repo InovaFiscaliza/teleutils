@@ -59,7 +59,12 @@ def write_text(source, schema_name, values):
 
 @pytest.mark.parametrize("kind", ["text", "parquet"])
 @pytest.mark.parametrize("directory", ["input", "espaço +@#%25"])
-def test_real_pipeline_matches_direct_calls(spark, tmp_path, kind, directory):
+@pytest.mark.parametrize("materialize_intermediate", [True, False])
+def test_real_pipeline_matches_direct_calls(
+    spark, tmp_path, kind, directory, materialize_intermediate, monkeypatch
+):
+    from pyspark.sql.readwriter import DataFrameReader, DataFrameWriter
+
     from teleutils.core.transformers import CDRTransformer
 
     values = {
@@ -98,19 +103,50 @@ def test_real_pipeline_matches_direct_calls(spark, tmp_path, kind, directory):
     config = local_config(tmp_path, source, schema)
     config["pattern"] = "records.*"
     config["transformed_folder"] = str(tmp_path / ("output " + directory))
+    unused_intermediate = Path(config["extracted_folder"]) / "sample_extracted.parquet"
+    marker = unused_intermediate / "untouched.txt"
+    if not materialize_intermediate:
+        unused_intermediate.mkdir(parents=True)
+        marker.write_text("preserve")
+    writes = []
+    reads = []
+    original_write = DataFrameWriter.parquet
+    original_read = DataFrameReader.parquet
+
+    def write(writer, path, *args, **kwargs):
+        writes.append(path)
+        return original_write(writer, path, *args, **kwargs)
+
+    def read(reader, *paths, **kwargs):
+        reads.extend(paths)
+        return original_read(reader, *paths, **kwargs)
+
     original_timestamp_type = spark.conf.get("spark.sql.timestampType")
     hadoop_config = spark.sparkContext._jsc.hadoopConfiguration()
     original_fs = hadoop_config.get("fs.defaultFS")
     try:
         # Protocolo inexistente: se file:/// for perdido, falha sem acesso à rede.
         hadoop_config.set("fs.defaultFS", "unsupported://synthetic")
-        result = run_etl_item(config, spark=spark)
+        with monkeypatch.context() as io:
+            io.setattr(DataFrameWriter, "parquet", write)
+            io.setattr(DataFrameReader, "parquet", read)
+            result = run_etl_item(
+                config, spark=spark, materialize_intermediate=materialize_intermediate
+            )
     finally:
         if original_fs is None:
             hadoop_config.unset("fs.defaultFS")
         else:
             hadoop_config.set("fs.defaultFS", original_fs)
     assert result.status == "success", result.error_message
+    if materialize_intermediate:
+        assert writes == [result.paths.extracted_file, result.paths.transformed_file]
+        assert result.paths.extracted_file in reads
+    else:
+        assert writes == [result.paths.transformed_file]
+        assert result.paths.extracted_file is None
+        assert not any("sample_extracted.parquet" in path for path in reads)
+        assert marker.read_text() == "preserve"
     assert result.paths.source_file == f"file://{source.parent}/records.*"
     assert result.completed_stages == ("extraction", "transformation")
     assert spark.conf.get("spark.sql.timestampType") == original_timestamp_type
@@ -154,6 +190,38 @@ def test_factory_and_real_catalog_methods(spark):
     text_only = etl._create_components(spark, {"text"})
     assert len(text_only.extractors) == 1
     assert isinstance(text_only.extractors[0], CDRTextExtractor)
+    direct = etl._create_components(
+        spark, {"text", "parquet"}, materialize_intermediate=False
+    )
+    assert all(item.spark is direct.transformer.spark for item in direct.extractors)
+    assert direct.transformer.spark is not spark
+    assert direct.transformer.spark.sparkContext is spark.sparkContext
+
+
+def test_lazy_extraction_failure_is_reported_as_pipeline(spark, tmp_path, monkeypatch):
+    from pyspark.sql import functions as F
+
+    schema = "stfc_huawei_ngn_tim"
+    source = tmp_path / "input" / "records.csv"
+    write_text(source, schema, {"numero_origem": "11987654321"})
+    config = local_config(tmp_path, source, schema)
+    del config["extracted_folder"]
+    original = CDRTextExtractor.extract_dataframe
+
+    def invalid_frame(self, *args, **kwargs):
+        frame = original(self, *args, **kwargs)
+        return frame.withColumn(
+            "numero_origem", F.raise_error("synthetic lazy failure").cast("string")
+        )
+
+    monkeypatch.setattr(CDRTextExtractor, "extract_dataframe", invalid_frame)
+    result = run_etl_item(config, spark=spark, materialize_intermediate=False)
+    assert result.status == "execution_error"
+    assert result.stage == "pipeline"
+    assert result.completed_stages == ()
+    assert "synthetic lazy failure" in result.error_message
+    assert result.paths.extracted_file is None
+    assert spark.range(1).count() == 1
 
 
 def test_legb_regression_awaits_independent_transformer_fix(spark, tmp_path):
