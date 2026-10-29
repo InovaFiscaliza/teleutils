@@ -139,17 +139,70 @@ def test_persistent_control_filters_and_records_all_write_paths(
     assert set(second_control) == {"a'`.csv", "new.csv"}
     if mode == "merge":
         assert second_control["a'`.csv"] > first_control["a'`.csv"]
-        assert "Recarregando" in caplog.text
+        assert "Recarregando origem" not in caplog.text
+        assert "linhas não carregadas" not in caplog.text
     else:
         assert second_control["a'`.csv"] == first_control["a'`.csv"]
-        assert "Pulando" in caplog.text
+        summary_lines = [
+            line for line in caplog.text.splitlines() if "linhas não carregadas" in line
+        ]
+        assert len(summary_lines) == 1
+        assert second in summary_lines[0]
+        assert "a'`.csv" not in summary_lines[0]
         with caplog.at_level("INFO"):
+            caplog.clear()
             loader.upsert_iceberg(
                 second, target, ["nu_referencia"], mode=mode, control_table=control
             )
         assert read_control(spark, control) == second_control
         assert spark.table(target).count() == 2
-        assert "Nenhuma origem elegível" in caplog.text
+        assert (
+            sum("linhas não carregadas" in line for line in caplog.text.splitlines())
+            == 1
+        )
+        assert "Nenhuma origem elegível" not in caplog.text
+
+
+@pytest.mark.parametrize("backend", ["table", "parquet"])
+def test_many_previously_loaded_files_produce_one_summary_line(
+    spark, tmp_path, caplog, backend
+):
+    target = f"test.loads.log_{uuid4().hex}"
+    control = (
+        f"test.loads.control_{uuid4().hex}"
+        if backend == "table"
+        else (tmp_path / f"control-{uuid4().hex}.parquet").as_uri()
+    )
+    existing = [f"old-{index}.csv" for index in range(20)]
+    source = write_source(
+        spark,
+        tmp_path / f"source-{backend}",
+        [(name, str(index), "old") for index, name in enumerate(existing)]
+        + [("new.csv", "new", "new")],
+    )
+    write_control(
+        spark.createDataFrame(
+            [(name, _OLD_LOAD) for name in existing], _CONTROL_SCHEMA
+        ),
+        control,
+    )
+    try:
+        with caplog.at_level("INFO"):
+            TrinoLoader(spark).upsert_iceberg(
+                source, target, ["nu_referencia"], mode="append", control_table=control
+            )
+        summaries = [
+            line for line in caplog.text.splitlines() if "linhas não carregadas" in line
+        ]
+        assert len(summaries) == 1
+        assert source in summaries[0]
+        assert all(name not in summaries[0] for name in existing)
+        assert "Pulando origem já carregada" not in caplog.text
+        assert "old-" not in caplog.text
+    finally:
+        spark.sql(f"DROP TABLE IF EXISTS {target} PURGE")
+        if backend == "table":
+            spark.sql(f"DROP TABLE IF EXISTS {control} PURGE")
 
 
 @pytest.mark.parametrize("mode", ["merge", "insert_only"])

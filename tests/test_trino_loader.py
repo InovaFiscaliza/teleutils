@@ -331,6 +331,7 @@ def test_control_is_prepared_before_reading_source(spark, control, resolved):
         "merge",
         resolved,
         control_df,
+        "/dados/parquet",
     )
 
 

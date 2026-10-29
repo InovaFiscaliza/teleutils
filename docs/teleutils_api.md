@@ -109,8 +109,10 @@ O fluxo com controle habilitado é:
    sondagens, interrompem a chamada antes da carga. Somente então ler o Parquet
    de origem e validar colunas, chaves e nomes de origem.
 3. Em `append`/`insert_only`, excluir todas as linhas cujos nomes de origem já
-   estejam no controle, com log por origem pulada. Em `merge`, mantê-las e
-   registrar recarga. Nomes são comparados exatamente, sem normalização.
+estejam no controle. Ao final do `source_file`, emitir no máximo uma linha
+agregada informando que houve linhas não carregadas e quantas origens foram
+ignoradas, sem listar nomes de arquivos. Em `merge`, mantê-las e não gerar
+logs por arquivo. Nomes são comparados exatamente, sem normalização.
 4. Se não houver origens elegíveis, retornar com log sem carregar dados nem
    registrar novas origens. O controle vazio e os metadados das sondagens podem
    permanecer. Isso inclui entradas vazias.

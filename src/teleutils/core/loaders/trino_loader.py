@@ -312,7 +312,7 @@ class TrinoLoader:
 
         if resolved_control is not None and control is not None:
             self._load_with_control(
-                df, quoted_table, keys, mode, resolved_control, control
+                df, quoted_table, keys, mode, resolved_control, control, source_file
             )
         else:
             self._write_data(df, quoted_table, keys, mode)
@@ -485,27 +485,23 @@ class TrinoLoader:
         mode: Literal["merge", "insert_only", "append"],
         control_table: str,
         control: DataFrame,
+        source_file: str,
     ) -> None:
         _validate_origins(df, "Parquet")
         origins = df.select("no_arquivo_origem").distinct()
         known = control.select("no_arquivo_origem")
-        for row in origins.join(
-            known, "no_arquivo_origem", "left_semi"
-        ).toLocalIterator():
-            if mode == "merge":
-                logger.info(
-                    "Recarregando origem já carregada: %r", row.no_arquivo_origem
-                )
-            else:
-                logger.info("Pulando origem já carregada: %r", row.no_arquivo_origem)
+        skipped_count = 0
         if mode != "merge":
+            skipped_count = origins.join(
+                known, "no_arquivo_origem", "left_semi"
+            ).count()
             origins = origins.join(known, "no_arquivo_origem", "left_anti")
 
         # Materializa os nomes antes de deduplicar dados ou modificar o controle.
         origins = origins.persist()
         try:
             if origins.count() == 0:
-                logger.info("Nenhuma origem elegível para carga em %s.", target_table)
+                self._log_unloaded_lines(source_file, skipped_count)
                 return
             eligible = df.join(origins, "no_arquivo_origem", "left_semi")
             self._write_data(eligible, target_table, keys, mode)
@@ -520,8 +516,19 @@ class TrinoLoader:
                     control_table,
                 )
                 raise
+            self._log_unloaded_lines(source_file, skipped_count)
         finally:
             origins.unpersist()
+
+    @staticmethod
+    def _log_unloaded_lines(source_file: str, skipped_count: int) -> None:
+        if skipped_count:
+            logger.info(
+                "O source_file %r teve linhas não carregadas porque %d origem(ns) "
+                "já constavam no controle.",
+                source_file,
+                skipped_count,
+            )
 
     def _record_control(
         self,
