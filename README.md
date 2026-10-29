@@ -29,6 +29,7 @@ comum.
 - [Pré-processamento em Python](#pré-processamento-em-python)
 - [Processamento de CDRs com Spark](#processamento-de-cdrs-com-spark)
 - [Orquestração de lotes no Jupyter](#orquestração-de-lotes-no-jupyter)
+- [Carga Iceberg com controle de arquivos](#carga-iceberg-com-controle-de-arquivos)
 
 </details>
 

@@ -6,8 +6,8 @@ O pacote `teleutils` oferece utilitários de pré-processamento e um pipeline
 Spark para extrair CDRs, gravar um Parquet intermediário e transformá-lo em um
 contrato analítico padronizado. A API pública é exposta pelos subpacotes
 `teleutils.preprocessing`, `teleutils.core.extractors`,
-`teleutils.core.extractors.schemas`, `teleutils.core.transformers` e
-`teleutils.core.orchestrators`.
+`teleutils.core.extractors.schemas`, `teleutils.core.transformers`,
+`teleutils.core.loaders` e `teleutils.core.orchestrators`.
 
 O pacote raiz não reexporta essas interfaces. Importe-as dos subpacotes
 indicados.
@@ -24,6 +24,181 @@ Spark funcional. Na implementação atual, importe
 `teleutils.core.transformers` somente depois de criar uma `SparkSession`: a
 configuração carregada pelo módulo constrói uma expressão Spark durante o
 import e requer um `SparkContext` ativo.
+
+## `teleutils.core.loaders`
+
+### `TrinoLoader(spark)`
+
+Recebe uma sessão Spark configurada com extensões Iceberg e catálogo acessível
+também pelo Trino. A escrita e as consultas são feitas pelo **Spark**, não por
+conexão direta ao Trino. O loader não configura nem encerra a sessão.
+
+```python
+def upsert_iceberg(
+    self,
+    source_file,
+    target_table,
+    primary_keys=PRIMARY_KEY_COLUMNS,
+    *,
+    mode="merge",
+    control_table=None,
+) -> None:
+    ...
+```
+
+- `source_file`: arquivo ou diretório Parquet com todas as colunas finais de
+  `TARGET_SCHEMA`; colunas adicionais são mantidas.
+- `target_table`: nome com um a três componentes separados por pontos, sem
+  delimitadores SQL. Componentes vazios são rejeitados; crases são escapadas.
+- `primary_keys`: sequência não vazia de colunas únicas, usada para deduplicar
+  a entrada e comparar chaves com igualdade null-safe. Ignorada em `append`.
+- `mode`: `merge` atualiza correspondências e insere chaves novas;
+  `insert_only` insere apenas chaves novas; `append` preserva todas as linhas.
+  Se o destino não existir, cria uma tabela Iceberg com o schema de entrada.
+- Retorno: `None`. Não retorna DataFrame ou contagens.
+
+#### Controle opcional de arquivos
+
+| Configuração | Uso |
+|---|---|
+| `control_table=None` | Mantém o comportamento anterior, sem controle |
+| `control_table="catalogo.schema.controle"` | Consulta e persiste uma tabela Iceberg nomeada |
+| `control_table="s3a://bucket/controle"` | Dataset Parquet no armazenamento S3A |
+| `control_table="file:///dados/controle"` | Dataset Parquet no filesystem local acessível pelo Spark |
+
+`control_table` aceita somente string ou `None`. A inferência usa os prefixos
+exatos `s3a://` e `file://`; demais strings devem ser nomes de tabela válidos.
+DataFrame é o formato interno da leitura do Parquet, não um argumento aceito.
+O Parquet de controle é um diretório/dataset, mesmo com sufixo `.parquet`.
+Use URI absoluta; `/dados/controle` não é convertido automaticamente em URI.
+URIs podem usar percent-encoding para caracteres literais, como espaços.
+
+Tipos inválidos geram `TypeError`; nomes/URIs inválidos geram `ValueError`.
+Raízes, wildcard, traversal e sobreposição com origem ou localização física
+do destino existente são rejeitados. Não compartilhar diretórios de controle e
+dados. A verificação lexical/Hadoop e a resolução local de links não detectam
+todos os aliases entre montagens, endpoints ou catálogos.
+
+**Migração:** os argumentos `control_table_name` e `control_table_path` foram
+removidos e causam erro de assinatura. Substitua-os por uma única string em
+`control_table`; o recebimento de DataFrame inicial também foi removido.
+
+O controle deve conter **exatamente duas colunas**, com os seguintes tipos:
+
+| Coluna | Spark | Conteúdo |
+|---|---|---|
+| `no_arquivo_origem` | `StringType` | Nome da origem presente nas linhas do Parquet |
+| `dh_carga` | `TimestampNTZType` | Instante da última carga bem-sucedida, UTC por convenção, sem fuso armazenado |
+
+No Iceberg, o tipo temporal é timestamp sem fuso, consultável pelo Trino como
+timestamp sem fuso. A precisão é de microssegundos. O loader não altera o fuso
+da sessão Spark. O controle é validado: nomes e timestamps não podem ser nulos,
+nomes não podem ser vazios/só espaços e deve haver uma única linha por origem.
+Não há conversão ou migração silenciosa de controles incompatíveis.
+
+O fluxo com controle habilitado é:
+
+1. **Antes de ler a origem**, verificar o controle. Se ausente, criar dataset
+   Parquet ou tabela Iceberg vazios com schema explícito. Se presente, ler e
+   validar o schema e conteúdo. Diretórios existentes sem schema ou arquivos
+   isolados são rejeitados, não sobrescritos para inicialização.
+2. Testar gravação: em Parquet, escrever/remover datasets temporários no prefixo
+   do controle e em área irmã; em tabela, executar append vazio e MERGE vazio
+   na própria tabela. Não inserir linhas fictícias nem mudar timestamps.
+   Metadados/snapshots Iceberg podem mudar. Falhas, inclusive no cleanup das
+   sondagens, interrompem a chamada antes da carga. Somente então ler o Parquet
+   de origem e validar colunas, chaves e nomes de origem.
+3. Em `append`/`insert_only`, excluir todas as linhas cujos nomes de origem já
+   estejam no controle, com log por origem pulada. Em `merge`, mantê-las e
+   registrar recarga. Nomes são comparados exatamente, sem normalização.
+4. Se não houver origens elegíveis, retornar com log sem carregar dados nem
+   registrar novas origens. O controle vazio e os metadados das sondagens podem
+   permanecer. Isso inclui entradas vazias.
+5. Carregar as linhas elegíveis e só então registrar o controle. Cada origem
+   recebe uma única linha; em recargas `merge`, `dh_carga` é atualizado. Uma
+   chamada usa o mesmo timestamp para todas as origens registradas.
+
+Um diretório pode conter várias origens e uma origem pode estar distribuída em
+vários arquivos físicos. A unidade do controle é o valor de `no_arquivo_origem`,
+não o caminho físico. Registra-se toda origem consumida antes da deduplicação,
+mesmo se suas linhas forem eliminadas por chaves coincidentes ou `insert_only`
+não inserir nenhuma chave nova. As chaves de negócio não são alteradas.
+
+Exemplo de controle Parquet:
+
+```python
+from teleutils.core.loaders import TrinoLoader
+
+TrinoLoader(spark).upsert_iceberg(
+    "/dados/cdr_padronizado.parquet",
+    "catalogo.schema.chamadas",
+    mode="append",
+    control_table="s3a://bucket/controle/chamadas.parquet",
+)
+```
+
+O controle é relido do armazenamento em cada chamada. Para tabelas Iceberg,
+atualiza-se por MERGE. Para Parquet, monta-se o controle completo atualizado,
+materializa-se em dataset temporário irmão e então lê-se esse temporário para
+sobrescrever o caminho original. Isso evita um plano lazy que tente ler arquivos
+removidos pelo próprio overwrite. Não há coleta do controle inteiro no driver,
+backup do controle anterior ou publicação atômica por rename.
+
+`append_to_iceberg(source_file, target_table, *, control_table=None)` encaminha a opção
+para `upsert_iceberg(..., mode="append")`.
+
+#### Pré-requisitos e consistência
+
+- Catálogo, namespace, extensões Iceberg, acesso ao armazenamento e handlers de
+  logging são responsabilidade do chamador.
+- S3A usa o filesystem Hadoop e as credenciais da sessão Spark. As permissões
+  devem permitir leitura, escrita e remoção no controle e na área temporária
+  irmã. Em `file://`, os caminhos precisam estar disponíveis nos executores,
+  não apenas no driver.
+- Falhas de permissão, schema e catálogo são propagadas, não interpretadas como
+  controle ausente. Ausência do controle, por si só, não é erro: tenta-se criá-lo.
+- Sondagens não garantem commits futuros: permissões específicas por objeto,
+  otimizações de escritas vazias e mudanças externas podem causar falhas depois.
+- **Dados e controle não compartilham transação.** Falha na escrita de dados
+  impede o registro; falha no registro após o commit dos dados é reportada como
+  falha parcial e propagada. Repetir `append` pode duplicar registros. Não há
+  rollback automático, retry ou garantia de exactly-once. O controle Parquet
+  anterior pode ser perdido caso a sobrescrita falhe.
+- Serialize chamadas que compartilham destino/controle e mantenha os Parquets
+  estáveis durante a carga. Use um controle exclusivo por destino; as duas
+  colunas não distinguem tabelas de destino. Não permitir leitores externos do
+  controle Parquet durante sua sobrescrita; não há garantia de atomicidade.
+- O Trino precisa acessar o mesmo catálogo e armazenamento. Tabelas acessíveis
+  exclusivamente por conexão direta ao Trino não são suportadas.
+
+#### Testes de integração do loader
+
+Os testes unitários não precisam de um catálogo real:
+
+```bash
+uv run pytest tests/test_trino_loader.py
+```
+
+Os testes Spark/Parquet não precisam dos conectores Iceberg:
+
+```bash
+uv run pytest tests/test_trino_loader_parquet.py
+```
+
+Os testes em `tests/test_trino_loader_integration.py` usam Spark local e catálogo
+JDBC Iceberg com H2 em memória, sem conexão Trino. São habilitados explicitamente
+e exigem JARs compatíveis com Spark/Scala:
+
+```bash
+ICEBERG_TEST_JARS=/caminho/iceberg-spark-runtime-3.5_2.12-1.9.2.jar,/caminho/h2-2.3.232.jar \
+  uv run pytest tests/test_trino_loader_integration.py
+```
+
+Se os conectores já estiverem no classpath, use `ICEBERG_TESTS=1`. Sem essas
+opções, a suíte de integração é pulada explicitamente, não validada por mocks.
+Uma validação no Trino requer ambiente compartilhado adicional. Validar S3A
+real exige conector, endpoint e bucket de testes autorizados; mocks não
+comprovam permissões ou comportamento real de S3A.
 
 ## `teleutils.preprocessing`
 
