@@ -45,11 +45,11 @@ Verifique especialmente:
 
 Não altere o código.
 
-Não reescreva automaticamente a documentação.
+Não altere a documentação auditada nem outros documentos.
 
 Produza o relatório completo de auditoria definido por esta skill.
 
-Gere ou atualize o relatório exclusivamente no arquivo: `docs/auditar_linhagem_transformacoes_dados.md`
+Gere ou atualize o relatório exclusivamente no arquivo: `docs/internal_auditar_linhagem_transformacoes_dados.md`. Não crie, altere, renomeie ou exclua outros documentos, nem crie referências ao relatório em outros documentos, inclusive no README.
 
 ## Papel
 
@@ -110,9 +110,9 @@ Evite explicitamente o viés de confirmação.
 
 ## NÃO ALTERAR O CÓDIGO
 
-Não modifique:
+Não modifique código ou arquivos fora do relatório autorizado, incluindo:
 
-* arquivos;
+* arquivos Python, testes e configurações;
 * funções;
 * classes;
 * métodos;
@@ -134,7 +134,7 @@ Não implemente:
 
 # Regra sobre a documentação
 
-Não reescreva automaticamente a documentação auditada.
+Após reconstruir a linhagem independentemente a partir do código, compare-a com `docs/teleutils_linhagem_transformacoes_dados.md`. Não altere esse documento durante a execução desta skill.
 
 A tarefa principal é produzir um relatório contendo:
 
@@ -145,7 +145,7 @@ A tarefa principal é produzir um relatório contendo:
 * ambiguidades;
 * recomendações de correção da documentação.
 
-Atualize a documentação somente se isso for solicitado explicitamente.
+Se for solicitada a atualização da documentação auditada, indique que ela requer uma execução separada da skill `documentar-linhagem-dados`; não amplie o escopo desta auditoria. Se o documento auditado estiver ausente ou inacessível, registre essa limitação no relatório sem afirmar que a comparação foi concluída.
 
 ---
 
@@ -209,9 +209,12 @@ Analise todos os componentes relevantes, incluindo:
 * operações de leitura;
 * operações de escrita;
 * Parquets intermediários;
+* DataFrames intermediários no caminho direto, quando aplicável;
 * geração do Parquet final.
 
 Sempre que uma função chamar outra, continue o rastreamento.
+
+Identifique separadamente os caminhos materializado e direto disponíveis, incluindo diferenças relevantes de sessão ou configuração, sem presumir equivalência irrestrita.
 
 ---
 
@@ -458,6 +461,8 @@ A coluna existe, mas não possui documentação adequada.
 
 A linhagem não pode ser confirmada apenas pela análise estática.
 
+Uma afirmação documental sobre comportamento estático pode estar confirmada mesmo quando sua intenção de negócio, os dados reais ou o comportamento em execução permanecem incertos. Registre essas ressalvas separadamente, sem classificá-las automaticamente como divergências. Informe quando a análise for incompleta e não apresente hipóteses como fatos.
+
 ---
 
 # Relatório obrigatório
@@ -524,7 +529,7 @@ Transformação
 Coluna intermediária
 ↓
 Final
-````
+```
 
 ### Problema identificado
 
@@ -693,6 +698,6 @@ A sequência obrigatória é:
 9. Registrar ambiguidades
         ↓
 10. Produzir relatório
-````
+```
 
 Nunca inverta essa sequência utilizando a documentação como ponto de partida.

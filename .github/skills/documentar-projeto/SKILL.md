@@ -1,6 +1,6 @@
 ---
 name: documentar-projeto
-description: Cria e atualiza a documentação técnica do projeto, incluindo a documentação da API pública, e atualiza o README.md com base no estado atual do código.
+description: Revisa e atualiza a documentação técnica do projeto, incluindo a API pública e o README, após confirmar a atualização da linhagem e classificar os documentos com o usuário.
 user-invocable: true
 ---
 
@@ -10,13 +10,15 @@ Analise cuidadosamente o estado atual do repositório e mantenha atualizada a do
 
 ## Escopo de execução
 
-Analise o estado atual do repositório, exceto o módulo robocalls que está depreciado, e execute integralmente o fluxo definido por esta skill.
+Antes de qualquer alteração, confirme com o usuário a atualização prévia da documentação de linhagem, conforme a Etapa 0. Sem confirmação positiva, interrompa a execução sem alterar arquivos.
+
+Analise o estado atual do repositório, exceto módulos depreciados, e execute o fluxo definido por esta skill. Documentos com prefixo `deprecated_` seguem integralmente a regra geral dessa categoria.
 
 Atualize primeiro a documentação técnica aplicável, incluindo obrigatoriamente a documentação da API pública.
 
 Após validar a documentação técnica, atualize o `README.md`, mantendo-o como porta de entrada do projeto e evitando duplicação desnecessária da documentação especializada.
 
-A documentação de linhagem e transformação de dados, quando existente, deve ser apenas consultada e não deve ser criada, alterada ou atualizada.
+A documentação de linhagem e transformação de dados deve ser apenas consultada, sem criação, renomeação ou revisão. A única alteração permitida é a remoção pontual de referências a documentos `deprecated_`.
 
 Não altere o código-fonte, testes ou arquivos de configuração.
 
@@ -108,6 +110,8 @@ Utilize as informações disponíveis seguindo, em caso de conflito, a seguinte 
 
 Em caso de conflito entre o código atual e qualquer documentação ou informação histórica, o código atual prevalece.
 
+Essa prioridade se aplica à descrição do comportamento atual. Registros históricos, resultados de testes e decisões de compatibilidade devem ser avaliados conforme sua data, contexto e evidências próprias; uma implementação diferente hoje não torna falso um relato sobre o passado.
+
 A documentação existente pode ser utilizada para:
 
 * identificar conteúdo que deve ser preservado;
@@ -122,7 +126,7 @@ Ela não deve prevalecer sobre o comportamento atual implementado.
 
 # Idioma
 
-Toda documentação produzida ou atualizada por esta skill deve ser escrita em português brasileiro (`pt-BR`).
+Toda explicação produzida ou substancialmente atualizada por esta skill deve ser escrita em português brasileiro (`pt-BR`), sem exigir tradução de conteúdo histórico ou protegido que deva ser preservado.
 
 Utilize inglês apenas quando necessário para:
 
@@ -168,6 +172,13 @@ As instruções necessárias para instalação e utilização devem ser explíci
 # Fluxo obrigatório de execução
 
 Execute as etapas abaixo na ordem indicada.
+
+## Etapa 0 — Confirmar a atualização da linhagem
+
+Antes de renomear, criar, editar ou remover qualquer arquivo, pergunte ao usuário se `docs/teleutils_linhagem_transformacoes_dados.md` foi atualizada para o estado atual do projeto.
+
+* Se a resposta for positiva, prossiga; a confirmação do usuário não constitui auditoria independente nem comprova automaticamente a atualidade.
+* Se a resposta for negativa, incerta, indisponível ou não houver confirmação, interrompa sem alterar arquivos e oriente a executar `documentar-linhagem-dados` antes de uma nova tentativa.
 
 ## Etapa 1 — Analisar o estado atual do projeto
 
@@ -239,7 +250,7 @@ Utilize o estado atual do projeto como referência.
 
 Antes de atualizar qualquer conteúdo do `README.md`, determine:
 
-* quais documentos técnicos já existem;
+* quais documentos existem em `docs/`, por nome e categoria, inclusive os protegidos e os não classificados;
 * quais documentos estão desatualizados;
 * quais documentos precisam ser criados;
 * quais interfaces públicas precisam ser documentadas;
@@ -262,56 +273,38 @@ Não crie documentos:
 
 # Regras para a pasta `docs/`
 
-A documentação técnica gerenciada automaticamente por esta skill deve utilizar o prefixo:
+Inventarie os documentos por nome antes de decidir o tratamento. O prefixo identifica a categoria, mas não substitui as exceções abaixo:
 
-```text
-teleutils_
-```
+* `teleutils_`: documentação do projeto; pode ser revisada e atualizada e, quando relevante, referenciada no README.
+* `internal_`: documentação interna; pode ser consultada e atualizada, mas não deve ser listada automaticamente no README.
+* `deprecated_`: documento obsoleto; preserve seu conteúdo e não o consulte nem revise na documentação geral. Não o liste ou referencie em outros documentos. Uma execução posterior deve reconhecê-lo como já classificado.
 
-Exemplos:
+### Documentos não classificados
 
-```text
-docs/teleutils_api.md
-docs/teleutils_arquitetura.md
-docs/teleutils_linhagem_transformacoes_dados.md
-docs/teleutils_configuracao.md
-docs/teleutils_guias_uso.md
-```
+Para cada documento sem um desses três prefixos, pergunte ao usuário qual opção aplicar:
 
-Os nomes acima são exemplos.
+1. `teleutils_`: incorporar ao projeto, renomear, revisar e atualizar;
+2. `internal_`: renomear como interno, consultar e atualizar quando aplicável;
+3. `deprecated_`: renomear como obsoleto, preservar o conteúdo e remover suas referências dos demais documentos, conforme as regras abaixo;
+4. preservar sem classificar.
 
-Não crie automaticamente todos esses documentos.
+Sem escolha afirmativa, preserve o nome e o conteúdo e registre a pendência. Não infira uma categoria. A única exceção de conteúdo é a remoção pontual de referências a documentos `deprecated_`.
 
-A criação de cada documento deve depender da existência de conteúdo correspondente no projeto.
+Não peça classificação da documentação de linhagem ou do relatório de auditoria: eles seguem as regras especiais desta skill.
 
-## Arquivos pertencentes ao escopo da skill
+### Renomeações e referências
 
-Considere automaticamente para:
+Para uma escolha de categoria, acrescente o prefixo escolhido ao nome existente, preservando o restante do nome e a extensão. Antes de renomear, verifique se o destino existe e identifique as referências ao nome e ao caminho anteriores; não sobrescreva arquivos nem apague ou altere conteúdo para realizar a renomeação.
 
-* criação;
-* atualização;
-* validação;
-* referência no README;
+Atualize referências de documentos `teleutils_` e `internal_` renomeados apenas nos arquivos autorizados a serem editados. Reporte referências em arquivos fora do escopo. Se uma colisão ou referência impedir uma migração segura, interrompa a operação afetada e peça orientação ao usuário.
 
-apenas arquivos em `docs/` cujo nome comece com:
+Para cada documento `deprecated_`, procure referências aos caminhos e nomes anteriores e atuais e remova-as dos demais documentos, incluindo README, documentos não classificados, linhagem e relatório de auditoria. Nesses arquivos protegidos, a autorização se limita à remoção pontual dessas referências; não autoriza revisão, outras alterações de conteúdo ou renomeação.
 
-```text
-teleutils_
-```
+Preserve também o conteúdo de outros documentos `deprecated_`, sem inspecioná-los para procurar referências. Reporte referências entre eles que sejam conhecidas e registre que as demais não foram verificadas. Não altere código-fonte, testes ou configurações para remover referências; identifique e reporte essas ocorrências. Quando uma referência não puder ser identificada com segurança ou removida sem perda indevida de contexto, interrompa sua remoção, peça orientação e registre a pendência. Não declare a remoção completa enquanto houver pendências ou referências não verificadas.
 
-## Arquivos fora do escopo automático
+### Documentos especializados protegidos
 
-Arquivos em `docs/` cujo nome não comece com `teleutils_`:
-
-* não devem ser alterados automaticamente;
-* não devem ser removidos;
-* não devem ser renomeados;
-* não devem ser listados automaticamente no README;
-* não devem ser utilizados como fonte para determinar o comportamento atual do projeto.
-
-Esses arquivos podem existir para outras finalidades.
-
-Não renomeie arquivos existentes apenas para adequá-los ao prefixo.
+A documentação de linhagem é tratada pela skill `documentar-linhagem-dados`, com a mesma exceção pontual. O relatório no caminho de saída definido pela skill `auditar-linhagem-dados` pertence a essa skill: não o revise, renomeie ou liste em outros documentos, inclusive no README. Apenas remova dele referências a `deprecated_`. Não crie novas referências ao relatório; remova referências existentes apenas em documentos autorizados para essa finalidade e reporte as demais. A referência operacional ao caminho de saída na própria skill de auditoria é necessária e não constitui listagem documental.
 
 Não crie links para arquivos inexistentes.
 
@@ -343,7 +336,9 @@ Corrija ou remova apenas informações:
 * incompatíveis com o código atual;
 * redundantemente prejudiciais.
 
-Não reescreva documentação adequada apenas para alterar sua redação.
+Não reescreva documentação adequada apenas para alterar sua redação. Antes de alterar o significado ou remover uma afirmação, identifique o conteúdo anterior, o motivo e a evidência que sustenta a mudança. Ausência de evidência não comprova obsolescência: preserve o conteúdo não confirmado e registre a dúvida.
+
+Preserve condições e ressalvas relevantes ao resumir ou eliminar duplicações, especialmente limitações, erros, efeitos colaterais, segurança, concorrência, migração, exemplos e limites de testes. Mantenha registros históricos com data, ambiente, comandos efetivamente executados, resultados e limitações; acrescente informações atuais separadamente sem apresentar testes antigos como certificação atual. Registre alterações substantivas e informações não confirmadas no resultado final.
 
 ---
 
@@ -504,17 +499,15 @@ Não documente decisões arquiteturais que não possam ser confirmadas.
 
 A documentação de linhagem e transformação de dados é especializada e não faz parte do escopo de atualização desta skill.
 
-Esta skill não deve criar, alterar ou atualizar a documentação de linhagem de dados.
+Esta skill não deve criar, renomear ou revisar a documentação de linhagem de dados. A única alteração permitida é a remoção pontual de referências a documentos `deprecated_`.
 
-Esta skill pressupõe que a documentação de linhagem e transformação de dados já esteja atualizada antes de sua execução, utilizando a skill específica destinada à auditoria e documentação de linhagem de dados.
-
-Quando existir documentação de linhagem relevante, esta skill pode apenas consultá-la para:
+Após a confirmação exigida na Etapa 0, esta skill pode consultá-la para:
 
 * compreender o fluxo de processamento dos dados;
 * manter consistência com a documentação técnica geral;
 * incluir referências para essa documentação no `README.md`, quando aplicável.
 
-Caso seja identificada alguma possível inconsistência entre o código e a documentação de linhagem, não altere o documento automaticamente. Registre a inconsistência no resultado final para revisão.
+Caso seja identificada alguma possível inconsistência entre o código e a documentação de linhagem, registre-a no resultado final para revisão pela skill especializada. Não afirme que a linhagem foi validada independentemente apenas com base na confirmação do usuário.
 
 
 ## Configuração
@@ -537,9 +530,9 @@ Após criar ou atualizar a documentação técnica e antes de modificar o `READM
 * os documentos especializados possuem conteúdo real e relevante;
 * não existem funcionalidades inventadas;
 * não existem comportamentos inventados;
-* não existem links internos quebrados;
-* não existem referências comprovadamente obsoletas;
-* documentos sem o prefixo `teleutils_` não foram alterados;
+* os links internos adicionados ou alterados apontam para destinos existentes;
+* as referências a documentos `deprecated_` foram removidas conforme as regras, ou as pendências foram registradas;
+* as categorias, decisões do usuário e exceções para documentos protegidos foram respeitadas;
 * a documentação técnica não possui duplicações desnecessárias.
 
 Confirme obrigatoriamente que:
@@ -550,7 +543,7 @@ docs/teleutils_api.md
 
 existe e está atualizado.
 
-Somente após essa validação prossiga para o README.
+Somente após validar a documentação técnica editável prossiga para o README. Divergências em documentos protegidos ou outras pendências que não possam ser resolvidas sem ultrapassar o escopo devem ser relatadas, sem declarar validada toda a documentação.
 
 ---
 
@@ -805,7 +798,7 @@ Quando a validação não for possível, construa os exemplos exclusivamente a p
 
 # Documentação técnica complementar
 
-Após concluir a documentação técnica, liste no README apenas documentos existentes em `docs/` cujo nome comece com:
+Após concluir a documentação técnica, liste automaticamente no README apenas documentos relevantes existentes em `docs/` cujo nome comece com:
 
 ```text
 teleutils_
@@ -819,7 +812,7 @@ Para cada documento relevante, apresente:
 
 Não duplique integralmente o conteúdo dos documentos.
 
-Não liste automaticamente arquivos sem o prefixo `teleutils_`.
+Não liste automaticamente arquivos sem o prefixo `teleutils_`. Preserve links existentes relevantes para documentos internos ou não classificados, salvo quando houver motivo comprovado ou uma regra especial exigir sua remoção. Nunca liste o relatório de auditoria ou documentos `deprecated_`; remova suas referências conforme as regras de `docs/`.
 
 Exemplo:
 
@@ -828,7 +821,7 @@ Exemplo:
 |---|---|
 | [Referência da API](docs/teleutils_api.md) | Documentação das interfaces públicas do projeto. |
 | [Arquitetura](docs/teleutils_arquitetura.md) | Descrição da arquitetura e dos principais componentes. |
-| [Linhagem e Transformações dos Dados](docs/teleutils_linhagem-transformacoes-dados.md) | Origem, transformação e destino dos dados processados pelo projeto. |
+| [Linhagem e Transformações dos Dados](docs/teleutils_linhagem_transformacoes_dados.md) | Origem, transformação e destino dos dados processados pelo projeto. |
 ```
 
 A tabela deve conter apenas documentos realmente existentes.
@@ -915,18 +908,19 @@ Verifique:
 * a documentação técnica corresponde ao código atual;
 * a API está documentada;
 * o README corresponde ao estado atual;
-* os links do README apontam para arquivos existentes;
-* os documentos referenciados possuem o prefixo `teleutils_`;
-* arquivos sem o prefixo `teleutils_` não foram alterados;
-* arquivos sem o prefixo `teleutils_` não foram listados automaticamente;
+* os links adicionados ou alterados apontam para arquivos existentes;
+* documentos internos ou não classificados não foram listados automaticamente;
+* as escolhas do usuário, as categorias e as exceções de documentos protegidos foram respeitadas;
+* o relatório de auditoria não foi listado em outros documentos;
+* as referências a documentos `deprecated_` foram removidas quando autorizado e possível, e as pendências foram registradas;
 * não existem funcionalidades inventadas;
-* não existem informações comprovadamente obsoletas;
+* informações comprovadamente obsoletas foram tratadas dentro do escopo autorizado ou registradas como pendências;
 * não existem duplicações desnecessárias;
-* a documentação está escrita em português brasileiro;
+* a documentação produzida ou atualizada está escrita em português brasileiro, preservando registros históricos e conteúdo protegido;
 * o Markdown é válido;
 * a navegação do README funciona corretamente.
 
-Em caso de inconsistência, corrija a documentação antes de concluir.
+Corrija inconsistências apenas dentro do escopo autorizado. Registre as demais e não apresente a revisão como validação completa da documentação.
 
 ---
 
@@ -934,6 +928,7 @@ Em caso de inconsistência, corrija a documentação antes de concluir.
 
 ## Análise
 
+* [ ] A atualização prévia da linhagem foi confirmada positivamente pelo usuário antes de qualquer alteração.
 * [ ] O estado atual do código foi analisado.
 * [ ] A estrutura do projeto foi analisada.
 * [ ] As interfaces públicas relevantes foram identificadas.
@@ -946,14 +941,17 @@ Em caso de inconsistência, corrija a documentação antes de concluir.
 * [ ] `docs/teleutils_api.md` existe.
 * [ ] A API pública relevante está documentada.
 * [ ] Documentos especializados foram criados apenas quando justificados.
-* [ ] A documentação de linhagem, quando existente, foi apenas consultada e não foi alterada por esta skill.
+* [ ] A linhagem não foi criada, renomeada ou revisada; qualquer alteração limitou-se à remoção autorizada de referências a `deprecated_`.
 * [ ] Não existem documentos técnicos vazios ou genéricos.
 
 ## Pasta `docs/`
 
-* [ ] Apenas documentos `teleutils_*.md` foram alterados automaticamente.
-* [ ] Arquivos sem o prefixo `teleutils_` foram preservados.
-* [ ] Arquivos sem o prefixo `teleutils_` não foram listados automaticamente no README.
+* [ ] Os documentos não classificados foram apresentados ao usuário com as opções de categoria e preservação.
+* [ ] Os documentos sem decisão afirmativa foram preservados, ressalvada a remoção pontual autorizada de referências a `deprecated_`.
+* [ ] Documentos `internal_` não foram listados automaticamente.
+* [ ] Documentos `deprecated_` foram preservados e ignorados na revisão; as referências removidas e pendentes foram informadas.
+* [ ] Documentos protegidos foram preservados, exceto a remoção pontual autorizada de referências a `deprecated_`.
+* [ ] O relatório de auditoria não foi listado em outros documentos; referências existentes fora do escopo autorizado foram reportadas.
 * [ ] Todos os links adicionados apontam para arquivos existentes.
 
 ## README
@@ -981,7 +979,7 @@ Em caso de inconsistência, corrija a documentação antes de concluir.
 * [ ] Nenhuma interface foi inventada.
 * [ ] Nenhuma configuração foi inventada.
 * [ ] Os exemplos refletem interfaces reais.
-* [ ] A documentação está em português brasileiro.
+* [ ] A documentação produzida ou atualizada está em português brasileiro, respeitados os conteúdos históricos e protegidos.
 * [ ] Não existem duplicações desnecessárias.
 * [ ] O Markdown produzido é válido.
 
@@ -989,30 +987,18 @@ Em caso de inconsistência, corrija a documentação antes de concluir.
 
 # Regras obrigatórias
 
-1. Analise o estado atual do código antes de documentar.
-2. Considere o código atual como fonte prioritária da verdade.
-3. Atualize primeiro a documentação técnica.
-4. Atualize o README somente após validar a documentação técnica.
-5. Mantenha obrigatoriamente `docs/teleutils_api.md`.
-6. Crie documentos técnicos especializados apenas quando houver conteúdo real e relevante.
-7. Todo documento gerenciado automaticamente por esta skill deve utilizar o prefixo `teleutils_`.
-8. Não altere documentos em `docs/` cujo nome não comece com `teleutils_`.
-9. Não liste automaticamente no README documentos cujo nome não comece com `teleutils_`.
-10. Não altere código-fonte.
-11. Não altere comportamento funcional.
-12. Não altere testes.
-13. Não altere arquivos de configuração.
-14. Não invente funcionalidades.
-15. Não invente interfaces, parâmetros ou comportamentos.
-16. Não invente links.
-17. Preserve documentação existente que continue correta e relevante.
-18. Corrija ou remova apenas informações comprovadamente obsoletas ou incorretas.
-19. Não utilize o DeepWiki como fonte prioritária da verdade.
-20. Apresente o DeepWiki apenas como recurso adicional quando houver um link confirmável.
-21. Mantenha consistência entre código, documentação técnica e README.
-22. Mantenha o README como porta de entrada, sem transformá-lo em duplicação integral da documentação técnica.
-23. Antes de concluir, execute a validação final de consistência.
-24. Não criar, alterar ou atualizar a documentação de linhagem e transformação de dados.
+1. Confirme com o usuário a atualização prévia da linhagem; sem confirmação positiva, interrompa sem alterar arquivos.
+2. Analise o código atual antes de documentar e use-o como referência para o comportamento atual, preservando o contexto de registros históricos.
+3. Atualize a documentação técnica e valide-a antes de atualizar o README; mantenha `docs/teleutils_api.md`.
+4. Classifique documentos sem prefixo somente após a escolha explícita do usuário; respeite as categorias e exceções para documentos protegidos.
+5. Preserve documentos `deprecated_` e remova suas referências conforme as regras de `docs/`, registrando pendências.
+6. Não revise ou renomeie a documentação de linhagem nem o relatório de auditoria; apenas remova referências a `deprecated_` nesses arquivos.
+7. Não liste o relatório de auditoria em outros documentos; não liste automaticamente documentos `internal_` ou não classificados.
+8. Não altere código-fonte, comportamento funcional, testes ou arquivos de configuração.
+9. Não invente funcionalidades, interfaces, parâmetros, comportamentos ou links.
+10. Preserve conteúdo correto, relevante e não confirmado; fundamente alterações substantivas e mantenha ressalvas e evidências históricas.
+11. Utilize o DeepWiki apenas como recurso adicional quando houver link confirmável.
+12. Valide o trabalho dentro do escopo autorizado e relate inconsistências, referências e informações pendentes.
 
 ---
 
@@ -1035,11 +1021,11 @@ A documentação deve:
 * possuir documentação atualizada da API pública;
 * manter `docs/teleutils_api.md`;
 * criar ou atualizar documentos técnicos especializados quando justificados;
-* preservar documentos fora do escopo da skill;
+* preservar documentos protegidos, respeitada a remoção pontual autorizada de referências a `deprecated_`;
 * utilizar o README como porta de entrada;
 * permitir que novos usuários compreendam, instalem e executem o projeto;
 * permitir que desenvolvedores localizem e consultem a API pública;
-* referenciar no README apenas documentos técnicos `teleutils_*.md`;
+* listar automaticamente no README apenas documentos técnicos relevantes `teleutils_*.md`, preservando outras referências permitidas;
 * apresentar o DeepWiki como recurso adicional quando disponível;
 * evitar duplicação desnecessária;
 * permanecer tecnicamente precisa, clara, sustentável e consistente com o código atual.
@@ -1049,5 +1035,9 @@ Ao concluir a execução, informe resumidamente:
 * quais arquivos de documentação foram criados;
 * quais arquivos de documentação foram atualizados;
 * quais documentos técnicos foram referenciados no README;
+* quais classificações e renomeações foram realizadas ou ficaram pendentes;
+* quais referências a documentos `deprecated_` foram removidas ou permaneceram pendentes;
+* quais alterações substantivas foram realizadas e em quais evidências se basearam;
+* quais inconsistências e documentos protegidos ficaram fora da validação;
 * se o DeepWiki foi identificado e referenciado;
 * quais informações relevantes não puderam ser confirmadas com segurança.

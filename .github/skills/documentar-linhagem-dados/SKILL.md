@@ -27,7 +27,7 @@ A análise deve:
 
 Antes de concluir, valide que nenhuma coluna final ficou sem documentação.
 
-Gere ou atualize a documentação exclusivamente no arquivo: `docs/teleutils_linhagem_transformacoes_dados.md`
+Gere ou atualize a documentação exclusivamente no arquivo: `docs/teleutils_linhagem_transformacoes_dados.md`. Não crie, altere, renomeie ou exclua outros documentos, inclusive o relatório de auditoria.
 
 Não altere o código.
 
@@ -114,6 +114,8 @@ Coluna final
 
 A documentação deve ser baseada exclusivamente no comportamento efetivamente implementado no código.
 
+Ao atualizar o documento existente, preserve conteúdo correto e relevante, inclusive condições, exceções, ambiguidades, limitações e observações de manutenção. Altere ou remova afirmações substantivas somente com evidência; se não for possível confirmá-las nem refutá-las, registre a limitação sem apresentar hipóteses como fatos. Não reescreva conteúdo adequado apenas para seguir um modelo.
+
 Nunca:
 
 * invente uma transformação;
@@ -148,6 +150,8 @@ Identifique:
 * etapa final do pipeline.
 
 Construa um entendimento completo do fluxo antes de iniciar a documentação detalhada.
+
+Identifique os caminhos efetivamente disponíveis, inclusive extração com Parquet intermediário e processamento direto de DataFrame, quando existirem. Documente diferenças relevantes de sessão, configuração ou comportamento sem presumir equivalência irrestrita.
 
 ---
 
@@ -307,6 +311,8 @@ Classifique funções auxiliares como comuns quando forem reutilizadas por mais 
 
 Produza um único documento Markdown contendo:
 
+Preserve a estrutura existente quando ela atender aos requisitos. Tabelas podem integrar o detalhamento por coluna, desde que registrem com clareza a origem, as operações, as condições e os resultados relevantes; não duplique conteúdo apenas para reproduzir o exemplo.
+
 # Documentação da Linhagem e Transformação dos Dados
 
 ## 1. Visão geral do fluxo
@@ -316,7 +322,7 @@ Explique a arquitetura e apresente:
 ```text
 Dados de origem
 → Extração
-→ Parquet extraído
+→ Parquet extraído ou DataFrame extraído, conforme o caminho
 → Transformações
 → DataFrame intermediário
 → Padronização
@@ -413,7 +419,7 @@ Coluna intermediária
 Transformação ou renomeação
 ↓
 Coluna final
-````
+```
 
 **Transformações realizadas:**
 
@@ -461,7 +467,7 @@ Origem B
 Intermediária
 ↓
 Final
-````
+```
 
 ---
 
@@ -616,5 +622,7 @@ Antes de finalizar, verifique internamente:
 * múltiplos caminhos foram documentados;
 * renomeações não foram confundidas com transformações;
 * nenhuma relação foi assumida apenas pelo nome.
+
+Registre no documento a lista independente de colunas finais ou uma referência ao contrato identificado, os totais por fluxo e as lacunas ou ambiguidades remanescentes. Diferencie o que foi confirmado por análise estática do que depende de dados reais ou execução; não apresente cobertura incompleta como concluída. Ao terminar, informe o arquivo atualizado e eventuais limitações ou divergências que exijam revisão.
 
 A prioridade máxima é a rastreabilidade e a precisão.
