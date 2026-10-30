@@ -294,7 +294,7 @@ Não peça classificação da documentação de linhagem ou do relatório de aud
 
 ### Renomeações e referências
 
-Para uma escolha de categoria, acrescente o prefixo escolhido ao nome existente, preservando o restante do nome e a extensão. Antes de renomear, verifique se o destino existe e identifique as referências ao nome e ao caminho anteriores; não sobrescreva arquivos nem apague ou altere conteúdo para realizar a renomeação.
+Para uma escolha de categoria, acrescente o prefixo escolhido ao nome existente, preservando o restante do nome e a extensão, e converta-o em snake_case. Antes de renomear, verifique se o destino existe e identifique as referências ao nome e ao caminho anteriores; não sobrescreva arquivos nem apague ou altere conteúdo para realizar a renomeação.
 
 Atualize referências de documentos `teleutils_` e `internal_` renomeados apenas nos arquivos autorizados a serem editados. Reporte referências em arquivos fora do escopo. Se uma colisão ou referência impedir uma migração segura, interrompa a operação afetada e peça orientação ao usuário.
 
