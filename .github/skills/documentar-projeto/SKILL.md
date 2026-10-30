@@ -586,7 +586,6 @@ A estrutura pode incluir:
 Título e introdução
 Sumário
 Visão geral
-DeepWiki
 Início rápido
 Arquitetura em alto nível
 Principais componentes
@@ -872,22 +871,27 @@ Não presuma compatibilidade.
 
 # DeepWiki
 
-O DeepWiki é um recurso adicional de exploração e documentação do repositório.
+Não consulte o DeepWiki nem utilize suas informações como fonte para análise,
+documentação ou validação. Não acesse o site, a página do projeto ou o badge,
+inclusive para verificar a existência ou disponibilidade do link.
 
-Quando houver uma página confirmável do projeto no DeepWiki:
+No `README.md`, a única referência ao DeepWiki deve ser um badge na primeira
+linha, no seguinte formato:
 
-* inclua uma referência no README;
-* inclua o link oficial;
-* explique brevemente sua finalidade;
-* apresente-o como recurso adicional.
+```markdown
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/<proprietário>/<repositório>)
+```
 
-O DeepWiki não é fonte prioritária para geração ou atualização da documentação.
+Substitua `<proprietário>` e `<repositório>` pelos identificadores reais do
+repositório GitHub, identificados localmente pelo remoto Git ou por metadados
+existentes do projeto, sem consultar o DeepWiki. Se não for possível identificar
+o repositório com segurança, peça os identificadores ao usuário; não invente
+valores nem grave os marcadores literalmente.
 
-A documentação deve continuar sendo produzida a partir do código e dos demais elementos do repositório.
-
-Não invente links.
-
-Quando não houver um link confirmável, não mencione o DeepWiki.
+Preserve ou insira o badge correspondente ao atualizar o README. Não crie seção, explicação,
+entrada no sumário ou outra referência ao DeepWiki no README. Corrija ou remova
+referências adicionais ao DeepWiki no README sem alterar documentos protegidos.
+Valide a posição e o texto do badge localmente, sem acessar seus URLs.
 
 ---
 
@@ -918,7 +922,8 @@ Verifique:
 * não existem duplicações desnecessárias;
 * a documentação produzida ou atualizada está escrita em português brasileiro, preservando registros históricos e conteúdo protegido;
 * o Markdown é válido;
-* a navegação do README funciona corretamente.
+* a navegação do README funciona corretamente;
+* o badge DeepWiki está na primeira linha do README, sem outras referências ao DeepWiki nesse arquivo e sem consulta aos URLs.
 
 Corrija inconsistências apenas dentro do escopo autorizado. Registre as demais e não apresente a revisão como validação completa da documentação.
 
@@ -968,9 +973,9 @@ Corrija inconsistências apenas dentro do escopo autorizado. Registre as demais 
 
 ## DeepWiki
 
-* [ ] O DeepWiki foi mencionado apenas quando existe um link confirmável.
-* [ ] Foi apresentado como recurso adicional.
-* [ ] Não foi utilizado como fonte prioritária da verdade.
+* [ ] O DeepWiki não foi consultado nem utilizado como fonte.
+* [ ] O badge especificado está na primeira linha do README e é a única referência ao DeepWiki nesse arquivo.
+* [ ] A verificação do badge foi local, sem acesso aos URLs.
 
 ## Qualidade
 
@@ -997,7 +1002,7 @@ Corrija inconsistências apenas dentro do escopo autorizado. Registre as demais 
 8. Não altere código-fonte, comportamento funcional, testes ou arquivos de configuração.
 9. Não invente funcionalidades, interfaces, parâmetros, comportamentos ou links.
 10. Preserve conteúdo correto, relevante e não confirmado; fundamente alterações substantivas e mantenha ressalvas e evidências históricas.
-11. Utilize o DeepWiki apenas como recurso adicional quando houver link confirmável.
+11. Não consulte o DeepWiki; mantenha apenas o badge especificado na primeira linha do README, sem verificar os URLs.
 12. Valide o trabalho dentro do escopo autorizado e relate inconsistências, referências e informações pendentes.
 
 ---
@@ -1026,7 +1031,7 @@ A documentação deve:
 * permitir que novos usuários compreendam, instalem e executem o projeto;
 * permitir que desenvolvedores localizem e consultem a API pública;
 * listar automaticamente no README apenas documentos técnicos relevantes `teleutils_*.md`, preservando outras referências permitidas;
-* apresentar o DeepWiki como recurso adicional quando disponível;
+* manter apenas o badge DeepWiki especificado na primeira linha do README, sem consultar o serviço;
 * evitar duplicação desnecessária;
 * permanecer tecnicamente precisa, clara, sustentável e consistente com o código atual.
 
@@ -1039,5 +1044,5 @@ Ao concluir a execução, informe resumidamente:
 * quais referências a documentos `deprecated_` foram removidas ou permaneceram pendentes;
 * quais alterações substantivas foram realizadas e em quais evidências se basearam;
 * quais inconsistências e documentos protegidos ficaram fora da validação;
-* se o DeepWiki foi identificado e referenciado;
+* se o badge DeepWiki foi mantido ou inserido na primeira linha do README;
 * quais informações relevantes não puderam ser confirmadas com segurança.
