@@ -98,8 +98,9 @@ def _extract_numbers(subscriber_number_series: pd.Series) -> pd.DataFrame:
 
         Anotação de manutenção: alterações no contrato de retorno (nomes ou
         tipos de coluna) exigem atualização coordenada de
-        ``_EXTRACTED_NUMBER_RETURN_SCHEMA`` e de todos os acessos às
-        colunas estruturadas nos transformadores que consomem esta UDF.
+        ``_EXTRACTED_NUMBER_RETURN_SCHEMA``, das chaves do ``pd.DataFrame``
+        retornado e dos acessos ``numero_extraido`` e ``extracao_sucesso``
+        feitos em ``CDRBaseTransformer._extract_phone_numbers``.
     """
     extraction_results = []
     for subscriber_number in subscriber_number_series:
@@ -169,7 +170,16 @@ class CDRBaseTransformer:
         self.null_sentinel_value = F.lit(NULL_SENTINEL_VALUE).cast(T.StringType())
 
     def _validate_timestamp_type(self) -> None:
-        """Rejeita alterações incompatíveis na sessão gerenciada."""
+        """Rejeita alterações incompatíveis na sessão gerenciada.
+
+        Raises:
+            ValueError: Se ``spark.sql.timestampType`` da sessão do
+                transformador deixou de ser ``TIMESTAMP_NTZ``.
+
+        Notes:
+            Verificação executada por ``_resolve_input`` e ``_write_parquet``.
+            Não restaura o valor: o chamador deve criar um novo transformador.
+        """
         if self.spark.conf.get("spark.sql.timestampType") != "TIMESTAMP_NTZ":
             message = (
                 "A sessão do transformador deve manter "
@@ -186,6 +196,19 @@ class CDRBaseTransformer:
         Sessões que compartilham apenas o SparkContext não são equivalentes.
         Nenhum plano é transferido e nenhuma configuração é corrigida
         silenciosamente. O chamador não deve alterar a sessão durante o uso.
+
+        Args:
+            source_file: Caminho Parquet, lido com ``self.spark``, ou DataFrame
+                criado por essa mesma sessão (caminho direto, sem Parquet
+                intermediário).
+
+        Returns:
+            DataFrame: Leitura do Parquet, ou o próprio DataFrame recebido.
+
+        Raises:
+            ValueError: Se a sessão deixou de usar ``TIMESTAMP_NTZ`` ou se o
+                DataFrame pertence a outra sessão.
+            TypeError: Se ``source_file`` não for ``str`` nem ``DataFrame``.
         """
         self._validate_timestamp_type()
         if isinstance(source_file, str):
@@ -232,6 +255,10 @@ class CDRBaseTransformer:
         Notes:
             - Regra de negócio: duração nula ou não conversível é tratada como
               0 para manter consistência em métricas downstream.
+              Anotação de manutenção: o fallback atua sobre o resultado nulo
+              do ``cast``. Com ``spark.sql.ansi.enabled=true``, o cast de texto
+              não numérico para inteiro levanta erro em vez de produzir nulo
+              (confirmado com uma expressão isolada em PySpark 3.5.5).
             - As colunas ``duracao``, ``data_hora``, ``data_hora_fim`` e
               ``data_hora_referencia`` devem existir antes desta etapa.
             - ``try_to_timestamp`` produz nulo para valores não conversíveis;
@@ -443,6 +470,11 @@ class CDRBaseTransformer:
             Valores nulos são substituídos por ``MIN_SAFE_DATE`` para timestamps,
             por zero para tipos numéricos e por ``NULL_SENTINEL_VALUE`` para os
             demais tipos definidos na chave primária.
+
+            Cada coluna da chave também é convertida (``cast``) para o tipo de
+            ``TARGET_SCHEMA`` antes do preenchimento; o resultado substitui a
+            coluna original. Um valor que o cast converte em nulo recebe o
+            valor padrão, como um nulo de origem.
         """
         primary_key_columns = {
             source_column: data_type
@@ -545,6 +577,10 @@ class CDRBaseTransformer:
 
         Returns:
             None: Método com efeito colateral de escrita em armazenamento.
+
+        Raises:
+            ValueError: Se a sessão do transformador deixou de usar
+                ``TIMESTAMP_NTZ`` (verificado antes de qualquer escrita).
 
         Notes:
             - A escrita usa o modo ``overwrite``, que substitui o conteúdo

@@ -6,7 +6,8 @@ normalizar diferenças de schema e codificações de cada origem para produzir u
 dataset analítico consistente.
 
 Responsabilidades principais:
-    - Ler CDRs intermediários em formato parquet.
+    - Ler CDRs intermediários em formato parquet ou receber o DataFrame
+      extraído, desde que pertença à sessão do transformador.
     - Aplicar pré-processamentos por fornecedor quando necessário.
     - Acionar pipeline padrão de normalização temporal e telefônica.
     - Persistir resultado no contrato final de dados.
@@ -24,7 +25,8 @@ Dependências relevantes:
     - teleutils.core.transformers.base_transformer.CDRBaseTransformer
 
 Notes:
-    Os métodos de layout leem Parquet intermediário, aplicam ajustes específicos
+    Os métodos de layout leem o Parquet intermediário (ou aceitam o DataFrame
+    extraído, via ``_resolve_input``), aplicam ajustes específicos
     e delegam a normalização comum ao transformador base. Esse pipeline completa
     colunas ausentes, converte datas segundo a máscara do layout, aplica
     ``MIN_SAFE_DATE``, normaliza duração, extrai números, deriva autenticação e
@@ -46,7 +48,7 @@ Notes:
 
 Example:
     >>> transformer = CDRTransformer(spark)
-    >>> destino = transformer.transform_smp_gsm_nokia("/tmp/in", "/tmp/out")
+    >>> destino = transformer.transform_smp_nokia_gsm("/tmp/in", "/tmp/out")
 """
 
 from __future__ import annotations
@@ -566,6 +568,11 @@ class CDRTransformer(CDRBaseTransformer):
                 qualquer componente nulo torna o identificador composto nulo.
             - Grava Parquet com sobrescrita pelo pipeline de escrita herdado.
                 ``output_format`` não altera o formato de arquivo.
+            - Anotação de manutenção: o catálogo ``smp_ericsson_gsm`` extrai
+                ``callPosition`` como ``status_chamada``, mas este método não a
+                utiliza e ``status_chamada`` não pertence a ``TARGET_SCHEMA``.
+                ``resultado_chamada`` é criada nula pelo pipeline comum e, por
+                integrar a chave primária, recebe ``NULL_SENTINEL_VALUE``.
             - Anotação de manutenção: ``"tim"`` não pertence a
                 ``_VALID_OUTPUT_FORMATS`` e é rejeitado por
                 ``_check_output_format`` no início do método; o ramo que
@@ -859,6 +866,10 @@ class CDRTransformer(CDRBaseTransformer):
             - Os ramos de ATS e IBCF dependem da coluna ``tipo_cdr`` e dos valores
                 literais ``aTSRecord`` e ``iBCFRecord``; este método não renomeia
                 ``_tipo_cdr`` nem cria uma alternativa para essa coluna ausente.
+                Anotação de manutenção: ``tipo_cdr`` é criada pelo extrator, que
+                mapeia ``recordType`` para ``_tipo_cdr``, copia o valor para
+                ``tipo_cdr`` em ``add_source_metadata`` e descarta ``_tipo_cdr``.
+                Uma entrada produzida sem esse passo não contém ``tipo_cdr``.
             - Registros ``aTSRecord`` e ``iBCFRecord`` têm números e
               autenticação extraídos por regras distintas. Os atributos de célula, IMEI e
               IMSI são atribuídos à origem ou ao destino apenas para os papéis
@@ -1139,6 +1150,12 @@ class CDRTransformer(CDRBaseTransformer):
             - O pipeline comum usa ``numero_origem`` para normalização e depois
                 restaura ``_numero_origem_original`` no campo original de saída,
                 incluindo o trecho de autenticação que estava nessa coluna.
+            - Anotação de manutenção: ``_autenticacao`` usa ``getItem(1)`` sem
+                verificar o tamanho do resultado de ``split``. Sem ``;`` em
+                ``_numero_origem_original``, o resultado depende de
+                ``spark.sql.ansi.enabled``: nulo com ANSI desabilitado e erro de
+                índice inválido com ANSI habilitado (confirmado com uma expressão
+                isolada em PySpark 3.5.5).
             - Grava Parquet com sobrescrita pelo pipeline de escrita herdado.
         """
         date_time_fmt = "yyyyMMdd HHmmss"
@@ -1287,9 +1304,12 @@ class CDRTransformer(CDRBaseTransformer):
         Notes:
             Não concatena campos de data/hora nem mapeia códigos de chamada;
             ``data_hora`` e as demais colunas temporais devem chegar prontas
-            do Parquet intermediário. A máscara temporal usada pelo pipeline é
-            ``yyMMddHHmmss``. Grava Parquet com sobrescrita pelo pipeline de
-            escrita herdado.
+            do Parquet intermediário. O catálogo ``stfc_huawei_ngn_tim`` também
+            não mapeia ``tipo_chamada`` nem ``resultado_chamada``; ambas são
+            criadas nulas pelo pipeline comum e, por integrarem a chave primária,
+            recebem ``NULL_SENTINEL_VALUE``. A máscara temporal usada pelo
+            pipeline é ``yyMMddHHmmss``. Grava Parquet com sobrescrita pelo
+            pipeline de escrita herdado.
         """
 
         date_time_fmt = "yyMMddHHmmss"
@@ -1764,8 +1784,9 @@ class CDRTransformer(CDRBaseTransformer):
 
         Notes:
             Combina ``_data``/``_hora`` e, se presentes, ``_data_fim``/``_hora_fim``;
-            a máscara é ``ddMMyyyy HHmmss``. Apenas o tipo ``"04"`` vira
-            ``tandem``; os demais ficam nulos antes do pipeline comum.
+            a máscara é ``ddMMyyyy HHmmss``. ``tipo_chamada`` recebe o literal
+            ``tandem`` para todos os registros, sem consultar coluna extraída;
+            os catálogos LEGA e LEGB não mapeiam um tipo de chamada.
             Resultados 003/006 indicam atendimento e desligamento; 013 a 033
             recebem os rótulos específicos definidos no método; 102/104 indicam
             ausência de conversação e 201/202 viram ``fatia da chamada``.

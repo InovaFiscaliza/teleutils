@@ -200,6 +200,23 @@ def _validate_unique_prefixes(configs: Sequence[Mapping[str, object]]) -> None:
 
 
 def _resolve_minio_setting(name: str, value: str | None, env_name: str) -> str:
+    """Obtém uma opção do MinIO do argumento ou da variável de ambiente.
+
+    A variável só é consultada quando ``value`` é ``None``; uma string vazia
+    informada não é substituída pelo ambiente.
+
+    Args:
+        name: Nome da opção, usado na mensagem de erro.
+        value: Valor informado pelo chamador, ou ``None``.
+        env_name: Variável de ambiente usada como alternativa.
+
+    Returns:
+        O valor resolvido, sem normalização.
+
+    Raises:
+        ValueError: Se o valor resolvido não for string ou for vazio ou só
+            com espaços.
+    """
     value = value if value is not None else os.environ.get(env_name)
     if not isinstance(value, str) or not value.strip():
         raise ValueError(f"{name} ou a variável {env_name} deve ser informada.")
@@ -229,7 +246,8 @@ def load_config(
         Lista de dicionários, sem modificar os valores do arquivo.
 
     Raises:
-        TypeError: Se path não for string ou o JSON não for uma lista de objetos.
+        TypeError: Se path não for string, se ``secure`` não for booleano em
+            caminho S3A ou se o JSON não for uma lista de objetos.
         ValueError: Se o caminho ou as opções MinIO forem inválidos ou se
             houver prefixos duplicados.
         OSError: Se houver erro ao ler o arquivo local.
@@ -498,7 +516,12 @@ def _join_path(folder: str, name: str) -> str:
 
 
 def _validate_materialize_intermediate(materialize_intermediate: bool) -> None:
-    """Valida a seleção do modo sem coerção de strings ou inteiros."""
+    """Valida a seleção do modo sem coerção de strings ou inteiros.
+
+    Raises:
+        TypeError: Se o valor não for ``bool``; o erro é registrado em log
+            antes de ser levantado.
+    """
     if not isinstance(materialize_intermediate, bool):
         message = "materialize_intermediate deve ser bool."
         logger.error(message)

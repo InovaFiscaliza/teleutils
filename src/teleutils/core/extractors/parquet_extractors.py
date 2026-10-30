@@ -13,7 +13,8 @@ mantendo aqui apenas a lógica de execução da extração.
 Responsabilidades principais:
     - Ler um ou mais caminhos parquet de entrada e projetar colunas
             padronizadas conforme um schema informado.
-    - Adicionar metadados de proveniência (prestadora, tipo e arquivo).
+    - Adicionar metadados de proveniência (``esquema``, ``prestadora``,
+      ``servico``, ``tipo_cdr`` e ``arquivo_origem``).
     - Escrever parquet intermediário para consumo pelos transformadores.
 
 Principais funcionalidades:
@@ -178,6 +179,10 @@ class CDRParquetExtractor:
                 metadado obrigatório não puder ser inferido do caminho.
 
         Notes:
+            A leitura, a projeção, os metadados, a deduplicação e as validações
+            são executados por ``extract_dataframe``; este método acrescenta a
+            escrita em modo ``overwrite`` e o retorno do caminho de saída.
+
             Cada chamada deve receber dados de uma única prestadora e de um
             único tipo de CDR de entrada, mesmo quando ``source_file`` contém
             vários caminhos. Essa premissa é responsabilidade do chamador;
@@ -220,8 +225,12 @@ class CDRParquetExtractor:
             Somente campos ausentes são inferidos e verificados por uma ação
             Spark antes da escrita. Argumentos completos dispensam a validação
             da hierarquia. ``arquivo_origem`` é o nome do arquivo, decodificado
-            como URI e preservando sinais de mais literais. Os cinco metadados
-            substituem colunas de mesmo nome na projeção.
+            como URI e preservando sinais de mais literais, apenas quando o
+            contrato não mapeia uma coluna ``arquivo_origem``; se mapeada
+            (``smp_ericsson_volte_vivo`` e ``stfc_sigma_claro``), a coluna do
+            contrato é mantida, inclusive quando nula. ``esquema``,
+            ``prestadora``, ``servico`` e ``tipo_cdr`` substituem colunas de
+            mesmo nome na projeção.
 
             Se o contrato produzir ``_tipo_cdr``, essa coluna substitui
             ``tipo_cdr`` antes da deduplicação, inclusive quando seu valor é nulo.

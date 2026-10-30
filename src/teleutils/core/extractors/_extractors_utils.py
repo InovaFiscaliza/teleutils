@@ -109,6 +109,9 @@ def suppress_spark_loggers(
                     explicit_level,
                     _,
                 ) in previous_configs.items():
+                    # Logger sem configuração própria antes da execução tem a
+                    # configuração temporária removida; os demais voltam ao
+                    # nível explícito anterior.
                     if logger_config is None:
                         configuration.removeLogger(name)
                     else:
@@ -136,7 +139,9 @@ def read_text_with_source(
     Arquivos e diretórios ocultos são ignorados, como nas leituras Spark.
     Cada arquivo é lido com ``textFile``; somente os caminhos são enumerados
     no driver, sem carregar o conteúdo inteiro dos arquivos em memória.
-
+    Um mesmo arquivo alcançado por mais de um caminho é lido uma única vez
+    (deduplicação pelo caminho qualificado) e a ordem de união dos arquivos
+    segue a enumeração do filesystem, sem ordenação explícita.
     Args:
         spark: Sessão Spark cujo contexto Hadoop resolve os caminhos.
         source_file: Caminho, diretório ou glob, ou lista deles.
@@ -240,6 +245,9 @@ def add_source_metadata(
     A verificação de campos inferidos executa uma ação Spark antes da escrita.
     Quando nenhum campo depende do caminho, essa verificação é dispensada.
 
+    Uma coluna ``arquivo_origem`` já existente em ``df`` (mapeada pelo contrato
+    do layout) é mantida; o nome do arquivo só é inferido do caminho quando ela
+    não existe.
     Args:
         df: DataFrame extraído, com a coluna ``SOURCE_PATH_COLUMN``.
         cdr_schema: Chave do schema, gravada na coluna ``esquema``.

@@ -14,6 +14,12 @@ Exports:
 Example:
         >>> from teleutils.core.extractors import CDRTextExtractor
         >>> extrator = CDRTextExtractor(spark)
+
+Notes:
+        Os contratos de layout (``CDRParquetSchema``, ``CDRTextSchema`` e os
+        catálogos padrão) pertencem a ``teleutils.core.extractors.schemas`` e
+        não são reexportados aqui. ``_extractors_utils`` é de uso interno dos
+        dois extratores.
 """
 
 from teleutils.core.extractors.parquet_extractors import CDRParquetExtractor

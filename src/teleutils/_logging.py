@@ -1,3 +1,24 @@
+"""Infraestrutura de logging compartilhada do pacote teleutils.
+
+Fornece utilitários usados pelos extratores, transformadores e pelo loader para
+registrar a execução de suas operações, sem configurar o logging da aplicação.
+
+Principais componentes:
+    - ``format_source_file_for_log``: descreve a entrada (caminho, lista de
+      caminhos ou DataFrame) de forma segura para mensagens de log.
+    - ``log_operation``: decorator que registra início, sucesso, duração e
+      falha de um método.
+
+Notes:
+    Ao ser importado, o módulo registra um ``NullHandler`` no logger
+    ``teleutils``. Handlers, formatadores e níveis são responsabilidade da
+    aplicação consumidora.
+
+Example:
+    >>> format_source_file_for_log(["/dados/a.parquet", "/dados/b.parquet"])
+    "'/dados/a.parquet' (2 caminhos)"
+"""
+
 from __future__ import annotations
 
 import logging
@@ -24,6 +45,13 @@ def format_source_file_for_log(source_file: str | list[str] | DataFrame) -> str:
     Listas são resumidas pelo primeiro elemento e pela quantidade de caminhos.
     Listas vazias são representadas sem acesso ao primeiro elemento. A
     representação por ``repr`` torna caracteres de controle visíveis.
+
+    Args:
+        source_file: Caminho, lista de caminhos ou DataFrame de entrada.
+
+    Returns:
+        Texto para log. Para outros tipos (inclusive DataFrame), apenas o nome
+        do tipo entre ``<>``; o plano não é inspecionado.
     """
     if isinstance(source_file, list):
         count = len(source_file)
@@ -43,6 +71,23 @@ def log_operation(method: Method) -> Method:
     Não valida a entrada nem configura níveis ou handlers da aplicação.
     Exceções da operação são registradas com traceback e relançadas intactas.
     A duração mede a execução do método, sem materializar ações Spark adicionais.
+
+    Args:
+        method: Método de instância cujo primeiro argumento após ``self`` é a
+            entrada (``source_file``): caminho, lista de caminhos ou DataFrame.
+
+    Returns:
+        Wrapper com a assinatura ``(self, source_file, *args, **kwargs)``; o
+        resultado original do método é devolvido sem alteração.
+
+    Notes:
+        O wrapper exige ``source_file`` como primeiro argumento após ``self``
+        (por posição ou com esse nome) e o repassa ao método por posição; o
+        método decorado deve receber a entrada nessa posição. Para métodos
+        chamados ``extract_dataframe``, a mensagem de sucesso informa apenas que
+        o plano foi preparado, sem persistência. Somente ``Exception`` é
+        registrada; interrupções como ``KeyboardInterrupt`` não passam pelo
+        log de falha.
     """
 
     @wraps(method)

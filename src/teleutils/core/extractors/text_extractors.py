@@ -166,6 +166,10 @@ class CDRTextExtractor:
                 contexto Hadoop ativo.
 
         Notes:
+            A leitura, a seleção ou o recorte, os metadados e o filtro são
+            executados por ``extract_dataframe``; este método acrescenta a
+            escrita em modo ``overwrite`` e o retorno do caminho de saída.
+
             Cada chamada deve receber dados de uma única prestadora e de um
             único tipo de CDR de entrada, mesmo quando ``source_file`` contém
             vários caminhos. Essa premissa é responsabilidade do chamador;
@@ -218,7 +222,9 @@ class CDRTextExtractor:
             Somente campos ausentes são inferidos e verificados por uma ação
             Spark antes da escrita. Argumentos completos dispensam a validação
             da hierarquia. ``arquivo_origem`` é o nome do arquivo, decodificado
-            como URI e preservando sinais de mais literais. O ramo RDD preserva
+            como URI e preservando sinais de mais literais, exceto se o contrato
+            mapear uma coluna ``arquivo_origem``, que então é mantida; nenhum
+            contrato do catálogo padrão a mapeia. O ramo RDD preserva
             a origem ao associar cada linha ao arquivo efetivamente lido.
 
             O filtro é aplicado depois da seleção e renomeação; por isso, seu

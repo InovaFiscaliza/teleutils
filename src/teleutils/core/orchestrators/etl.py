@@ -194,8 +194,9 @@ class _Extractor(Protocol):
     """Contrato mínimo exigido dos extratores utilizados pelo orquestrador.
 
     Corresponde à interface de ``CDRParquetExtractor`` e ``CDRTextExtractor``:
-    ``schemas`` expõe o catálogo de chaves aceitas e ``extract`` grava o
-    Parquet intermediário em ``target_file``.
+    ``schemas`` expõe o catálogo de chaves aceitas, ``extract`` grava o
+    Parquet intermediário em ``target_file`` e ``extract_dataframe`` retorna
+    o DataFrame extraído, sem escrita (modo direto).
     """
 
     @property
@@ -540,7 +541,12 @@ def run_etl(
         base_folder: Pasta base opcional a ser prefixada à origem configurada.
             Deve ser informada junto com ``week_dir``.
         week_dir: Pasta da semana opcional, concatenada entre ``base_folder``
-            e a ``source_folder`` da configuração.
+            e a ``source_folder`` da configuração (barras de borda são
+            normalizadas). Além da origem, ``output_file_prefix`` passa a ser
+            ``<week_dir em minúsculas>_<prefixo>``, alterando os nomes dos
+            Parquets de saída. As duas substituições só ocorrem em itens
+            mapping com ``source_folder`` string; os demais seguem sem
+            modificação para a validação individual.
         materialize_intermediate: Se False, passa o DataFrame diretamente,
             usando a sessão isolada NTZ do transformador também na extração.
             Overrides SQL de runtime do chamador não são copiados.
@@ -552,7 +558,9 @@ def run_etl(
         configuração. Não há carga, retry, rollback ou certificação de dados.
 
     Raises:
-        TypeError: Se configs não for sequência ou for string/mapping.
+        TypeError: Se configs não for sequência ou for string/mapping, se
+            ``materialize_intermediate`` não for bool ou se ``base_folder`` ou
+            ``week_dir`` informado não for string.
         ValueError: Se apenas um entre ``base_folder`` e ``week_dir`` for
             informado ou se um deles for vazio.
         KeyboardInterrupt: Interrupções do usuário não são capturadas.
@@ -564,6 +572,12 @@ def run_etl(
         Os componentes mantêm sua semântica de overwrite e tolerância a
         dados ausentes/corrompidos. Intermediários e saídas parciais não
         são removidos em caso de falha.
+
+        Anotação de manutenção: com ``base_folder`` e ``week_dir``, o novo
+        ``output_file_prefix`` é montado antes da validação. Um prefixo ausente
+        ou não string entra no texto como valor Python (``None`` vira
+        ``'None'``); por isso a validação desse campo não o rejeita em itens
+        cujo ``source_folder`` é string.
     """
     _validate_materialize_intermediate(materialize_intermediate)
     if not isinstance(configs, Sequence) or isinstance(configs, (str, bytes, Mapping)):
@@ -707,7 +721,7 @@ def run_etl_item(
         base_folder: Pasta base opcional a prefixar à origem; deve ser
             informada junto com ``week_dir``.
         week_dir: Pasta da semana opcional, entre ``base_folder`` e a origem
-            configurada.
+            configurada. Também prefixa ``output_file_prefix`` (ver ``run_etl``).
         materialize_intermediate: Mantém o Parquet intermediário por padrão.
             Se False, extracted_folder é opcional e a sessão compartilhada
             compatível é administrada internamente.
@@ -717,7 +731,8 @@ def run_etl_item(
         sem converter operações incompletas em sucesso.
 
     Raises:
-        TypeError: Se um dos parâmetros de pasta não for string.
+        TypeError: Se um dos parâmetros de pasta não for string ou
+            ``materialize_intermediate`` não for bool.
         ValueError: Se apenas um dos parâmetros de pasta for informado ou
             se algum deles for vazio.
     """

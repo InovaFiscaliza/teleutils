@@ -1,57 +1,81 @@
-"""Módulo de configuração compartilhada do pacote teleutils.
+"""Constantes e contratos de dados compartilhados do pacote teleutils.
 
-Este módulo centraliza constantes utilizadas por diferentes componentes do
-projeto para manter consistência entre etapas de extração, classificação e
-persistência de dados de telecomunicações.
+Este módulo centraliza valores utilizados por diferentes etapas do pipeline de
+CDRs (extração, transformação e carga) para evitar duplicação e manter a
+consistência entre elas.
 
 Responsabilidades:
-        - Definir marcadores textuais compartilhados entre regras de negócio.
-        - Consolidar limites operacionais usados em rotinas de leitura e escrita.
-        - Evitar duplicação de valores sensíveis a manutenção em múltiplos módulos.
+    - Definir o contrato final de colunas (``TARGET_SCHEMA``) e a chave de
+      desduplicação (``PRIMARY_KEY_COLUMNS``).
+    - Definir os valores sentinela de preenchimento: ``MIN_SAFE_DATE``,
+      ``NULL_SENTINEL_VALUE`` e ``SUBSCRIBER_NUMBER_NULL_SENTINEL_VALUE``.
+    - Definir os códigos de rede usados na composição de células do layout
+      Nokia: ``DEFAULT_MCC``, ``ALGAR_MNC`` e ``CLARO_MNC``.
+    - Reunir constantes operacionais sem consumidor em ``src``:
+      ``AUTENTICATED_CALL_FLAG``, ``SPARK_DEFAULT_PARALLELISM``,
+      ``MAX_RECORDS_PER_FILE`` e ``SHORT_CALL_THRESHOLD`` (ver Notes).
 
-Principais funcionalidades:
-        - Informar o indicador textual de chamadas autenticadas.
-        - Definir o limite máximo de registros por arquivo parquet gerado.
-        - Determinar o limiar padrão para classificação de chamadas curtas.
+Principais consumidores:
+    - ``teleutils.core.transformers.base_transformer``: ``MIN_SAFE_DATE``,
+      ``NULL_SENTINEL_VALUE``, ``PRIMARY_KEY_COLUMNS`` e ``TARGET_SCHEMA``.
+    - ``teleutils.core.transformers.transformers``: ``DEFAULT_MCC``,
+      ``ALGAR_MNC`` e ``CLARO_MNC``.
+    - ``teleutils.core.loaders.trino_loader``: ``PRIMARY_KEY_COLUMNS`` e
+      ``TARGET_SCHEMA``.
+    - ``teleutils.preprocessing.phone_number_extractor``:
+      ``SUBSCRIBER_NUMBER_NULL_SENTINEL_VALUE``.
 
-Dependências relevantes:
-        - teleutils.robocalls.classifiers
-        - teleutils.core.extractors.text_extractors
+Dependências:
+    - ``pyspark.sql.types``: tipos Spark associados às colunas de
+      ``TARGET_SCHEMA``.
 
 Example:
-        >>> from teleutils._config import SHORT_CALL_THRESHOLD
-        >>> SHORT_CALL_THRESHOLD
-        6
+    >>> from teleutils._config import NULL_SENTINEL_VALUE
+    >>> NULL_SENTINEL_VALUE
+    '__NULL__'
 
 Notes:
-        Este módulo deve permanecer enxuto e conter apenas configurações estáticas
-        reutilizáveis. Sempre que uma nova constante representar regra de negócio
-        transversal, prefira defini-la aqui em vez de replicá-la em módulos de
-        processamento.
+    Nenhum módulo de ``src`` importa ``AUTENTICATED_CALL_FLAG``,
+    ``SPARK_DEFAULT_PARALLELISM``, ``MAX_RECORDS_PER_FILE`` ou
+    ``SHORT_CALL_THRESHOLD`` deste módulo. O pacote ``robocalls`` define seus
+    próprios valores (por exemplo, ``MAX_RECORDS_PER_FILE`` em
+    ``robocalls.extractors`` e ``_LIMIAR_CHAMADA_OFENSORA`` em
+    ``robocalls.transformers``); alterar as constantes daqui não os modifica.
+
+    Este módulo deve permanecer enxuto e conter apenas configurações estáticas
+    reutilizáveis. Sempre que uma nova constante representar regra de negócio
+    transversal, prefira defini-la aqui em vez de replicá-la em módulos de
+    processamento.
 """
 
 from pyspark.sql import types as T
 
-# Marcador textual utilizado pelo classificador de robocalls para identificar
-# chamadas que passaram pelo processo de autenticação da operadora.
+# Valor textual 'TN-Validation-Passed'. Coincide com o rótulo produzido por
+# CDRBaseTransformer._add_tn_validation_status, mas aquele método usa um
+# literal próprio: esta constante não é importada por módulos de src.
 AUTENTICATED_CALL_FLAG = "TN-Validation-Passed"
 
+# Não é importada por módulos de src (não há referência a este valor no código).
 SPARK_DEFAULT_PARALLELISM = 20
 
-# Limite operacional aplicado na escrita de parquet para reduzir a geração de
-# arquivos excessivamente grandes, o que facilita particionamento e manuseio.
+# Limite de registros por arquivo Parquet (opção maxRecordsPerFile do Spark).
+# Não é importado por módulos de src: robocalls.extractors usa uma cópia própria.
 # -1 = sem limite, deixa o Spark decidir o tamanho do arquivo final
 MAX_RECORDS_PER_FILE = 1000000
 
-# Regra de negócio padrão para classificar chamadas muito curtas, utilizada nas
-# rotinas analíticas de detecção de padrões potencialmente abusivos.
+# Limiar padrão, em segundos, para chamadas "curtas". Não é importado por
+# módulos de src: robocalls.transformers define o seu próprio limiar.
 SHORT_CALL_THRESHOLD = 6
 
-# Data limite aplicada às colunas temporais durante as transformações.
+# Limite inferior dos timestamps: CDRBaseTransformer._format_date_time usa
+# greatest(valor, MIN_SAFE_DATE), de modo que nulos, valores inválidos e datas
+# anteriores a este limite resultam nele; também é o padrão da chave primária.
 MIN_SAFE_DATE = "1901-01-01 00:00:00"
 
-# Código MCC/MNC para preenchimento em caso de ausência de informação de operadora, utilizado em transformações
-# de CDRs para manter consistência de dados e evitar valores nulos em campos críticos
+# Códigos de rede usados por transform_smp_nokia_gsm para compor as células
+# (MCC-MNC-LAC-CI), pois o layout Nokia não os fornece. O MNC depende da
+# prestadora: "claro" usa CLARO_MNC, "algar" usa ALGAR_MNC e outros valores
+# resultam em MNC nulo e, portanto, em célula nula.
 DEFAULT_MCC = "724"
 ALGAR_MNC = "34"
 CLARO_MNC = "05"
@@ -60,10 +84,14 @@ CLARO_MNC = "05"
 # evitando que registros distintos sejam erroneamente considerados duplicados
 NULL_SENTINEL_VALUE = "__NULL__"
 
-# Valor sentinela específico para números de assinantes nulos, utilizado em desduplicação e validação.
+# Número retornado por extract_number (com success=False) quando a entrada é
+# vazia ou nula; ver teleutils.preprocessing.phone_number_extractor.
 SUBSCRIBER_NUMBER_NULL_SENTINEL_VALUE = "5599999999999"
 
-# Chave primária para desduplicação de registros, composta por campos críticos que identificam unicamente uma chamada
+# Chave primária para desduplicação de registros, composta por campos críticos que identificam unicamente uma chamada.
+# Usa os nomes finais das colunas (primeiro elemento das tuplas de TARGET_SCHEMA),
+# não as chaves do dicionário. Nulos desses campos são preenchidos por
+# CDRBaseTransformer._fill_primary_key_columns antes da escrita.
 PRIMARY_KEY_COLUMNS = [
     "no_tipo_chamada",
     "nu_referencia",
@@ -82,6 +110,11 @@ PRIMARY_KEY_COLUMNS = [
     "no_bilhetador",
 ]
 
+# Contrato final de saída: {nome intermediário: (nome final, tipo Spark)}.
+# A ordem das entradas define a ordem das colunas do Parquet final.
+# CDRBaseTransformer._fill_missing_columns cria como nulas as chaves ausentes,
+# _select_transformed_columns aplica cast e alias, e TrinoLoader exige os nomes
+# finais (primeiro elemento de cada tupla) no Parquet a carregar.
 TARGET_SCHEMA = {
     # 1. Identificação Geral & Tempo (Quando e qual o contexto da carga)
     "referencia": ("nu_referencia", T.StringType()),

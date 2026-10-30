@@ -69,6 +69,21 @@ def _quote_identifier(identifier: str) -> str:
 
 
 def _table_parts(name: str, argument: str) -> list[str]:
+    """Divide um nome de tabela por pontos e valida de um a três componentes.
+
+    Args:
+        name: Nome da tabela, como catalogo.schema.tabela. A divisão é literal:
+            não há tratamento de crases nem de pontos escapados.
+        argument: Nome do parâmetro de origem, usado nas mensagens de erro.
+
+    Returns:
+        Lista com os componentes, sem normalização.
+
+    Raises:
+        TypeError: Se name não for string.
+        ValueError: Se houver menos de um ou mais de três componentes, ou
+            algum deles estiver vazio ou composto apenas por espaços.
+    """
     if not isinstance(name, str):
         raise TypeError(f"{argument} deve ser um nome de tabela.")
     parts = name.split(".")
@@ -78,6 +93,20 @@ def _table_parts(name: str, argument: str) -> list[str]:
 
 
 def _validate_origins(df: DataFrame, label: str) -> None:
+    """Valida a coluna no_arquivo_origem, que identifica a origem de cada linha.
+
+    A coluna deve ser string e não conter valores nulos nem vazios ou só com
+    espaços (inclusive espaços Unicode). A verificação de conteúdo executa uma
+    ação Spark sobre df.
+
+    Args:
+        df: DataFrame com a coluna no_arquivo_origem.
+        label: Rótulo do DataFrame (Parquet ou control_table) nas mensagens.
+
+    Raises:
+        TypeError: Se no_arquivo_origem não for string.
+        ValueError: Se existir origem nula, vazia ou só com espaços.
+    """
     if not isinstance(df.schema["no_arquivo_origem"].dataType, T.StringType):
         raise TypeError(f"{label}: no_arquivo_origem deve ser string.")
     name = F.col("no_arquivo_origem")
@@ -86,6 +115,22 @@ def _validate_origins(df: DataFrame, label: str) -> None:
 
 
 def _validate_control(df: DataFrame) -> None:
+    """Valida o schema e o conteúdo do controle de cargas lido.
+
+    O controle deve ter exatamente as colunas de _CONTROL_SCHEMA, dh_carga
+    como timestamp sem fuso, origens válidas (ver _validate_origins), dh_carga
+    não nulo e uma única linha por origem. A validação de conteúdo executa
+    ações Spark sobre df.
+
+    Args:
+        df: DataFrame lido do controle (Parquet ou tabela Iceberg).
+
+    Raises:
+        ValueError: Se o conjunto de colunas diferir de _CONTROL_SCHEMA, houver
+            origem inválida, dh_carga nulo ou origem repetida.
+        TypeError: Se dh_carga não for timestamp sem fuso ou a origem não
+            for string.
+    """
     if len(df.columns) != 2 or set(df.columns) != set(_CONTROL_SCHEMA.names):
         raise ValueError(
             "control_table deve conter apenas no_arquivo_origem e dh_carga."
@@ -100,10 +145,28 @@ def _validate_control(df: DataFrame) -> None:
 
 
 def _is_control_path(control_table: str) -> bool:
+    """Indica se control_table é um URI de dataset Parquet, não uma tabela.
+
+    Apenas os prefixos s3a:// e file:// (sensíveis a maiúsculas) identificam
+    caminho; qualquer outra string é tratada como nome de tabela Iceberg.
+    """
     return control_table.startswith(("s3a://", "file://"))
 
 
 def _validate_control_uri(value: str) -> None:
+    """Rejeita URIs de controle que não identifiquem um diretório seguro.
+
+    São recusados: query ou fragmento; caminho (decodificado) relativo, vazio
+    ou raiz; segmentos . ou ..; curingas ou barra invertida; caracteres de
+    controle; e espaços nas bordas. Em s3a, exige bucket sem usuário nem porta;
+    em file, exige URI sem hostname (file:///caminho).
+
+    Args:
+        value: URI iniciado por s3a:// ou file://.
+
+    Raises:
+        ValueError: Se qualquer restrição acima for violada.
+    """
     uri = urlsplit(value)
     decoded_path = unquote(uri.path)
     if (
@@ -209,6 +272,8 @@ class TrinoLoader:
                 forem inválidos, ou houver origens nulas/vazias com controle ativo.
             TypeError: Se os tipos das opções ou das colunas de controle forem
                 inválidos.
+            RuntimeError: Se o controle for um caminho Parquet e a sessão não
+                possuir contexto Hadoop ativo.
 
         Notes:
             Todas as colunas finais de TARGET_SCHEMA devem estar presentes no
@@ -322,6 +387,24 @@ class TrinoLoader:
         target_parts: list[str],
         control_table: str | None,
     ) -> str | None:
+        """Normaliza control_table e impede que coincida com o destino.
+
+        Args:
+            target_parts: Componentes de target_table, sem delimitadores.
+            control_table: None, URI s3a:// ou file://, ou nome de tabela.
+
+        Returns:
+            None se o controle estiver desabilitado. Para URI, a forma
+            esquema://autoridade/caminho, com o caminho decodificado e sem
+            barra final. Para tabela, os componentes informados delimitados por
+            crases; o nome não é completado com catálogo ou namespace.
+
+        Raises:
+            TypeError: Se control_table não for string nem None.
+            ValueError: Se o URI for inválido, se uma string com barras ou dois
+                pontos não for URI s3a/file, se o nome não for uma tabela
+                válida ou se identificar a mesma tabela de target_table.
+        """
         if control_table is None:
             return None
         if not isinstance(control_table, str):
@@ -338,6 +421,8 @@ class TrinoLoader:
         catalog = self.spark.catalog.currentCatalog()
         namespace = self.spark.catalog.currentDatabase()
 
+        # Nomes parciais são completados com o catálogo e o namespace atuais da
+        # sessão apenas para esta comparação; a comparação ignora maiúsculas.
         def qualified(components: list[str]) -> list[str]:
             if len(components) == 1:
                 components = [catalog, namespace, *components]
@@ -350,6 +435,18 @@ class TrinoLoader:
         return ".".join(_quote_identifier(part) for part in parts)
 
     def _hadoop_path(self, value: str) -> tuple[Any, Any]:
+        """Obtém o Path Hadoop e seu FileSystem pelo gateway JVM da sessão.
+
+        Args:
+            value: Caminho ou URI a resolver.
+
+        Returns:
+            Tupla (Path, FileSystem) de objetos Py4J, sem verificar a
+            existência do caminho.
+
+        Raises:
+            RuntimeError: Se a sessão não possuir JVM ou contexto Java ativo.
+        """
         context = self.spark.sparkContext
         # Py4J resolve classes e métodos Hadoop dinamicamente no gateway JVM.
         jvm, java_context = cast(Any, context._jvm), cast(Any, context._jsc)
@@ -359,6 +456,19 @@ class TrinoLoader:
         return path, path.getFileSystem(java_context.hadoopConfiguration())
 
     def _path_identity(self, value: str) -> tuple[str, str, str]:
+        """Resolve um caminho à tupla (esquema, autoridade, caminho) comparável.
+
+        O caminho é qualificado pelo filesystem e normalizado; esquema e
+        autoridade ficam em minúsculas. Em file, o caminho é resolvido pelo
+        sistema local (links simbólicos). A barra final é removida e a raiz é
+        representada por "/".
+
+        Args:
+            value: Caminho ou URI a identificar.
+
+        Returns:
+            Tupla usada por _validate_path_separation para comparar locais.
+        """
         path, filesystem = self._hadoop_path(value)
         uri = filesystem.makeQualified(path).toUri().normalize()
         scheme = str(uri.getScheme()).lower()
@@ -371,6 +481,24 @@ class TrinoLoader:
     def _validate_path_separation(
         self, control_table: str, source_file: str, target_table: str
     ) -> None:
+        """Garante que o controle Parquet não sobreponha origem nem destino.
+
+        Compara o controle com source_file e, se a tabela de destino existir,
+        com o Location obtido por DESCRIBE TABLE EXTENDED (consulta SQL ao
+        catálogo). Só locais com o mesmo esquema e autoridade são comparados;
+        há sobreposição quando os caminhos são iguais ou um é ancestral do
+        outro. Em source_file, um padrão com curinga representa toda a árvore a
+        partir do primeiro componente que o contém.
+
+        Args:
+            control_table: URI normalizado do controle Parquet.
+            source_file: Caminho do Parquet de origem.
+            target_table: Nome do destino já delimitado por crases.
+
+        Raises:
+            ValueError: Se o controle resolver para a raiz do filesystem ou
+                sobrepuser a origem ou o destino.
+        """
         control_identity = self._path_identity(control_table)
         if control_identity[2] == "/":
             raise ValueError(
@@ -408,6 +536,23 @@ class TrinoLoader:
     def _temporary_control_path(
         self, control_table: str, *, inside: bool = False
     ) -> Generator[str, None, None]:
+        """Fornece um caminho temporário e o remove ao final, mesmo com falha.
+
+        Args:
+            control_table: URI do controle Parquet.
+            inside: Se verdadeiro, o temporário é um subdiretório
+                _teleutils_probe_<uuid> dentro do controle; caso contrário, é um
+                irmão chamado <controle>.teleutils_<uuid>.
+
+        Yields:
+            URI do temporário, que ainda não existe; o chamador o cria.
+
+        Raises:
+            FileExistsError: Se o temporário já existir antes do uso.
+            OSError: Se a remoção falhar e o bloco com o temporário não tiver
+                falhado. Se o bloco tiver falhado, a falha da remoção apenas é
+                registrada em log e a exceção original prevalece.
+        """
         suffix = uuid4().hex
         temporary = (
             f"{control_table.rstrip('/')}/_teleutils_probe_{suffix}"
@@ -439,6 +584,33 @@ class TrinoLoader:
     def _prepare_control(
         self, control_table: str, source_file: str, target_table: str
     ) -> DataFrame:
+        """Cria, valida e sonda o controle antes da leitura e da carga.
+
+        Executa, nesta ordem, antes de qualquer escrita de dados:
+
+        * Parquet: valida a separação de caminhos; cria o diretório vazio
+          (errorifexists) se ausente ou rejeita um não diretório; lê e valida o
+          conteúdo; testa a escrita em temporários dentro e fora do diretório.
+        * Tabela: cria a tabela Iceberg vazia se ausente; atualiza o cache de
+          metadados; lê e valida o conteúdo; testa a escrita com append e MERGE
+          de DataFrames vazios (podem gerar snapshots, sem alterar linhas).
+
+        Args:
+            control_table: Valor retornado por _resolve_control.
+            source_file: Caminho do Parquet de origem dos dados.
+            target_table: Destino delimitado por crases, usado na verificação
+                de sobreposição de caminhos.
+
+        Returns:
+            DataFrame lazy com o controle lido. O mesmo DataFrame é reutilizado
+            depois para filtrar origens e registrar a carga; não há nova leitura
+            explícita após a escrita dos dados.
+
+        Raises:
+            ValueError: Se o controle Parquet não for diretório, sobrepuser a
+                origem ou o destino, ou seu conteúdo for inválido.
+            TypeError: Se o schema do controle tiver tipos inválidos.
+        """
         logger.info(
             "Validando leitura e gravação do controle %s antes da carga.", control_table
         )
@@ -487,6 +659,37 @@ class TrinoLoader:
         control: DataFrame,
         source_file: str,
     ) -> None:
+        """Carrega apenas as origens elegíveis e as registra no controle.
+
+        Fluxo de processamento:
+            1. Valida no_arquivo_origem do Parquet e obtém as origens distintas.
+            2. Fora de merge, exclui as origens já presentes no controle e
+               conta as excluídas; em merge, todas as origens são elegíveis.
+            3. Persiste (cache) as origens elegíveis para fixá-las antes de
+               deduplicar dados ou alterar o controle. Se não houver nenhuma,
+               registra em log e retorna sem escrever.
+            4. Grava, por _write_data, somente as linhas das origens elegíveis.
+            5. Registra as origens no controle; se falhar, registra falha
+               parcial em log e propaga a exceção.
+            6. Libera o cache no finally.
+
+        Args:
+            df: Parquet lido, com no_arquivo_origem.
+            target_table: Destino delimitado por crases.
+            keys: Chaves de deduplicação e MERGE (vazia em append).
+            mode: Modo de carga.
+            control_table: Valor retornado por _resolve_control.
+            control: DataFrame retornado por _prepare_control.
+            source_file: Caminho do Parquet, usado nos logs.
+
+        Raises:
+            ValueError: Se houver origem nula, vazia ou só com espaços.
+            TypeError: Se no_arquivo_origem não for string.
+
+        Notes:
+            Dados e controle não são gravados em transação conjunta: uma falha
+            após a escrita dos dados deixa a origem sem registro no controle.
+        """
         _validate_origins(df, "Parquet")
         origins = df.select("no_arquivo_origem").distinct()
         known = control.select("no_arquivo_origem")
@@ -522,6 +725,10 @@ class TrinoLoader:
 
     @staticmethod
     def _log_unloaded_lines(source_file: str, skipped_count: int) -> None:
+        """Registra em log quantas origens foram puladas por já estarem no controle.
+
+        Não faz nada quando skipped_count é zero.
+        """
         if skipped_count:
             logger.info(
                 "O source_file %r teve linhas não carregadas porque %d origem(ns) "
@@ -536,6 +743,23 @@ class TrinoLoader:
         control_table: str,
         control: DataFrame,
     ) -> None:
+        """Registra no controle as origens carregadas, com um único dh_carga.
+
+        O instante é o horário UTC atual, armazenado sem fuso, e vale para todas
+        as origens da chamada. Em controle Parquet, as origens ainda não
+        registradas são unidas às novas linhas, o resultado é gravado em um
+        temporário e só então sobrescreve o controle (o overwrite não pode ler
+        os arquivos que remove). Em tabela, usa _merge_control.
+
+        Args:
+            origins: Origens (no_arquivo_origem) carregadas nesta chamada.
+            control_table: Valor retornado por _resolve_control.
+            control: DataFrame do controle lido antes da carga.
+
+        Notes:
+            No caminho Parquet não há backup nem rollback: falha durante a
+            sobrescrita pode perder o controle anterior.
+        """
         loaded_at = datetime.now(timezone.utc).replace(tzinfo=None)
         timestamp = self.spark.createDataFrame(
             [(loaded_at,)], T.StructType([_CONTROL_SCHEMA["dh_carga"]])
@@ -560,6 +784,15 @@ class TrinoLoader:
         logger.info("Controle de carga registrado em %s.", control_table)
 
     def _merge_control(self, updates: DataFrame, control_table: str) -> None:
+        """Aplica MERGE INTO no controle em tabela, por no_arquivo_origem.
+
+        Origens existentes têm dh_carga atualizado; as demais são inseridas.
+        Usa uma view temporária local com sufixo UUID, removida no finally.
+
+        Args:
+            updates: DataFrame com as colunas de _CONTROL_SCHEMA.
+            control_table: Nome da tabela de controle já delimitado por crases.
+        """
         view = f"stg_load_control_{uuid4().hex}"
         updates.createOrReplaceTempView(view)
         try:
@@ -583,6 +816,27 @@ class TrinoLoader:
         keys: list[str],
         mode: Literal["merge", "insert_only", "append"],
     ) -> None:
+        """Escreve o DataFrame no destino conforme o modo.
+
+        Fora de append, deduplica pelas chaves (sem garantia de qual registro
+        da mesma chave é mantido). Se a tabela não existir, cria-a como Iceberg
+        com o schema do DataFrame e retorna. Se existir: em append, acrescenta
+        todas as linhas; em merge, faz MERGE com UPDATE SET * e INSERT *; em
+        insert_only, faz MERGE somente com INSERT * para chaves ausentes. A
+        correspondência usa igualdade null-safe (<=>) em todas as chaves.
+
+        Args:
+            df: Registros a gravar.
+            target_table: Destino delimitado por crases.
+            keys: Colunas da chave (vazia em append).
+            mode: Modo de carga.
+
+        Notes:
+            A deduplicação é lazy; a escrita (create, append ou MERGE) executa o
+            plano. O MERGE usa uma view temporária local com sufixo UUID,
+            removida no finally. UPDATE SET * e INSERT * pressupõem schemas
+            compatíveis entre origem e destino.
+        """
         if mode != "append":
             df = df.dropDuplicates(keys)
         if not self.spark.catalog.tableExists(target_table):
