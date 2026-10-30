@@ -149,7 +149,7 @@ Referências consultadas:
 
 ## 4. Configuração JSON
 
-Use o [exemplo completo](../scripts/config.example.json), que contém as raízes
+Use o [exemplo completo](../scripts/uploader.config.example.json), que contém as raízes
 padrão e todos os 23 mapeamentos. Exemplo reduzido:
 
 ```json
@@ -238,14 +238,14 @@ As duas categorias:
 
 ```bash
 ./scripts/upload_cdr_to_minio.sh \
-  --config scripts/config.example.json --week-dir Semana110
+  --config scripts/uploader.config.example.json --week-dir Semana110
 ```
 
 Somente Teleparser:
 
 ```bash
 ./scripts/upload_cdr_to_minio.sh \
-  --config scripts/config.example.json --week-dir Semana110 \
+  --config scripts/uploader.config.example.json --week-dir Semana110 \
   --teleparser-folder /data/teleparser/
 ```
 
@@ -253,7 +253,7 @@ Somente texto:
 
 ```bash
 ./scripts/upload_cdr_to_minio.sh \
-  --config scripts/config.example.json --week-dir Semana110 \
+  --config scripts/uploader.config.example.json --week-dir Semana110 \
   --text-folder /data/cdr_bruto/
 ```
 
@@ -261,7 +261,7 @@ Duas bases personalizadas:
 
 ```bash
 ./scripts/upload_cdr_to_minio.sh \
-  --config scripts/config.example.json --week-dir Semana110 \
+  --config scripts/uploader.config.example.json --week-dir Semana110 \
   --teleparser-folder /data/parquet/ --text-folder /data/texto/
 ```
 
@@ -269,7 +269,7 @@ Outro bucket/prefixo:
 
 ```bash
 ./scripts/upload_cdr_to_minio.sh \
-  --config scripts/config.example.json --week-dir Semana110 \
+  --config scripts/uploader.config.example.json --week-dir Semana110 \
   --destination cdr-backup
 ```
 
@@ -277,7 +277,7 @@ Simulação com consultas remotas, sem escrita:
 
 ```bash
 ./scripts/upload_cdr_to_minio.sh \
-  --config scripts/config.example.json --week-dir Semana110 --dry-run
+  --config scripts/uploader.config.example.json --week-dir Semana110 --dry-run
 ```
 
 Exemplo concreto de resolução:
@@ -401,7 +401,7 @@ Com `jq`, Bats e ShellCheck disponíveis **no container**, execute na raiz:
 bash -n scripts/upload_cdr_to_minio.sh
 bash -n tests/shell/helpers/mock_mc.bash
 bash -n tests/shell/upload_cdr_to_minio.bats
-jq -e . scripts/config.example.json
+jq -e . scripts/uploader.config.example.json
 shellcheck scripts/upload_cdr_to_minio.sh tests/shell/helpers/mock_mc.bash
 bats tests/shell/upload_cdr_to_minio.bats
 ```
@@ -410,6 +410,16 @@ Os testes não exigem o cliente real `mc`, credenciais ou acesso ao MinIO.
 Para executar o uploader fora dos testes, `mc` é obrigatório.
 
 ### Resultado efetivamente obtido nesta entrega
+
+> **Nota de atualização:** o registro abaixo é histórico e menciona
+> `scripts/config.example.json`. No estado atual do repositório, o exemplo está em
+> `scripts/uploader.config.example.json`. Ao revisar esta documentação, a suíte
+> Bats ainda referenciava o nome antigo (`tests/shell/upload_cdr_to_minio.bats`,
+> linhas 580 e 620). Uma execução de `bats tests/shell/upload_cdr_to_minio.bats`
+> nesse estado coletou 53 testes e reprovou dois
+> (`all_23_original_mappings_are_exercised` e
+> `example_mapping_values_match_the_original_scripts`), por arquivo inexistente.
+> A documentação não altera testes; a pendência foi apenas registrada.
 
 Validação executada em 26/10/2026, em Linux com Bash 5.2.15, jq 1.6,
 Bats 1.8.2 e ShellCheck 0.9.0:

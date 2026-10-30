@@ -12,18 +12,24 @@ contrato analítico padronizado. A API pública é exposta pelos subpacotes
 O pacote raiz não reexporta essas interfaces. Importe-as dos subpacotes
 indicados.
 
+Não há CLI Python nem ponto de entrada registrado: `pyproject.toml` não define
+`[project.scripts]` e `teleutils` não expõe a função `main` citada na docstring
+de `src/teleutils/__init__.py`. O utilitário de linha de comando existente é o
+script Bash descrito em
+[Transferência semanal de CDRs para MinIO](teleutils_upload_cdr_to_minio.md).
+O pacote `teleutils.robocalls` está depreciado e não faz parte desta API.
+
 ## Requisitos de uso
 
 - Python 3.9 ou superior;
 - `pandas` e `pyarrow`, instalados como dependências do pacote;
 - Apache Spark por meio de `pyspark` para UDFs, extração e transformação.
 
-As funções Python de normalização e validação podem ser chamadas sem criar uma
-sessão Spark. Extratores, transformadores e pandas UDFs exigem um ambiente
-Spark funcional. Na implementação atual, importe
-`teleutils.core.transformers` somente depois de criar uma `SparkSession`: a
-configuração carregada pelo módulo constrói uma expressão Spark durante o
-import e requer um `SparkContext` ativo.
+As funções Python `extract_number` e `is_valid_cnpj` podem ser chamadas sem
+criar uma sessão Spark. Extratores, transformadores e a pandas UDF usada pelo
+transformador exigem um ambiente Spark funcional. Importar
+`teleutils.core.transformers` não requer um `SparkContext` ativo, mas instanciar
+`CDRTransformer` exige uma `SparkSession` válida.
 
 ## `teleutils.core.loaders`
 
@@ -205,7 +211,9 @@ comprovam permissões ou comportamento real de S3A.
 ## `teleutils.preprocessing`
 
 Funções para extração de números telefônicos brasileiros e validação de
-CNPJ.
+CNPJ, exportadas por `__all__`: `extract_number` e `is_valid_cnpj`. A classe
+`ExtractionResult` é definida em `teleutils.preprocessing.phone_number_extractor`
+e não é reexportada pelo pacote.
 
 ### `extract_number(subscriber_number) -> ExtractionResult`
 
@@ -216,9 +224,11 @@ Extrai um número reconhecido pelos padrões implementados em
   Valores falsy são tratados como vazios; os demais são convertidos com `str`.
   Não há argumento para adicionar DDD.
 - Retorno: `ExtractionResult(number: str, success: bool)`, uma tupla nomeada.
-  Entrada vazia ou extração malsucedida retorna
-  `(SUBSCRIBER_NUMBER_NULL_SENTINEL_VALUE, False)`; o sentinela atual é
-  `"99999999999"`, não o texto original inválido.
+  Entrada vazia (falsy) retorna `(SUBSCRIBER_NUMBER_NULL_SENTINEL_VALUE, False)`;
+  o sentinela atual, definido em `teleutils._config`, é `"5599999999999"`.
+  Quando a entrada não é vazia e nenhuma extração é aceita, retorna
+  `(subscriber_number, False)`, com o valor de entrada original, sem limpeza
+  nem conversão para texto.
 - A limpeza converte para minúsculas, remove um `f` final, zeros iniciais e
   sufixos de oito ou mais dígitos iguais. Não remove pontuação e espaços em geral.
 - A busca inicial depende do comprimento. O fallback prioriza móveis, fixos
@@ -256,9 +266,9 @@ destino. Os structs temporários `_extracao_numero_origem` e
 
 | Coluna intermediária | Coluna final | Conteúdo |
 | :-- | :-- | :-- |
-| `numero_origem_extraido` | `nu_origem` | Número extraído ou sentinela |
+| `numero_origem_extraido` | `nu_origem` | Número extraído; valor de entrada se a extração falha; sentinela se vazio |
 | `sucesso_extracao_origem` | `ic_origem_valido` | Sucesso da extração da origem |
-| `numero_destino_extraido` | `nu_destino` | Número extraído ou sentinela |
+| `numero_destino_extraido` | `nu_destino` | Número extraído; valor de entrada se a extração falha; sentinela se vazio |
 | `sucesso_extracao_destino` | `ic_destino_valido` | Sucesso da extração do destino |
 
 Os nomes finais `ic_*_valido` permanecem por compatibilidade, com valores
@@ -268,54 +278,106 @@ para os tipos já existentes. A extração é a transformação do conteúdo.
 `_numero_origem_original` e `_numero_destino_original` são restaurados após a
 extração. Não há complemento de DDD nem inferência entre origem e destino.
 
-### `validar_cnpj(cnpj)`
+### `is_valid_cnpj(cnpj: str | int) -> bool`
 
-Valida os dígitos verificadores de um CNPJ. Aceita texto ou inteiro, remove
-caracteres não numéricos, completa até 14 dígitos com zeros à esquerda e
-retorna `True` ou `False`. Valores nulos, booleanos, vazios, com mais de 14
-dígitos ou compostos por um único dígito repetido retornam `False`.
+Valida os dígitos verificadores de um CNPJ numérico ou alfanumérico, conforme
+[`utils.py`](../src/teleutils/preprocessing/utils.py).
 
-### `spark_validar_cnpj(cnpj_series)`
+- `cnpj`: texto, com ou sem máscara, ou inteiro.
+- Retorno: `True` se a estrutura e os dois dígitos verificadores forem válidos;
+  `False` caso contrário. A função não levanta exceção para entradas inválidas.
+- Sanitização: `None` e booleanos retornam `False`; tudo que não for ASCII
+  alfanumérico é removido e as letras são convertidas para maiúsculas. Entradas
+  totalmente numéricas são completadas com zeros à esquerda até 14 dígitos.
+  Entradas com letras precisam ter exatamente 14 caracteres após a sanitização.
+- O formato aceito é de 12 caracteres alfanuméricos (`0-9` e `A-Z`) seguidos de
+  dois dígitos verificadores numéricos, calculados por módulo 11. Sequências de
+  14 caracteres idênticos são rejeitadas.
+- A função não consulta cadastros externos: validar o formato e os dígitos não
+  comprova a existência do CNPJ.
 
-Pandas UDF que aplica `validar_cnpj` a uma série pandas e retorna um
-`pandas.DataFrame` estruturado com o campo booleano anulável `cnpj_valido`.
+```python
+from teleutils.preprocessing import is_valid_cnpj
+
+assert is_valid_cnpj("11.222.333/0001-81") is True
+assert is_valid_cnpj("12ABC34501DE35") is True
+```
 
 ## `teleutils.core.extractors.schemas`
 
-Contratos declarativos usados pelos extratores. Os catálogos padrão podem ser
-fornecidos aos construtores para substituir ou estender os layouts suportados.
+Contratos declarativos usados pelos extratores. Exporta `CDRParquetSchema`,
+`CDRTextSchema`, `PARQUET_DEFAULT_SCHEMAS`, `TEXT_DEFAULT_SCHEMAS` e
+`resolve_cdr_schema`. Os catálogos padrão podem ser fornecidos aos construtores
+dos extratores para substituir ou estender os layouts suportados.
 
 ### `CDRParquetSchema`
 
-Dataclass imutável com os atributos:
+Dataclass imutável (`frozen=True`) com os atributos:
 
-- `name: str`;
-- `column_mapping: tuple[tuple[str, str], ...]`;
-- `job_description: str`.
+- `name: str`: nome do layout;
+- `column_mapping: tuple[tuple[str, str], ...]`: pares `(origem, destino)`; a
+  ordem define a ordem das colunas extraídas;
+- `job_description: str`: descrição do contrato, não utilizada pela extração;
+- `fill_char: str = ""`: quando não vazio, o extrator remove ocorrências
+  repetidas desse conteúdo no fim do valor de cada coluna mapeada, usando
+  `regexp_replace` com o padrão `fill_char + "+$"`, sem escape de metacaracteres.
 
 `column_mapping` não pode estar vazio e cada item deve ser uma tupla de duas
-strings. Violações levantam `ValueError` na instanciação.
+strings. Violações levantam `ValueError` na instanciação. A validação é
+estrutural: não verifica se as colunas existem na origem.
 
 ### `CDRTextSchema`
 
-Dataclass imutável para arquivos CSV/texto, com os atributos `name`,
-`delimiter`, `schema`, `has_header`, `column_to_filter`, `column_indices`,
-`column_names` e `job_description`.
+Dataclass imutável (`frozen=True`) para arquivos CSV, texto delimitado ou de
+largura fixa, com os atributos, na ordem do construtor:
 
-Os índices são zero-based. A classe exige ao menos um índice e valida a
-correspondência entre índices e nomes, a ausência de índices negativos, o tipo
-e a extensão de um schema Spark explícito e, quando presente, o formato da
-tupla de filtro e a existência da coluna filtrada em `column_names`.
-Configurações inválidas levantam `ValueError`.
+| Atributo | Contrato |
+| :-- | :-- |
+| `name: str` | Nome do layout. |
+| `delimiter: str \| None` | Delimitador da leitura CSV. |
+| `schema: StructType \| str \| None` | Schema repassado ao leitor CSV; `None` mantém a leitura sem schema e sem inferência de tipos. |
+| `has_header: bool` | Indica se a primeira linha é cabeçalho. |
+| `lines_to_keep: tuple[str, str] \| None` | Filtro `(coluna, valor)` aplicado após a seleção e a adição de metadados. Igualdade, ou nulidade quando o valor é `"is null"` ou `"is not null"`; `None` desativa o filtro. |
+| `column_indices: tuple[int, ...]` | Índices zero-based das colunas lidas; com `column_sizes`, posições iniciais de caracteres repassadas a `substring` (primeira posição = 1). |
+| `column_sizes: tuple[int, ...]` | Comprimentos dos campos de largura fixa; vazio ativa a seleção por coluna. |
+| `column_names: tuple[str, ...]` | Nomes de saída, pareados com `column_indices`. |
+| `job_description: str` | Descrição do contrato, não utilizada pela extração. |
+| `read_rdd: bool = False` | Se verdadeiro, lê as linhas via RDD e produz a coluna `value`, sem aplicar `delimiter`, `has_header` ou `schema`. |
+| `fill_char: str = ""` | Remove preenchimento final de campos de largura fixa, sem escape, antes de `trim`. |
+
+O recorte de largura fixa exige uma coluna `value`, produzida por
+`read_rdd=True` ou definida por um schema CSV como `"value string"`.
+
+Levantam `ValueError` na instanciação: `schema` de tipo inválido; `lines_to_keep`
+que não seja `None` nem tupla de duas strings, ou cuja coluna não esteja em
+`column_names`; índices e nomes de tamanhos diferentes; `column_sizes` não vazio
+com tamanho diferente de `column_indices`; ausência de índices; índice negativo;
+e maior índice incompatível com a quantidade de campos de um `StructType`.
+Comprimentos individuais, a sintaxe de schemas em string e a existência da
+coluna `value` não são validados.
+
+### `resolve_cdr_schema(schemas, cdr_schema)`
+
+Retorna o contrato associado à chave exata `cdr_schema` no catálogo `schemas`,
+sem normalização e sem modificar o catálogo. Levanta `TypeError` se a chave não
+for string e `ValueError` se não existir no catálogo, listando as chaves
+disponíveis. É a função usada internamente pelos métodos `extract` e
+`extract_dataframe`.
 
 ### `PARQUET_DEFAULT_SCHEMAS` e `TEXT_DEFAULT_SCHEMAS`
 
-Catálogos de schemas padrão. As chaves ativas são:
+Dicionários mutáveis de contratos padrão, indexados pela chave `cdr_schema`
+usada nos extratores, no transformador e na configuração do orquestrador. As
+chaves ativas são:
 
 | Catálogo | Chaves |
 | :-- | :-- |
-| `PARQUET_DEFAULT_SCHEMAS` | `ericsson`, `lte_huawei_tim`, `lte_ericsson_vivo`, `nokia` |
-| `TEXT_DEFAULT_SCHEMAS` | `algar_huawei` |
+| `PARQUET_DEFAULT_SCHEMAS` | `smp_ericsson_gsm`, `smp_nokia_gsm`, `smp_huawei_volte_tim`, `smp_ericsson_volte_vivo`, `stfc_italtel_ngn_tim`, `stfc_sigma_claro` |
+| `TEXT_DEFAULT_SCHEMAS` | `stfc_huawei_ngn`, `stfc_huawei_ngn_tim`, `stfc_fcdr_vivo`, `stfc_7n_oi`, `stfc_tropico_oi`, `stfc_axe_claro`, `stfc_pcl_claro`, `stfc_tropico_claro_lega`, `stfc_tropico_claro_legb`, `stfc_pit_claro`, `stfc_ss8bf_claro` |
+
+Os layouts `stfc_7n_oi` e `stfc_tropico_oi` usam leitura via RDD e largura
+fixa; `stfc_axe_claro` e `stfc_pcl_claro` usam largura fixa pela leitura CSV.
+As demais chaves de texto usam seleção por coluna delimitada.
 
 ## `teleutils.core.extractors`
 
@@ -357,7 +419,8 @@ Extrai CDRs de arquivos CSV/texto.
 | `extract(source_file, target_file, cdr_schema, *, operator="", service="", cdr_type="") -> str` | Caminho CSV/texto ou lista não vazia de caminhos | Delega a `extract_dataframe`, grava com overwrite e retorna `target_file`. |
 | `extract_dataframe(source_file, cdr_schema, *, operator="", service="", cdr_type="") -> DataFrame` | Mesma origem e chave do catálogo | Lê CSV ou RDD, seleciona campos ou recorta largura fixa, adiciona metadados e aplica `lines_to_keep`, sem escrita intermediária. |
 
-`arquivo_origem` é decodificado preservando sinais de mais literais. O filtro
+`arquivo_origem` é decodificado preservando sinais de mais literais; uma
+coluna `arquivo_origem` já mapeada pelo contrato é mantida. O filtro
 `lines_to_keep` mantém os registros que atendem à condição do contrato.
 
 Em ambos os extratores, `extract_dataframe` mantém as validações existentes,
@@ -403,7 +466,7 @@ já tenham sido interpretadas incorretamente antes da extração.
 | `transform_stfc_fcdr_vivo` | FCDR Vivo. |
 | `transform_stfc_tropico_oi`, `transform_stfc_7n_oi` | Trópico e 7N Oi. |
 | `transform_stfc_axe_claro`, `transform_stfc_pcl_claro` | AXE e PCL Claro. |
-| `transform_stfc_tropico_claro` | Trópico Claro, incluindo os aliases do catálogo. |
+| `transform_stfc_tropico_claro`, `transform_stfc_tropico_claro_lega`, `transform_stfc_tropico_claro_legb` | Trópico Claro; os dois últimos nomes são aliases do primeiro. |
 | `transform_stfc_pit_claro`, `transform_stfc_ss8bf_claro` | PIT e SS8BF Claro. |
 | `transform_stfc_sigma_claro` | Sigma Claro. |
 
@@ -415,7 +478,7 @@ Todos os métodos aplicam o pipeline comum interno antes da escrita: completam
 colunas ausentes do contrato, normalizam duração/datas, normalizam números,
 classificam autenticação quando disponível e preenchem nulos da chave primária.
 
-O contrato final possui 35 colunas, definido em `TARGET_SCHEMA`. A referência
+O contrato final possui 38 colunas, definido em `TARGET_SCHEMA`. A referência
 de origem e transformação por coluna está em
 [Linhagem e Transformações dos Dados](teleutils_linhagem_transformacoes_dados.md).
 
@@ -606,8 +669,9 @@ Não há alteração na seleção de extratores e transformadores por armazename
 
 A seleção usa os catálogos do pacote; não há registro público adicional nem
 parâmetro de catálogo customizado nesta API. Os extratores recebem cópias
-rasas dos catálogos. Não há tratamento específico de LEGB: seu alias passa pela
-mesma resolução dinâmica dos demais métodos.
+rasas dos catálogos. Não há tratamento específico de LEGA/LEGB: os aliases
+`transform_stfc_tropico_claro_lega` e `transform_stfc_tropico_claro_legb` passam
+pela mesma resolução dinâmica dos demais métodos.
 
 O contexto Spark fornecido não é criado nem encerrado. A sessão SQL derivada
 criada pelo transformador mantém seu comportamento original. O orquestrador
@@ -700,11 +764,6 @@ em um cluster, os executores precisam ter acesso aos caminhos locais necessário
 em suas próprias máquinas. A existência apenas no driver não é suficiente.
 Não se verifica existência, permissões, links simbólicos ou equivalência de
 montagens; a detecção de conflitos é lexical.
-
-A correção de LEGB pertence ao transformador e não ao orquestrador. O teste
-de regressão local sinaliza `xfail` somente após confirmar a falha conhecida
-de resolução de `_tipo_chamada`; outros erros falham normalmente. Quando essa
-correção independente estiver disponível, o teste poderá concluir com sucesso.
 
 Para uso no Jupyter, consulte o [exemplo do README](../README.md#orquestração-de-lotes-no-jupyter).
 

@@ -4,9 +4,9 @@
 
 Biblioteca Python para normalizar dados de telecomunicações e processar
 registros de chamadas (CDRs) de prestadoras brasileiras. O projeto oferece
-funções para números telefônicos e CNPJs, além de extratores e transformadores
-Apache Spark que convertem diferentes layouts de CDR em um contrato analítico
-comum.
+funções para números telefônicos e CNPJs, além de extratores, transformadores,
+um orquestrador e um loader Apache Spark que convertem diferentes layouts de CDR
+em um contrato analítico comum.
 
 ## Sumário
 
@@ -30,6 +30,7 @@ comum.
 - [Processamento de CDRs com Spark](#processamento-de-cdrs-com-spark)
 - [Orquestração de lotes no Jupyter](#orquestração-de-lotes-no-jupyter)
 - [Carga Iceberg com controle de arquivos](#carga-iceberg-com-controle-de-arquivos)
+- [Transferência de CDRs para o MinIO](#transferência-de-cdrs-para-o-minio)
 
 </details>
 
@@ -47,14 +48,21 @@ comum.
 
 O `teleutils` atende dois cenários principais:
 
-- normalização e validação de números telefônicos brasileiros, inclusive em
-  pandas UDFs, e validação de CNPJ;
-- extração de CDRs Parquet ou CSV para uma representação intermediária e
-  transformação desse resultado em um dataset Parquet padronizado.
+- extração de números telefônicos brasileiros (`extract_number`) e validação de
+  CNPJ numérico ou alfanumérico (`is_valid_cnpj`);
+- extração de CDRs Parquet do Teleparser ou texto (CSV, delimitado ou de largura
+  fixa) para uma representação intermediária e transformação desse resultado em
+  um dataset Parquet padronizado de 38 colunas, com carga opcional em Iceberg.
 
-Os layouts de CDR disponíveis são Ericsson, LTE Huawei TIM, LTE Ericsson Vivo,
-Nokia e Algar Huawei. O processamento usa Spark e grava os destinos em modo
-`overwrite`; a saída transformada é particionada por `no_tipo_chamada`.
+Há 17 layouts de CDR: seis em Parquet (`smp_ericsson_gsm`, `smp_nokia_gsm`,
+`smp_huawei_volte_tim`, `smp_ericsson_volte_vivo`, `stfc_italtel_ngn_tim` e
+`stfc_sigma_claro`) e onze em texto (`stfc_huawei_ngn`, `stfc_huawei_ngn_tim`,
+`stfc_fcdr_vivo`, `stfc_7n_oi`, `stfc_tropico_oi`, `stfc_axe_claro`,
+`stfc_pcl_claro`, `stfc_tropico_claro_lega`, `stfc_tropico_claro_legb`,
+`stfc_pit_claro` e `stfc_ss8bf_claro`). O processamento usa Spark e grava os
+destinos em modo `overwrite`; a saída transformada é particionada por
+`no_tipo_chamada`. O pacote `teleutils.robocalls` está depreciado e não é
+documentado aqui.
 
 [⬆ Voltar ao topo](#sumário)
 
@@ -62,9 +70,13 @@ Nokia e Algar Huawei. O processamento usa Spark e grava os destinos em modo
 
 ### Pré-requisitos
 
-- Python 3.9 ou superior;
+- Python 3.9 ou superior (`requires-python = ">=3.9"`; `.python-version` fixa 3.9);
 - um ambiente Java funcional para os fluxos que iniciam o Apache Spark;
 - Git para obter o repositório.
+
+As dependências de execução declaradas em `pyproject.toml` são `minio>=7.2.0`,
+`pandas>=2.3.3`, `pyarrow==21.0.0` e `pyspark>=3.5.5`. O script Bash de
+transferência para o MinIO exige, além disso, `jq` e o MinIO Client `mc`.
 
 ### Instalação
 
@@ -87,13 +99,13 @@ python -m pip install .
 Execute uma chamada que não precisa iniciar o Spark:
 
 ```bash
-uv run python -c "from teleutils.preprocessing import normalize_number; print(normalize_number('(11) 99999-9999'))"
+uv run python -c "from teleutils.preprocessing import extract_number; print(extract_number('5511987654321'))"
 ```
 
 Resultado esperado:
 
 ```text
-('11999999999', True)
+ExtractionResult(number='11987654321', success=True)
 ```
 
 [⬆ Voltar ao topo](#sumário)
@@ -109,8 +121,8 @@ flowchart LR
     D --> E[Parquet padronizado]
 ```
 
-- `teleutils.preprocessing`: normalização de números e validação de CNPJ em
-  Python ou por pandas UDF;
+- `teleutils.preprocessing`: extração de números telefônicos e validação de
+  CNPJ em Python puro, sem Spark;
 - `teleutils.core.extractors`: leitura, seleção, renomeação e enriquecimento de
   CDRs com metadados de origem;
 - `teleutils.core.extractors.schemas`: contratos e catálogos dos layouts
@@ -118,7 +130,9 @@ flowchart LR
 - `teleutils.core.transformers`: regras específicas por layout e pipeline comum
   de padronização do dataset final;
 - `teleutils.core.orchestrators`: validação de configurações e coordenação
-  sequencial de extração e transformação, com relatório por item e por lote.
+  sequencial de extração e transformação, com relatório por item e por lote;
+- `teleutils.core.loaders`: `TrinoLoader`, carga independente do Parquet final em
+  tabelas Iceberg, com controle opcional de arquivos já carregados.
 
 Os extratores podem inferir `prestadora`, `servico`, `tipo_cdr` e `arquivo_origem`
 da estrutura `.../operator/service/cdr_type/arquivo`. Os argumentos opcionais
@@ -132,27 +146,31 @@ da estrutura `.../operator/service/cdr_type/arquivo`. Os argumentos opcionais
 ### Pré-processamento em Python
 
 ```python
-from teleutils.preprocessing import normalize_number, validar_cnpj
+from teleutils.preprocessing import extract_number, is_valid_cnpj
 
-numero, numero_valido = normalize_number("(11) 99999-9999")
-cnpj_valido = validar_cnpj("11.222.333/0001-81")
+resultado = extract_number("5511987654321")
+print(resultado.number, resultado.success)  # 11987654321 True
+
+cnpj_valido = is_valid_cnpj("11.222.333/0001-81")  # True
 ```
 
-Também estão disponíveis `normalize_number_pair`, `spark_normalize_number` e
-`spark_validar_cnpj`. Consulte assinaturas e contratos na referência da API.
+`extract_number` retorna um `ExtractionResult(number, success)`. Se nenhuma
+extração for aceita, `number` mantém o valor de entrada e `success` é `False`;
+entradas vazias retornam o valor sentinela `5599999999999`. `is_valid_cnpj`
+também aceita o CNPJ alfanumérico. Consulte os contratos completos na referência
+da API.
 
 ### Processamento de CDRs com Spark
 
-Crie a sessão Spark antes de importar o transformador:
+Crie a sessão Spark e instancie o extrator e o transformador:
 
 ```python
 from pyspark.sql import SparkSession
 
 from teleutils.core.extractors import CDRParquetExtractor
+from teleutils.core.transformers import CDRTransformer
 
 spark = SparkSession.builder.appName("teleutils").getOrCreate()
-
-from teleutils.core.transformers import CDRTransformer
 
 extractor = CDRParquetExtractor(spark)
 transformer = CDRTransformer(spark)
@@ -373,6 +391,24 @@ diretamente ao Trino.
 
 Consulte [o contrato e os exemplos da API](docs/teleutils_api.md#teleutilscoreloaders).
 
+### Transferência de CDRs para o MinIO
+
+O script Bash `scripts/upload_cdr_to_minio.sh` envia os CDRs de texto e/ou
+Parquet do Teleparser de uma semana para o MinIO, sem alterar os arquivos de
+origem. Ele usa `jq` e o MinIO Client `mc`, e a opção `--dry-run` planeja a
+transferência sem copiar arquivos:
+
+```bash
+./scripts/upload_cdr_to_minio.sh \
+  --config scripts/uploader.config.example.json --week-dir Semana110 \
+  --teleparser-folder /data/teleparser/ --dry-run
+```
+
+O `--dry-run` consulta o MinIO e exige uma configuração `mc` existente. Veja
+`./scripts/upload_cdr_to_minio.sh --help` e o guia
+[Transferência semanal de CDRs para MinIO](docs/teleutils_upload_cdr_to_minio.md)
+para configuração, precedência de opções, relatório e códigos de saída.
+
 [⬆ Voltar ao topo](#sumário)
 
 ## Estrutura do projeto
@@ -385,9 +421,13 @@ teleutils/
 │   │   ├── transformers/     # transformação para o contrato final
 │   │   ├── loaders/          # carga independente em Iceberg
 │   │   └── orchestrators/    # coordenação de extração e transformação
-│   └── preprocessing/        # números telefônicos e CNPJ
+│   ├── preprocessing/        # números telefônicos e CNPJ
+│   ├── robocalls/            # pacote depreciado
+│   ├── _config.py            # contrato final (TARGET_SCHEMA) e constantes internas
+│   └── _logging.py           # utilitários internos de logging
+├── scripts/                  # upload semanal de CDRs para o MinIO (Bash)
 ├── docs/                     # documentação técnica especializada
-├── tests/                    # testes e materiais de desenvolvimento
+├── tests/                    # testes pytest, testes Bats e notebooks de desenvolvimento
 └── pyproject.toml            # metadados e dependências do pacote
 ```
 
@@ -399,6 +439,7 @@ teleutils/
 | :-- | :-- |
 | [Referência da API](docs/teleutils_api.md) | Interfaces públicas, parâmetros, retornos, erros e efeitos colaterais. |
 | [Linhagem e transformações dos dados](docs/teleutils_linhagem_transformacoes_dados.md) | Origem, regras de transformação e destino das colunas dos CDRs. |
+| [Transferência semanal de CDRs para MinIO](docs/teleutils_upload_cdr_to_minio.md) | Script Bash de upload: configuração JSON, opções da CLI, relatório e testes. |
 
 [⬆ Voltar ao topo](#sumário)
 
@@ -412,8 +453,15 @@ uv sync --all-groups
 uv run pytest
 ```
 
-O projeto configura `pytest`, `pre-commit` e ferramentas de notebook por meio
-do grupo de dependências `dev` em `pyproject.toml`.
+O projeto configura `pytest`, `ruff`, `pre-commit` e ferramentas de notebook por
+meio do grupo de dependências `dev` em `pyproject.toml`. Os hooks de
+`.pre-commit-config.yaml` executam `ruff-check` (regra `I`), `ruff-format`,
+`mypy`, `nbstripout` e verificações básicas de arquivos. Os testes do script de
+upload usam Bats e um mock de `mc`:
+
+```bash
+bats tests/shell/upload_cdr_to_minio.bats
+```
 
 [⬆ Voltar ao topo](#sumário)
 
@@ -425,10 +473,19 @@ do grupo de dependências `dev` em `pyproject.toml`.
   dos componentes, como `overwrite` e a tolerância a Parquet corrompido.
 - Não há transação entre etapas, limpeza de saídas parciais, retries,
   paralelismo, retomada automática ou carga no orquestrador.
-- LEGB segue o fluxo genérico. Seu transformador ainda depende de uma correção
-  independente para a coluna `_tipo_chamada`; a regressão local sinaliza essa
-  pendência como `xfail`, sem adaptação dos dados pelo orquestrador.
-- A importação de `teleutils.core.transformers` requer um `SparkContext` ativo
-  na implementação atual. Inicie uma `SparkSession` antes desse import.
+- `CDRTransformer.transform` procura funções globais `transform_<cdr_schema>` e
+  não encontra os métodos de layout da instância; use os métodos
+  `transform_<cdr_schema>` ou o orquestrador.
+- Nenhum CLI Python é registrado em `pyproject.toml`. O único utilitário de linha
+  de comando é o script Bash `scripts/upload_cdr_to_minio.sh`.
+- Alguns testes não acompanham o código atual. Em um subconjunto de testes
+  executado ao revisar esta documentação, o pytest reprovou os de
+  `tests/test_phone_number_extractor.py` (esperam o sentinela quando a extração
+  falha, mas `extract_number` devolve o valor de entrada) e dois de
+  `tests/test_cdr_schemas.py` (esperam que `CDRParquetExtractor` não toque nos
+  loggers Spark ao rejeitar um schema inválido). A suíte Bats referenciava
+  `scripts/config.example.json`, nome anterior de
+  `scripts/uploader.config.example.json`. Essas falhas não foram corrigidas,
+  pois a documentação não altera testes.
 - Os pipelines Spark dependem dos layouts e da organização de caminhos
   descritos na referência da API e na documentação de linhagem.
