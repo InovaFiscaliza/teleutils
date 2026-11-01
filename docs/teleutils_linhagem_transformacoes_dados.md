@@ -1644,7 +1644,9 @@ Todas as colunas fora de `TARGET_SCHEMA` (por exemplo `servico`, `status_chamada
 `numero_conectado`, `perfil_prestadora`, `tecnologia_fornecedor` e colunas iniciadas por `_`) são excluídas por esta projeção.
 A ordem das colunas finais é a ordem de `TARGET_SCHEMA`. Não há `drop` explícito nem `withColumnRenamed` nesta etapa.
 
-Operações por coluna (todas são cast seguido de renomeação por `alias`; o conteúdo não é alterado nesta etapa):
+Operações por coluna (cast para o tipo definido em `TARGET_SCHEMA`, seguido de renomeação por `alias`):
+
+O `cast` é uma conversão de tipo e pode alterar o tipo ou a representação do valor. Conversões incompatíveis podem resultar em `NULL` ou erro, conforme os dados e a configuração do Spark. O `alias` altera apenas o nome da coluna, sem transformar seu valor.
 
 | # | Coluna anterior | Operação | Coluna final |
 | --: | :-- | :-- | :-- |
