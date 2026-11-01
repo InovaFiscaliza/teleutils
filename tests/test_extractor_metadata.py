@@ -89,6 +89,24 @@ def test_metadata_only_infers_missing_fields(spark):
     assert (result.prestadora, result.servico, result.tipo_cdr) == ("op", "voz", "cdr")
 
 
+def test_metadata_fills_null_existing_origin_from_path(spark):
+    df = spark.createDataFrame(
+        [
+            ("/base/op/voz/cdr/inferido.csv", None),
+            ("/base/op/voz/cdr/outro.csv", "mantido.csv"),
+        ],
+        f"{SOURCE_PATH_COLUMN} string, arquivo_origem string",
+    )
+    result = add_source_metadata(
+        df, "custom", operator="op", service="voz", cdr_type="cdr"
+    )
+
+    assert [row.arquivo_origem for row in result.collect()] == [
+        "inferido.csv",
+        "mantido.csv",
+    ]
+
+
 def test_metadata_rejects_missing_directory_without_uri_authority_fallback(spark):
     df = spark.createDataFrame(
         [("hdfs://host/voz/cdr/arquivo.csv",)], [SOURCE_PATH_COLUMN]

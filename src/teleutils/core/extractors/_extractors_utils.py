@@ -246,8 +246,8 @@ def add_source_metadata(
     Quando nenhum campo depende do caminho, essa verificação é dispensada.
 
     Uma coluna ``arquivo_origem`` já existente em ``df`` (mapeada pelo contrato
-    do layout) é mantida; o nome do arquivo só é inferido do caminho quando ela
-    não existe.
+    do layout) é mantida, e seus valores nulos são preenchidos com o nome do
+    arquivo inferido do caminho.
     Args:
         df: DataFrame extraído, com a coluna ``SOURCE_PATH_COLUMN``.
         cdr_schema: Chave do schema, gravada na coluna ``esquema``.
@@ -262,8 +262,9 @@ def add_source_metadata(
 
     Returns:
         DataFrame com as colunas ``esquema``, ``prestadora``, ``servico`` e
-        ``tipo_cdr`` e, se ainda não existir, ``arquivo_origem`` (nome do
-        arquivo extraído do caminho). ``SOURCE_PATH_COLUMN`` é removida.
+        ``tipo_cdr`` e ``arquivo_origem``; valores nulos desta última são
+        preenchidos com o nome do arquivo extraído do caminho.
+        ``SOURCE_PATH_COLUMN`` é removida.
 
     Raises:
         TypeError: Se um argumento de metadados tiver tipo inválido.
@@ -299,12 +300,14 @@ def add_source_metadata(
             expressions[name] = F.url_decode(F.regexp_replace(segment, r"\+", "%2B"))
             inferred_names.append(name)
 
-    # Se arquivo origem existe no DataFrame, não é necessário inferi-lo do caminho.
-    if "arquivo_origem" not in df.columns:
-        filename = F.try_element_at(segments, F.lit(-1))
-        expressions["arquivo_origem"] = F.url_decode(
-            F.regexp_replace(filename, r"\+", "%2B")
+    filename = F.try_element_at(segments, F.lit(-1))
+    inferred_filename = F.url_decode(F.regexp_replace(filename, r"\+", "%2B"))
+    if "arquivo_origem" in df.columns:
+        expressions["arquivo_origem"] = F.coalesce(
+            F.col("arquivo_origem"), inferred_filename
         )
+    else:
+        expressions["arquivo_origem"] = inferred_filename
     df = df.withColumns(expressions)
 
     if inferred_names:
