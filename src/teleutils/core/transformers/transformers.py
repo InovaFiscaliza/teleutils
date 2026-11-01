@@ -1183,8 +1183,8 @@ class CDRTransformer(CDRBaseTransformer):
         # por exemplo: 551136128860;verstat=TN-Validation-Passe
         df = (
             df.withColumn("_split", F.split(F.col("_numero_origem_original"), ";"))
-            .withColumn("numero_origem", F.col("_split").getItem(0))
-            .withColumn("_autenticacao", F.col("_split").getItem(1))
+            .withColumn("numero_origem", F.try_element_at(F.col("_split"), F.lit(1)))
+            .withColumn("_autenticacao", F.try_element_at(F.col("_split"), F.lit(2)))
             .drop("_split")
             .withColumn(
                 "tipo_chamada",
