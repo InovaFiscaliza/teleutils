@@ -190,7 +190,7 @@ de cada registro (`F.input_file_name()` no leitor CSV/Parquet ou o par `(linha, 
 | `prestadora` | Argumento `operator`; se vazio, `url_decode` do segmento `-4` do caminho. |
 | `servico` | Argumento `service`; se vazio, segmento `-3`. Não chega ao contrato final. |
 | `tipo_cdr` | Se existir `_tipo_cdr` nos dados, esta coluna prevalece (inclusive nula); senão, argumento `cdr_type`; senão, segmento `-2`. `_tipo_cdr` é removida em seguida. |
-| `arquivo_origem` | Se já existir no DataFrame (mapeada pelo schema), é mantida; senão, `url_decode` do segmento `-1`. |
+| `arquivo_origem` | Se já existir no DataFrame, `coalesce(arquivo_origem, url_decode(segmento -1 do caminho))`; se não existir, `url_decode` do segmento `-1`. Assim, valores não nulos são preservados e valores nulos usam o nome inferido do caminho. |
 
 O `+` do caminho é substituído por `%2B` antes de `url_decode`, de modo que `+` literal é preservado.
 Quando algum valor inferido do caminho é nulo ou em branco, a extração falha com `ValueError`.
@@ -370,15 +370,15 @@ Arquivo de origem
 | `serviceRequestTimeStamp` | `data_hora` | `left(data_hora, 19)` (remove o sufixo de fuso); `try_to_timestamp(..., 'yyyy-MM-dd HH:mm:ss')` e `greatest(..., MIN_SAFE_DATE)` (nulo/inválido → `MIN_SAFE_DATE`) | `dh_chamada` |
 | `serviceDeliveryEndTimeStamp` | `data_hora_fim` | `left(data_hora_fim, 19)`; se não nulo: `try_to_timestamp(..., 'yyyy-MM-dd HH:mm:ss')` e `greatest(..., MIN_SAFE_DATE)` (nulo/inválido → `MIN_SAFE_DATE`); se nulo: `data_hora` + `duracao` s | `dh_fim_chamada` |
 | `duration` | `duracao` | Mantida sem alteração; `cast int` e `coalesce(..., 0)` (chave) | `qt_duracao_segundos` |
-| `list-Of-Calling-Party-Address`; `recordType` | `_numero_origem_ats_ibcf`, `tipo_cdr` | pré-processamento: `tipo_cdr == 'aTSRecord'`: `get_json_object(..., '$[0].tEL-URI')`, `substr(3, 9999)` e `regexp_replace('(.)(.)', '$2$1')`; `tipo_cdr == 'iBCFRecord'`: `regexp_extract(get_json_object(..., '$[0].sIP-URI'), 'sip:([0-9]+)[@;]', 1)`; outros tipos → `NULL`; `numero_origem` → `_extract_numbers` (`extract_number`) → `numero_origem_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `nu_origem` |
-| `list-Of-Calling-Party-Address`; `recordType` | `_numero_origem_ats_ibcf`, `tipo_cdr` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_origem)` (mesma entrada de `nu_origem`) | `ic_origem_valido` |
-| `list-Of-Calling-Party-Address`; `recordType` | `_numero_origem_ats_ibcf`, `tipo_cdr` | `_numero_origem_original`: ATS → valor bruto de `$[0].tEL-URI`; demais tipos → o `numero_origem` calculado acima; restaurada em `numero_origem` após a extração; nulo → `__NULL__` (chave) | `nu_origem_original` |
-| `called-Party-Address_tEL-URI`; `called-Party-Address_sIP-URI`; `recordType` | `_numero_destino_ats`, `_numero_destino_ibcf`, `tipo_cdr` | pré-processamento: ATS: `_numero_destino_ats.substr(3, 9999)` + inversão de pares `(.)(.)` → `$2$1`; IBCF: `regexp_extract(_numero_destino_ibcf, 'sip:([0-9]+)[@;]', 1)`; outros tipos → `NULL`; `numero_destino` → `_extract_numbers` (`extract_number`) → `numero_destino_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `nu_destino` |
-| `called-Party-Address_tEL-URI`; `called-Party-Address_sIP-URI`; `recordType` | `_numero_destino_ats`, `_numero_destino_ibcf`, `tipo_cdr` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_destino)` (mesma entrada de `nu_destino`) | `ic_destino_valido` |
-| `called-Party-Address_tEL-URI`; `called-Party-Address_sIP-URI`; `recordType` | `_numero_destino_ats`, `_numero_destino_ibcf`, `tipo_cdr` | `_numero_destino_original`: ATS → `_numero_destino_ats` bruto; demais tipos → o `numero_destino` calculado; restaurada em `numero_destino` após a extração; nulo → `__NULL__` (chave) | `nu_destino_original` |
-| `serviceReasonReturnCode`; `recordType` | `_resultado_chamada`, `tipo_cdr` | `_resultado_chamada` inteiro (`tipo_cdr == 'iBCFRecord'`: `regexp_extract('SIP;cause=([0-9]+);', 1)`; demais tipos: cast direto) e tabela de códigos (ver “Códigos de `_resultado_chamada`” abaixo); nulo → `__NULL__` (chave) | `no_resultado_chamada` |
-| `serviceReasonReturnCode`; `recordType` | `_resultado_chamada`, `tipo_cdr` | `_resultado_chamada` inteiro (regra acima) mantido somente se `>= 200`; senão `NULL` | `co_resposta_sip` |
-| `calling-Party-Address-Generic`; `list-Of-Calling-Party-Address`; `recordType` | `_numero_origem_auth`, `_numero_origem_ats_ibcf`, `_tipo_cdr` | `_autenticacao`: ATS → `regexp_extract(_numero_origem_auth, '(verstat=[a-zA-Z\-]+)', 0)`; demais → mesma regex sobre `_numero_origem_ats_ibcf`; depois `_add_tn_validation_status` | `no_autenticacao` |
+| `list-Of-Calling-Party-Address`; `recordType` | `_numero_origem_ats_ibcf`, `tipo_cdr` (`recordType` → `_tipo_cdr` → `tipo_cdr`; `_tipo_cdr` descartada) | pré-processamento: `tipo_cdr == 'aTSRecord'`: `get_json_object(..., '$[0].tEL-URI')`, `substr(3, 9999)` e `regexp_replace('(.)(.)', '$2$1')`; `tipo_cdr == 'iBCFRecord'`: `regexp_extract(get_json_object(..., '$[0].sIP-URI'), 'sip:([0-9]+)[@;]', 1)`; outros tipos → `NULL`; `numero_origem` → `_extract_numbers` (`extract_number`) → `numero_origem_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `nu_origem` |
+| `list-Of-Calling-Party-Address`; `recordType` | `_numero_origem_ats_ibcf`, `tipo_cdr` (`recordType` → `_tipo_cdr` → `tipo_cdr`; `_tipo_cdr` descartada) | campo `extracao_sucesso` do struct de `_extract_numbers(numero_origem)` (mesma entrada de `nu_origem`) | `ic_origem_valido` |
+| `list-Of-Calling-Party-Address`; `recordType` | `_numero_origem_ats_ibcf`, `tipo_cdr` (`recordType` → `_tipo_cdr` → `tipo_cdr`; `_tipo_cdr` descartada) | `_numero_origem_original`: ATS → valor bruto de `$[0].tEL-URI`; demais tipos → o `numero_origem` calculado acima; restaurada em `numero_origem` após a extração; nulo → `__NULL__` (chave) | `nu_origem_original` |
+| `called-Party-Address_tEL-URI`; `called-Party-Address_sIP-URI`; `recordType` | `_numero_destino_ats`, `_numero_destino_ibcf`, `tipo_cdr` (`recordType` → `_tipo_cdr` → `tipo_cdr`; `_tipo_cdr` descartada) | pré-processamento: ATS: `_numero_destino_ats.substr(3, 9999)` + inversão de pares `(.)(.)` → `$2$1`; IBCF: `regexp_extract(_numero_destino_ibcf, 'sip:([0-9]+)[@;]', 1)`; outros tipos → `NULL`; `numero_destino` → `_extract_numbers` (`extract_number`) → `numero_destino_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `nu_destino` |
+| `called-Party-Address_tEL-URI`; `called-Party-Address_sIP-URI`; `recordType` | `_numero_destino_ats`, `_numero_destino_ibcf`, `tipo_cdr` (`recordType` → `_tipo_cdr` → `tipo_cdr`; `_tipo_cdr` descartada) | campo `extracao_sucesso` do struct de `_extract_numbers(numero_destino)` (mesma entrada de `nu_destino`) | `ic_destino_valido` |
+| `called-Party-Address_tEL-URI`; `called-Party-Address_sIP-URI`; `recordType` | `_numero_destino_ats`, `_numero_destino_ibcf`, `tipo_cdr` (`recordType` → `_tipo_cdr` → `tipo_cdr`; `_tipo_cdr` descartada) | `_numero_destino_original`: ATS → `_numero_destino_ats` bruto; demais tipos → o `numero_destino` calculado; restaurada em `numero_destino` após a extração; nulo → `__NULL__` (chave) | `nu_destino_original` |
+| `serviceReasonReturnCode`; `recordType` | `_resultado_chamada`, `tipo_cdr` (`recordType` → `_tipo_cdr` → `tipo_cdr`; `_tipo_cdr` descartada) | `_resultado_chamada` inteiro (`tipo_cdr == 'iBCFRecord'`: `regexp_extract('SIP;cause=([0-9]+);', 1)`; demais tipos: cast direto) e tabela de códigos (ver “Códigos de `_resultado_chamada`” abaixo); nulo → `__NULL__` (chave) | `no_resultado_chamada` |
+| `serviceReasonReturnCode`; `recordType` | `_resultado_chamada`, `tipo_cdr` (`recordType` → `_tipo_cdr` → `tipo_cdr`; `_tipo_cdr` descartada) | `_resultado_chamada` inteiro (regra acima) mantido somente se `>= 200`; senão `NULL` | `co_resposta_sip` |
+| `calling-Party-Address-Generic`; `list-Of-Calling-Party-Address`; `recordType` | `_numero_origem_auth`, `_numero_origem_ats_ibcf`, `tipo_cdr` (`recordType` → `_tipo_cdr` → `tipo_cdr`; `_tipo_cdr` descartada) | `_autenticacao`: `tipo_cdr == 'aTSRecord'` → `regexp_extract(_numero_origem_auth, '(verstat=[a-zA-Z\-]+)', 0)`; `tipo_cdr == 'iBCFRecord'` → mesma regex sobre `_numero_origem_ats_ibcf`; demais tipos → `NULL`; depois `_add_tn_validation_status` | `no_autenticacao` |
 | Não aplicável (metadado) | `prestadora` | `add_source_metadata`: argumento `operator` ou `url_decode` do segmento `-4` do caminho; mantida sem alteração | `no_prestadora` |
 | `specifiedTreatmentField_incoming-Route` | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_rota_entrada` |
 | `specifiedTreatmentField_outgoing-Route` | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_rota_saida` |
@@ -474,12 +474,12 @@ Arquivo de origem
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_agente_usuario` |
 | Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'smp_ericsson_volte_vivo'`); mantida sem alteração | `no_esquema` |
 | Não aplicável (metadado) | `tipo_cdr` | `add_source_metadata`: argumento `cdr_type` ou `url_decode` do segmento `-2` do caminho; mantida sem alteração | `no_tipo_cdr` |
-| metadado (caminho do arquivo ou parâmetro do extrator) | `arquivo_origem` | Mantida sem alteração (como a coluna existe, o nome não é inferido do caminho; se ausente na origem, fica `NULL`) | `no_arquivo_origem` |
+| `source_filename` | `arquivo_origem` | `add_source_metadata` preserva valor não nulo e usa `url_decode` do segmento `-1` do caminho como fallback quando o valor é `NULL` (inclusive se a coluna de origem estiver ausente) | `no_arquivo_origem` |
 | `callModule` | `_tipo_chamada` | `'1'` → `msOriginating`; `'3'` → `callForwarding`; `'4'` → `msTerminating`; outro valor → mantém `_tipo_chamada`; nulo → `__NULL__` (chave) | `no_tipo_chamada` |
 
 ### Regras e tabelas específicas do fluxo
 
-- **`arquivo_origem`** é extraída de `source_filename`; como a coluna passa a existir no DataFrame, o extrator não infere o nome pelo caminho. Se `source_filename` não existir no Parquet de origem, `arquivo_origem` fica `NULL`.
+- **`arquivo_origem`** é mapeada de `source_filename`; valores não nulos são preservados, enquanto valores nulos (inclusive quando a coluna de origem está ausente) recebem como fallback o nome decodificado do caminho.
 - **Sem marcador:** quando `_numero_origem_original` não contém `;`, `split(...)[1]` é nulo e `no_autenticacao` fica `NULL`.
 
 Cobertura: 38 de 38 colunas finais documentadas; 31 com origem efetiva neste fluxo e 7 criadas nulas.
@@ -606,7 +606,7 @@ Arquivo de origem
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_agente_usuario` |
 | Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'stfc_sigma_claro'`); mantida sem alteração | `no_esquema` |
 | `format` | `_tipo_cdr` → `tipo_cdr` | `add_source_metadata`: `_tipo_cdr` prevalece sobre `cdr_type` e sobre o caminho; `_tipo_cdr` é removida em seguida | `no_tipo_cdr` |
-| metadado (caminho do arquivo ou parâmetro do extrator) | `arquivo_origem` | Mantida sem alteração (como a coluna existe, o nome não é inferido do caminho; se ausente na origem, fica `NULL`) | `no_arquivo_origem` |
+| `source_file` | `arquivo_origem` | O extrator remove hífens finais (`fill_char='-'`); `add_source_metadata` preserva valor não nulo e usa `url_decode` do segmento `-1` do caminho como fallback quando o valor é `NULL` (inclusive se a coluna de origem estiver ausente) | `no_arquivo_origem` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns` → `__NULL__` (chave) | `no_tipo_chamada` |
 
 ### Regras e tabelas específicas do fluxo
@@ -2011,10 +2011,10 @@ No fluxo Nokia, a imputação do MNC compara `prestadora` com os literais `claro
 
 **Elemento afetado:** `no_arquivo_origem` dos fluxos `smp_ericsson_volte_vivo` (`source_filename`) e `stfc_sigma_claro` (`source_file`).
 
-**Ponto do rastreamento:** a coluna é mapeada no schema; se não existir no Parquet de origem, é criada nula e, como já existe, o nome não é inferido do caminho.
-Não é possível saber estaticamente se os arquivos reais sempre trazem essas colunas.
+**Ponto do rastreamento:** as colunas são mapeadas nos schemas; quando ausentes no Parquet de origem, o extrator as cria nulas. `add_source_metadata` aplica `coalesce` com o nome decodificado do caminho, portanto o fallback é usado quando o valor mapeado é nulo. No Sigma, hífens finais são removidos antes desse preenchimento; uma string vazia resultante não é nula e não aciona o fallback.
+Não é possível saber estaticamente se os arquivos reais trazem valores não nulos nessas colunas.
 
-**Evidência:** `column_mapping` dos dois fluxos e a regra `if "arquivo_origem" not in df.columns` em `add_source_metadata`.
+**Evidência:** `column_mapping` dos dois fluxos, criação de colunas ausentes no extrator Parquet e `coalesce(arquivo_origem, inferred_filename)` em `add_source_metadata`.
 
 # Observações da revisão
 
