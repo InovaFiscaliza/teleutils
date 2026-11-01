@@ -963,20 +963,23 @@ class CDRTransformer(CDRBaseTransformer):
             ),
         )
 
+        ats_auth = F.regexp_extract(
+            F.col("_numero_origem_auth"), _AUTH_EXTRACT_PATTERN, 0
+        )
+        ibcf_auth = F.regexp_extract(
+            F.col("_numero_origem_ats_ibcf"), _AUTH_EXTRACT_PATTERN, 0
+        )
         df = df.withColumn(
             "_autenticacao",
             F.when(
                 is_ats,
-                F.regexp_extract(
-                    F.col("_numero_origem_auth"),
-                    _AUTH_EXTRACT_PATTERN,
-                    0,
-                ),
-            ).otherwise(
-                F.regexp_extract(
-                    F.col("_numero_origem_ats_ibcf"), _AUTH_EXTRACT_PATTERN, 0
-                )
-            ),
+                F.when(ats_auth != "", ats_auth),
+            )
+            .when(
+                is_ibcf,
+                F.when(ibcf_auth != "", ibcf_auth),
+            )
+            .otherwise(F.lit(None)),
         )
 
         df = _extract_cell_info(
