@@ -346,7 +346,7 @@ Catálogo: `smp_huawei_volte_tim` (`PARQUET_DEFAULT_SCHEMAS`). Layout Parquet Hu
 
 ```text
 Arquivo de origem
-→ `CDRParquetExtractor` (`smp_huawei_volte_tim`); `_tipo_cdr` (`recordType`) vira `tipo_cdr` e é removida
+→ `CDRParquetExtractor` (`smp_huawei_volte_tim`); `recordType` é mapeada internamente para `_tipo_cdr`, copiada para `tipo_cdr` e, antes do retorno, `_tipo_cdr` é descartada
 → `_resolve_input`
 → `left(data_hora, 19)` e `left(data_hora_fim, 19)`
 → números origem/destino por `tipo_cdr` (ATS ou IBCF) + `_numero_*_original`
@@ -370,14 +370,14 @@ Arquivo de origem
 | `serviceRequestTimeStamp` | `data_hora` | `left(data_hora, 19)` (remove o sufixo de fuso); `try_to_timestamp(..., 'yyyy-MM-dd HH:mm:ss')` e `greatest(..., MIN_SAFE_DATE)` (nulo/inválido → `MIN_SAFE_DATE`) | `dh_chamada` |
 | `serviceDeliveryEndTimeStamp` | `data_hora_fim` | `left(data_hora_fim, 19)`; se não nulo: `try_to_timestamp(..., 'yyyy-MM-dd HH:mm:ss')` e `greatest(..., MIN_SAFE_DATE)` (nulo/inválido → `MIN_SAFE_DATE`); se nulo: `data_hora` + `duracao` s | `dh_fim_chamada` |
 | `duration` | `duracao` | Mantida sem alteração; `cast int` e `coalesce(..., 0)` (chave) | `qt_duracao_segundos` |
-| `list-Of-Calling-Party-Address`; `recordType` | `_numero_origem_ats_ibcf`, `_tipo_cdr` | pré-processamento: `tipo_cdr == 'aTSRecord'`: `get_json_object(..., '$[0].tEL-URI')`, `substr(3, 9999)` e `regexp_replace('(.)(.)', '$2$1')`; `tipo_cdr == 'iBCFRecord'`: `regexp_extract(get_json_object(..., '$[0].sIP-URI'), 'sip:([0-9]+)[@;]', 1)`; outros tipos → `NULL`; `numero_origem` → `_extract_numbers` (`extract_number`) → `numero_origem_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `nu_origem` |
-| `list-Of-Calling-Party-Address`; `recordType` | `_numero_origem_ats_ibcf`, `_tipo_cdr` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_origem)` (mesma entrada de `nu_origem`) | `ic_origem_valido` |
-| `list-Of-Calling-Party-Address`; `recordType` | `_numero_origem_ats_ibcf`, `_tipo_cdr` | `_numero_origem_original`: ATS → valor bruto de `$[0].tEL-URI`; demais tipos → o `numero_origem` calculado acima; restaurada em `numero_origem` após a extração; nulo → `__NULL__` (chave) | `nu_origem_original` |
-| `called-Party-Address_tEL-URI`; `called-Party-Address_sIP-URI`; `recordType` | `_numero_destino_ats`, `_numero_destino_ibcf`, `_tipo_cdr` | pré-processamento: ATS: `_numero_destino_ats.substr(3, 9999)` + inversão de pares `(.)(.)` → `$2$1`; IBCF: `regexp_extract(_numero_destino_ibcf, 'sip:([0-9]+)[@;]', 1)`; outros tipos → `NULL`; `numero_destino` → `_extract_numbers` (`extract_number`) → `numero_destino_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `nu_destino` |
-| `called-Party-Address_tEL-URI`; `called-Party-Address_sIP-URI`; `recordType` | `_numero_destino_ats`, `_numero_destino_ibcf`, `_tipo_cdr` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_destino)` (mesma entrada de `nu_destino`) | `ic_destino_valido` |
-| `called-Party-Address_tEL-URI`; `called-Party-Address_sIP-URI`; `recordType` | `_numero_destino_ats`, `_numero_destino_ibcf`, `_tipo_cdr` | `_numero_destino_original`: ATS → `_numero_destino_ats` bruto; demais tipos → o `numero_destino` calculado; restaurada em `numero_destino` após a extração; nulo → `__NULL__` (chave) | `nu_destino_original` |
-| `serviceReasonReturnCode`; `recordType` | `_resultado_chamada`, `_tipo_cdr` | `_resultado_chamada` inteiro (IBCF: `regexp_extract('SIP;cause=([0-9]+);', 1)`; demais: cast direto) e tabela de códigos (ver “Códigos de `_resultado_chamada`” abaixo); nulo → `__NULL__` (chave) | `no_resultado_chamada` |
-| `serviceReasonReturnCode`; `recordType` | `_resultado_chamada`, `_tipo_cdr` | `_resultado_chamada` inteiro (regra acima) mantido somente se `>= 200`; senão `NULL` | `co_resposta_sip` |
+| `list-Of-Calling-Party-Address`; `recordType` | `_numero_origem_ats_ibcf`, `tipo_cdr` | pré-processamento: `tipo_cdr == 'aTSRecord'`: `get_json_object(..., '$[0].tEL-URI')`, `substr(3, 9999)` e `regexp_replace('(.)(.)', '$2$1')`; `tipo_cdr == 'iBCFRecord'`: `regexp_extract(get_json_object(..., '$[0].sIP-URI'), 'sip:([0-9]+)[@;]', 1)`; outros tipos → `NULL`; `numero_origem` → `_extract_numbers` (`extract_number`) → `numero_origem_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `nu_origem` |
+| `list-Of-Calling-Party-Address`; `recordType` | `_numero_origem_ats_ibcf`, `tipo_cdr` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_origem)` (mesma entrada de `nu_origem`) | `ic_origem_valido` |
+| `list-Of-Calling-Party-Address`; `recordType` | `_numero_origem_ats_ibcf`, `tipo_cdr` | `_numero_origem_original`: ATS → valor bruto de `$[0].tEL-URI`; demais tipos → o `numero_origem` calculado acima; restaurada em `numero_origem` após a extração; nulo → `__NULL__` (chave) | `nu_origem_original` |
+| `called-Party-Address_tEL-URI`; `called-Party-Address_sIP-URI`; `recordType` | `_numero_destino_ats`, `_numero_destino_ibcf`, `tipo_cdr` | pré-processamento: ATS: `_numero_destino_ats.substr(3, 9999)` + inversão de pares `(.)(.)` → `$2$1`; IBCF: `regexp_extract(_numero_destino_ibcf, 'sip:([0-9]+)[@;]', 1)`; outros tipos → `NULL`; `numero_destino` → `_extract_numbers` (`extract_number`) → `numero_destino_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `nu_destino` |
+| `called-Party-Address_tEL-URI`; `called-Party-Address_sIP-URI`; `recordType` | `_numero_destino_ats`, `_numero_destino_ibcf`, `tipo_cdr` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_destino)` (mesma entrada de `nu_destino`) | `ic_destino_valido` |
+| `called-Party-Address_tEL-URI`; `called-Party-Address_sIP-URI`; `recordType` | `_numero_destino_ats`, `_numero_destino_ibcf`, `tipo_cdr` | `_numero_destino_original`: ATS → `_numero_destino_ats` bruto; demais tipos → o `numero_destino` calculado; restaurada em `numero_destino` após a extração; nulo → `__NULL__` (chave) | `nu_destino_original` |
+| `serviceReasonReturnCode`; `recordType` | `_resultado_chamada`, `tipo_cdr` | `_resultado_chamada` inteiro (`tipo_cdr == 'iBCFRecord'`: `regexp_extract('SIP;cause=([0-9]+);', 1)`; demais tipos: cast direto) e tabela de códigos (ver “Códigos de `_resultado_chamada`” abaixo); nulo → `__NULL__` (chave) | `no_resultado_chamada` |
+| `serviceReasonReturnCode`; `recordType` | `_resultado_chamada`, `tipo_cdr` | `_resultado_chamada` inteiro (regra acima) mantido somente se `>= 200`; senão `NULL` | `co_resposta_sip` |
 | `calling-Party-Address-Generic`; `list-Of-Calling-Party-Address`; `recordType` | `_numero_origem_auth`, `_numero_origem_ats_ibcf`, `_tipo_cdr` | `_autenticacao`: ATS → `regexp_extract(_numero_origem_auth, '(verstat=[a-zA-Z\-]+)', 0)`; demais → mesma regex sobre `_numero_origem_ats_ibcf`; depois `_add_tn_validation_status` | `no_autenticacao` |
 | Não aplicável (metadado) | `prestadora` | `add_source_metadata`: argumento `operator` ou `url_decode` do segmento `-4` do caminho; mantida sem alteração | `no_prestadora` |
 | `specifiedTreatmentField_incoming-Route` | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_rota_entrada` |
@@ -399,7 +399,7 @@ Arquivo de origem
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_destino` |
 | `user-Agent-Value` | `agente_usuario` | Mantida sem alteração | `no_agente_usuario` |
 | Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'smp_huawei_volte_tim'`); mantida sem alteração | `no_esquema` |
-| `recordType` | `_tipo_cdr` → `tipo_cdr` | `add_source_metadata`: `_tipo_cdr` prevalece sobre `cdr_type` e sobre o caminho; `_tipo_cdr` é removida em seguida | `no_tipo_cdr` |
+| `recordType` | `tipo_cdr` | Catálogo mapeia `recordType` internamente para `_tipo_cdr`; `add_source_metadata` copia `_tipo_cdr` para `tipo_cdr` (prevalece sobre `cdr_type` e caminho); `_tipo_cdr` é descartada antes do retorno do extrator | `no_tipo_cdr` |
 | Não aplicável (metadado) | `arquivo_origem` | `add_source_metadata`: `url_decode` do segmento `-1` do caminho; mantida sem alteração | `no_arquivo_origem` |
 | `role-of-Node` | `tipo_chamada` | Mantida sem alteração (valor bruto de `role-of-Node`); nulo → `__NULL__` (chave) | `no_tipo_chamada` |
 
@@ -1455,7 +1455,7 @@ Fluxos sem origem (coluna criada nula): `stfc_italtel_ngn_tim`, `stfc_fcdr_vivo`
 | :-- | :-- | :-- |
 | `smp_ericsson_gsm` | `numero_origem` | Mantida sem alteração |
 | `smp_nokia_gsm` | `numero_origem`, `numero_origem_original` | valor pré-processado: `coalesce(numero_origem, numero_origem_original)` |
-| `smp_huawei_volte_tim` | `_numero_origem_ats_ibcf`, `_tipo_cdr` | `_numero_origem_original`: ATS → valor bruto de `$[0].tEL-URI`; demais tipos → o `numero_origem` calculado acima; restaurada em `numero_origem` após a extração |
+| `smp_huawei_volte_tim` | `_numero_origem_ats_ibcf`, `tipo_cdr` | `_numero_origem_original`: ATS → valor bruto de `$[0].tEL-URI`; demais tipos → o `numero_origem` calculado acima; restaurada em `numero_origem` após a extração |
 | `smp_ericsson_volte_vivo` | `_numero_origem_original` | `_numero_origem_original` (texto completo, inclusive `;verstat=...`) restaurada em `numero_origem` após a extração |
 | `stfc_italtel_ngn_tim` | `numero_origem` | Mantida sem alteração |
 | `stfc_sigma_claro` | `numero_origem` | Mantida sem alteração |
@@ -1479,7 +1479,7 @@ Fluxos sem origem (coluna criada nula): `stfc_italtel_ngn_tim`, `stfc_fcdr_vivo`
 | :-- | :-- | :-- |
 | `smp_ericsson_gsm` | `numero_destino` | Mantida sem alteração |
 | `smp_nokia_gsm` | `numero_destino`, `numero_origem_encaminhamento` | valor pré-processado: `tipo_chamada == 'FORW'` → `numero_origem_encaminhamento`; demais → `numero_destino` |
-| `smp_huawei_volte_tim` | `_numero_destino_ats`, `_numero_destino_ibcf`, `_tipo_cdr` | `_numero_destino_original`: ATS → `_numero_destino_ats` bruto; demais tipos → o `numero_destino` calculado; restaurada em `numero_destino` após a extração |
+| `smp_huawei_volte_tim` | `_numero_destino_ats`, `_numero_destino_ibcf`, `tipo_cdr` | `_numero_destino_original`: ATS → `_numero_destino_ats` bruto; demais tipos → o `numero_destino` calculado; restaurada em `numero_destino` após a extração |
 | `smp_ericsson_volte_vivo` | `numero_destino` | Mantida sem alteração |
 | `stfc_italtel_ngn_tim` | `numero_destino` | Mantida sem alteração |
 | `stfc_sigma_claro` | `numero_destino` | Mantida sem alteração |
@@ -1501,7 +1501,7 @@ Fluxos sem origem (coluna criada nula): `stfc_italtel_ngn_tim`, `stfc_fcdr_vivo`
 | :-- | :-- | :-- |
 | `smp_ericsson_gsm` | `status_chamada` | `callPosition` é extraída como `status_chamada`, mas nenhuma etapa a copia para `resultado_chamada`; `status_chamada` não pertence a `TARGET_SCHEMA` e é descartada. `resultado_chamada` é criada nula |
 | `smp_nokia_gsm` | `_resultado_chamada` | faixas numéricas de `_resultado_chamada` (ver “Faixas de `_resultado_chamada`” abaixo); fora das faixas → `NULL` |
-| `smp_huawei_volte_tim` | `_resultado_chamada`, `_tipo_cdr` | `_resultado_chamada` inteiro (IBCF: `regexp_extract('SIP;cause=([0-9]+);', 1)`; demais: cast direto) e tabela de códigos (ver “Códigos de `_resultado_chamada`” abaixo) |
+| `smp_huawei_volte_tim` | `_resultado_chamada`, `tipo_cdr` | `_resultado_chamada` inteiro (`tipo_cdr == 'iBCFRecord'`: `regexp_extract('SIP;cause=([0-9]+);', 1)`; demais tipos: cast direto) e tabela de códigos (ver “Códigos de `_resultado_chamada`” abaixo) |
 | `smp_ericsson_volte_vivo` | `_resultado_chamada` | `'1'` → `callHasReachedCongestionOrBusyState`; `'2'` → `callHasOnlyReachedThroughConnection`; `'3'` → `b-AnswerHasBeenReceived`; outro valor → mantém o valor de `_resultado_chamada` |
 | `stfc_italtel_ngn_tim` | `resultado_chamada` | Mantida sem alteração |
 | `stfc_sigma_claro` | `resultado_chamada` | Mantida sem alteração |
@@ -1522,7 +1522,7 @@ Fluxos sem origem (coluna criada nula): `stfc_huawei_ngn_tim`.
 
 | Fluxo | Colunas extraídas | Tratamento |
 | :-- | :-- | :-- |
-| `smp_huawei_volte_tim` | `_resultado_chamada`, `_tipo_cdr` | `_resultado_chamada` inteiro (regra acima) mantido somente se `>= 200`; senão `NULL` |
+| `smp_huawei_volte_tim` | `_resultado_chamada`, `tipo_cdr` | `_resultado_chamada` inteiro (regra acima) mantido somente se `>= 200`; senão `NULL` |
 | `stfc_huawei_ngn` | `codigo_resposta_sip` | Mantida sem alteração |
 | `stfc_tropico_claro_lega` | `codigo_resposta_sip` | Mantida sem alteração |
 | `stfc_tropico_claro_legb` | `codigo_resposta_sip` | Mantida sem alteração |
