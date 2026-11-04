@@ -1,1237 +1,516 @@
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/InovaFiscaliza/teleutils)
+[![Ask DeepWiki](./docs/deepwiki-badge.svg)](https://deepwiki.com/InovaFiscaliza/teleutils)
 
 # TeleUtils
 
-TeleUtils é uma biblioteca Python para extrair, transformar, normalizar e analisar CDRs (Call Detail Records) de operadoras brasileiras com Apache Spark.
-
-> Documentação complementar publicada no DeepWiki: [InovaFiscaliza/teleutils](https://deepwiki.com/InovaFiscaliza/teleutils). Use este README como guia principal para instalação, API pública e exemplos executáveis; consulte o DeepWiki para uma visão arquitetural mais ampla e páginas temáticas detalhadas.
+Biblioteca Python para normalizar dados de telecomunicações e processar
+registros de chamadas (CDRs) de prestadoras brasileiras. O projeto oferece
+funções para números telefônicos e CNPJs, além de extratores, transformadores,
+um orquestrador e um loader Apache Spark que convertem diferentes layouts de CDR
+em um contrato analítico comum.
 
 ## Sumário
 
-[Visão Geral](#visão-geral)
+[Visão geral](#visão-geral)
 
 <details>
-<summary><a href="#início-rápido">Início Rápido</a></summary>
+<summary><a href="#início-rápido">Início rápido</a></summary>
 
 - [Pré-requisitos](#pré-requisitos)
 - [Instalação](#instalação)
-- [Verificação da Instalação](#verificação-da-instalação)
+- [Verificação da instalação](#verificação-da-instalação)
+
 </details>
+
+[Componentes e fluxo](#componentes-e-fluxo)
 
 <details>
-<summary><a href="#arquitetura">Arquitetura</a></summary>
+<summary><a href="#uso">Uso</a></summary>
 
-- [Componentes principais](#componentes-principais)
-- [Fluxo de execução](#fluxo-de-execução)
+- [Pré-processamento em Python](#pré-processamento-em-python)
+- [Processamento de CDRs com Spark](#processamento-de-cdrs-com-spark)
+- [Orquestração de lotes no Jupyter](#orquestração-de-lotes-no-jupyter)
+- [Carga Iceberg com controle de arquivos](#carga-iceberg-com-controle-de-arquivos)
+- [Transferência de CDRs para o MinIO](#transferência-de-cdrs-para-o-minio)
+
 </details>
 
-<details>
-<summary><a href="#estrutura-do-projeto">Estrutura do Projeto</a></summary>
+[Estrutura do projeto](#estrutura-do-projeto)
 
-- [Finalidade dos diretórios relevantes](#finalidade-dos-diretórios-relevantes)
-</details>
+[Documentação técnica](#documentação-técnica)
 
-<details>
-<summary><a href="#referência-da-api">Referência da API</a></summary>
+[Desenvolvimento](#desenvolvimento)
 
-- [`teleutils.preprocessing`](#teleutilspreprocessing)
-- [`teleutils.core.extractors.schemas`](#teleutilscoreextractorsschemas)
-- [`teleutils.core.extractors.text_extractors`](#teleutilscoreextractorstext_extractors)
-- [`teleutils.core.extractors.teleparser_extractors`](#teleutilscoreextractorsteleparser_extractors)
-- [`teleutils.core.transformers.base_transformer`](#teleutilscoretransformersbase_transformer)
-- [`teleutils.core.transformers.text_transformers`](#teleutilscoretransformerstext_transformers)
-- [`teleutils.core.transformers.teleparser_transformers`](#teleutilscoretransformersteleparser_transformers)
-- [`teleutils.robocalls`](#teleutilsrobocalls)
-</details>
+[Limitações conhecidas](#limitações-conhecidas)
 
-<details>
-<summary><a href="#guias-de-uso">Guias de Uso</a></summary>
+[⬆ Voltar ao topo](#sumário)
 
-- [Uso Básico](#uso-básico)
-- [Uso Avançado em Spark](#uso-avançado-em-spark)
-- [Pipeline Completo de Robocalls](#pipeline-completo-de-robocalls)
-- [Pipeline Completo com o Pacote `core`](#pipeline-completo-com-o-pacote-core)
-</details>
+## Visão geral
 
-<details>
-<summary><a href="#configuração">Configuração</a></summary>
+O `teleutils` atende dois cenários principais:
 
-- [Variáveis de Ambiente](#variáveis-de-ambiente)
-- [Arquivos de Configuração](#arquivos-de-configuração)
-- [Valores e Parâmetros Relevantes](#valores-e-parâmetros-relevantes)
-- [Formatos Aceitos](#formatos-aceitos)
-- [Recomendações de Execução](#recomendações-de-execução)
-</details>
+- extração de números telefônicos brasileiros (`extract_number`) e validação de
+  CNPJ numérico ou alfanumérico (`is_valid_cnpj`);
+- extração de CDRs Parquet do Teleparser ou texto (CSV, delimitado ou de largura
+  fixa) para uma representação intermediária e transformação desse resultado em
+  um dataset Parquet padronizado de 38 colunas, com carga opcional em Iceberg.
 
-<details>
-<summary><a href="#exemplos-práticos">Exemplos Práticos</a></summary>
+Há 17 layouts de CDR: seis em Parquet (`smp_ericsson_gsm`, `smp_nokia_gsm`,
+`smp_huawei_volte_tim`, `smp_ericsson_volte_vivo`, `stfc_italtel_ngn_tim` e
+`stfc_sigma_claro`) e onze em texto (`stfc_huawei_ngn`, `stfc_huawei_ngn_tim`,
+`stfc_fcdr_vivo`, `stfc_7n_oi`, `stfc_tropico_oi`, `stfc_axe_claro`,
+`stfc_pcl_claro`, `stfc_tropico_claro_lega`, `stfc_tropico_claro_legb`,
+`stfc_pit_claro` e `stfc_ss8bf_claro`). O processamento usa Spark e grava os
+destinos em modo `overwrite`; a saída transformada é particionada por
+`no_tipo_chamada`. O pacote `teleutils.robocalls` está depreciado e não é
+documentado aqui.
 
-- [1. Validar números telefônicos e CNPJ](#1-validar-números-telefônicos-e-cnpj)
-- [2. Normalizar um lote em Spark](#2-normalizar-um-lote-em-spark)
-- [3. Executar o fluxo de robocalls](#3-executar-o-fluxo-de-robocalls)
-- [4. Executar um fluxo textual com Ericsson](#4-executar-um-fluxo-textual-com-ericsson)
-</details>
+[⬆ Voltar ao topo](#sumário)
 
-<details>
-<summary><a href="#solução-de-problemas">Solução de Problemas</a></summary>
-
-- [Erros Comuns](#erros-comuns)
-- [Como Diagnosticar](#como-diagnosticar)
-- [Como Corrigir](#como-corrigir)
-</details>
-
-<details>
-<summary><a href="#compatibilidade">Compatibilidade</a></summary>
-
-- [Versões Suportadas](#versões-suportadas)
-- [Sistemas Operacionais](#sistemas-operacionais)
-- [Dependências Obrigatórias](#dependências-obrigatórias)
-- [Limitações Conhecidas](#limitações-conhecidas)
-</details>
-
-<details>
-<summary><a href="#desenvolvimento">Desenvolvimento</a></summary>
-
-- [Ambiente de Desenvolvimento](#ambiente-de-desenvolvimento)
-- [Testes](#testes)
-- [Qualidade de Código](#qualidade-de-código)
-- [Cobertura](#cobertura)
-- [Notebooks](#notebooks)
-</details>
-
-<details>
-<summary><a href="#alterações-recentes">Alterações Recentes</a></summary>
-
-- [Alterações recentes integradas na branch principal](#alterações-recentes-integradas-na-branch-principal)
-</details>
-
-[Referências](#referências)
-
-[Voltar ao topo](#teleutils)
-
-## Visão Geral
-
-O projeto resolve o problema de lidar com CDRs heterogêneos, com layouts diferentes por operadora e fornecedor, e converte esses dados em um formato consistente para análise.
-
-O TeleUtils é útil quando você precisa:
-
-- ler CDRs em CSV, texto ou Parquet;
-- padronizar colunas, datas, horários, durações e números telefônicos;
-- validar CNPJs em lote, inclusive dentro do Spark;
-- identificar padrões de chamadas curtas, autenticação e caixa postal;
-- gerar Parquets intermediários e finais para processamento analítico.
-
-O público esperado inclui analistas de dados, engenheiros de dados, equipes antifraude, times de inteligência operacional e qualquer pessoa que precise processar CDRs sem conhecer previamente o domínio de telecomunicações.
-
-O pacote está organizado em duas famílias principais:
-
-- `teleutils.core`, que concentra extratores e transformadores genéricos por layout;
-- `teleutils.robocalls`, que implementa o fluxo voltado à detecção de chamadas abusivas.
-
-[Voltar ao topo](#teleutils)
-
-## Início Rápido
-
-[Voltar ao topo](#teleutils)
+## Início rápido
 
 ### Pré-requisitos
 
-- Python 3.9 ou superior;
-- Java/JDK compatível com Apache Spark 3.5.5;
-- Apache Spark disponível no ambiente quando você for executar pipelines locais ou conectados a cluster;
-- acesso aos arquivos de CDR em um dos formatos suportados.
+- Python 3.9 ou superior (`requires-python = ">=3.9"`; `.python-version` fixa 3.9);
+- um ambiente Java funcional para os fluxos que iniciam o Apache Spark;
+- Git para obter o repositório.
 
-[Voltar ao topo](#teleutils)
+As dependências de execução declaradas em `pyproject.toml` são `minio>=7.2.0`,
+`pandas>=2.3.3`, `pyarrow==21.0.0` e `pyspark>=3.5.5`. O script Bash de
+transferência para o MinIO exige, além disso, `jq` e o MinIO Client `mc`.
 
 ### Instalação
+
+Com `uv`:
 
 ```bash
 git clone https://github.com/InovaFiscaliza/teleutils.git
 cd teleutils
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install -U pip
-python -m pip install -e .
+uv sync
 ```
 
-Se você também for desenvolver no projeto, instale as dependências de apoio e os hooks de qualidade:
+Para instalar apenas o pacote em um ambiente virtual já ativado:
 
 ```bash
-python -m pip install pytest pre-commit jupyter matplotlib
-pre-commit install
+python -m pip install .
 ```
 
-[Voltar ao topo](#teleutils)
+### Verificação da instalação
 
-### Verificação da Instalação
+Execute uma chamada que não precisa iniciar o Spark:
 
 ```bash
-python - <<'PY'
-from teleutils.preprocessing import normalize_number, validar_cnpj
-
-print(normalize_number("(11) 99999-9999"))
-print(validar_cnpj("11222333000181"))
-PY
+uv run python -c "from teleutils.preprocessing import extract_number; print(extract_number('5511987654321'))"
 ```
 
-Saída esperada:
+Resultado esperado:
 
 ```text
-('11999999999', True)
-True
+ExtractionResult(number='11987654321', success=True)
 ```
 
-Se você quiser confirmar a integração com Spark, rode também:
+[⬆ Voltar ao topo](#sumário)
 
-```bash
-python - <<'PY'
-from pyspark.sql import SparkSession
-from teleutils.preprocessing import spark_normalize_number
-
-spark = SparkSession.builder.master("local[*]").appName("teleutils-check").getOrCreate()
-df = spark.createDataFrame([("11999999999",)], ["numero"])
-df = df.withColumn("normalizado", spark_normalize_number("numero"))
-df.select("normalizado.numero_formatado", "normalizado.numero_valido").show()
-spark.stop()
-PY
-```
-
-[Voltar ao topo](#teleutils)
-
-## Arquitetura
-
-A arquitetura atual segue um fluxo em camadas. Os módulos de `preprocessing` são reutilizados pelas duas linhas de processamento, enquanto `core` e `robocalls` implementam contratos e regras de negócio distintos.
+## Componentes e fluxo
 
 ```mermaid
+---
+config:
+  layout: elk
+---
 flowchart LR
-    RawCSV[CDRs em CSV ou texto] --> CoreText[teleutils.core.extractors.text_extractors]
-    RawParquet[CDRs em Parquet do Teleparser] --> CoreTele[teleutils.core.extractors.teleparser_extractors]
-    RawCSV --> RobExtract[teleutils.robocalls.extractors]
-
-    CoreText --> Intermed1[Parquet intermediário]
-    CoreTele --> Intermed1
-    RobExtract --> Intermed2[Parquet intermediário particionado]
-
-    Intermed1 --> CoreTrans[teleutils.core.transformers]
-    Intermed2 --> RobTrans[teleutils.robocalls.transformers]
-
-    CoreTrans --> Curated[Parquet padronizado]
-    RobTrans --> Curated
-    Curated --> Analyzer[teleutils.robocalls.analyzers]
-    Analyzer --> Output[Parquet analisado]
-
-    Prep[teleutils.preprocessing] --> CoreTrans
-    Prep --> RobTrans
-    Log[teleutils._logging] --> CoreText
-    Log --> CoreTele
-    Log --> RobExtract
-    Log --> RobTrans
-    Log --> Analyzer
+    A["CDR Parquet ou CSV"] --> B["Extrator do layout"]
+    B --> C["Parquet intermediário"] & F["Modo direto: DataFrame"]
+    C --> D["CDRTransformer"]
+    D --> E["Parquet padronizado"]
+    F --> D
 ```
 
-[Voltar ao topo](#teleutils)
+- `teleutils.preprocessing`: extração de números telefônicos e validação de
+  CNPJ em Python puro, sem Spark;
+- `teleutils.core.extractors`: leitura, seleção, renomeação e enriquecimento de
+  CDRs com metadados de origem;
+- `teleutils.core.extractors.schemas`: contratos e catálogos dos layouts
+  aceitos pelos extratores;
+- `teleutils.core.transformers`: regras específicas por layout e pipeline comum
+  de padronização do dataset final;
+- `teleutils.core.orchestrators`: validação de configurações e coordenação
+  sequencial de extração e transformação, com relatório por item e por lote;
+- `teleutils.core.loaders`: `TrinoLoader`, carga independente do Parquet final em
+  tabelas Iceberg, com controle opcional de arquivos já carregados.
 
-### Componentes principais
+Os extratores podem inferir `prestadora`, `servico`, `tipo_cdr` e `arquivo_origem`
+da estrutura `.../operator/service/cdr_type/arquivo`. Os argumentos opcionais
+`operator`, `service` e `cdr_type` permitem informar metadados explicitamente;
+`_tipo_cdr` do conteúdo, quando presente, prevalece sobre o tipo informado.
 
-- `teleutils.preprocessing` concentra normalização de números e validação de CNPJ.
-- `teleutils.core.extractors` mapeia CDRs brutos para um esquema intermediário por fornecedor e layout.
-- `teleutils.core.transformers` transforma o esquema intermediário em um contrato final padronizado.
-- `teleutils.robocalls.extractors` lê CDRs de operadoras em layouts específicos voltados à análise de chamadas abusivas.
-- `teleutils.robocalls.transformers` aplica heurísticas de chamada curta, autenticação e caixa postal.
-- `teleutils.robocalls.analyzers` agrega os dados transformados por número e hora.
+[⬆ Voltar ao topo](#sumário)
 
-[Voltar ao topo](#teleutils)
+## Uso
 
-### Fluxo de execução
-
-1. A extração lê o arquivo de origem e seleciona apenas as colunas relevantes.
-2. A transformação padroniza números, datas, durações e indicadores operacionais.
-3. A análise agrupa o resultado final e calcula métricas de volume e suspeição.
-
-[Voltar ao topo](#teleutils)
-
-## Estrutura do Projeto
-
-```text
-.
-├── LICENSE
-├── README.md
-├── docs
-│   └── How_to_Use_This_Template.md
-├── pyproject.toml
-├── src
-│   └── teleutils
-│       ├── __init__.py
-│       ├── _config.py
-│       ├── _logging.py
-│       ├── core
-│       │   ├── __init__.py
-│       │   ├── extractors
-│       │   │   ├── __init__.py
-│       │   │   ├── schemas.py
-│       │   │   ├── teleparser_extractors.py
-│       │   │   └── text_extractors.py
-│       │   └── transformers
-│       │       ├── __init__.py
-│       │       ├── base_transformer.py
-│       │       ├── teleparser_transformers.py
-│       │       └── text_transformers.py
-│       ├── preprocessing
-│       │   ├── __init__.py
-│       │   ├── number_format.py
-│       │   └── utils.py
-│       └── robocalls
-│           ├── __init__.py
-│           ├── analyzers.py
-│           ├── extractors.py
-│           └── transformers.py
-├── tests
-│   ├── assets
-│   │   └── sample_numbers.parquet
-│   ├── debug_normalize_numbers.py
-│   ├── notebooks
-│   │   ├── desenvolvimento_chamadas_abusivas.ipynb
-│   │   ├── desenvolvimento_extrator_universal.ipynb
-│   │   └── preprocessing_analysis.ipynb
-│   ├── test_example.py
-│   ├── test_normalize_number.py
-│   └── tests.py
-└── uv.lock
-```
-
-[Voltar ao topo](#teleutils)
-
-### Finalidade dos diretórios relevantes
-
-- `src/teleutils`: implementação principal da biblioteca.
-- `src/teleutils/core`: camada genérica de extração e transformação por layout.
-- `src/teleutils/preprocessing`: funções reutilizáveis de normalização e validação.
-- `src/teleutils/robocalls`: pipeline voltado à identificação de chamadas abusivas.
-- `tests`: testes automatizados, scripts de apoio e notebooks experimentais de desenvolvimento.
-- `docs`: documentação de apoio ao uso do template do repositório.
-
-[Voltar ao topo](#teleutils)
-
-## Referência da API
-
-[Voltar ao topo](#teleutils)
-
-### `teleutils.preprocessing`
-
-Pacote público que reexporta as funções de normalização de números telefônicos e de validação de CNPJ.
-
-#### Funções
-
-##### `normalize_number(subscriber_number, national_destination_code="")`
-
-Normaliza um número telefônico brasileiro e retorna uma tupla com o número formatado e um indicador de validade.
-
-Parâmetros principais:
-
-- `subscriber_number`: número bruto de entrada;
-- `national_destination_code`: DDD usado para completar números locais de 8 ou 9 dígitos.
-
-Retorno:
-
-- `tuple[str | None, bool]`: número normalizado e flag de validade.
-
-Comportamento relevante:
-
-- remove prefixos de discagem nacionais e internacionais;
-- trata números separados por ponto e vírgula mantendo o primeiro valor;
-- remove o caractere `f` usado por alguns sistemas legados;
-- quando a entrada é inválida, retorna o valor original e `False`;
-- quando a entrada é vazia, retorna `(None, False)`.
-
-Exemplo:
+### Pré-processamento em Python
 
 ```python
-from teleutils.preprocessing import normalize_number
+from teleutils.preprocessing import extract_number, is_valid_cnpj
 
-numero, valido = normalize_number("(11) 99999-9999")
-print(numero)
-print(valido)
+resultado = extract_number("5511987654321")
+print(resultado.number, resultado.success)  # 11987654321 True
+
+cnpj_valido = is_valid_cnpj("11.222.333/0001-81")  # True
 ```
 
-Saída esperada:
+`extract_number` retorna um `ExtractionResult(number, success)`. Se nenhuma
+extração for aceita, `number` mantém o valor de entrada e `success` é `False`;
+entradas vazias retornam o valor sentinela `5599999999999`. `is_valid_cnpj`
+também aceita o CNPJ alfanumérico. Consulte os contratos completos na referência
+da API.
 
-```text
-11999999999
-True
-```
+### Processamento de CDRs com Spark
 
-##### `normalize_number_pair(number_a, number_b, national_destination_code="")`
-
-Normaliza um par de números telefônicos e usa o primeiro número como contexto para inferir o DDD do segundo quando necessário.
-
-Parâmetros principais:
-
-- `number_a`: número de origem;
-- `number_b`: número de destino;
-- `national_destination_code`: DDD inicial opcional.
-
-Retorno:
-
-- `tuple[str, bool, str, bool]`: número A formatado e válido, número B formatado e válido.
-
-Exemplo:
-
-```python
-from teleutils.preprocessing import normalize_number_pair
-
-a_fmt, a_ok, b_fmt, b_ok = normalize_number_pair("1133334444", "22225555")
-print(a_fmt, a_ok)
-print(b_fmt, b_ok)
-```
-
-##### `spark_normalize_number(number_series)`
-
-UDF vetorizada para Spark que aplica `normalize_number` em lote.
-
-Retorno:
-
-- `DataFrame` com as colunas `numero_formatado` e `numero_valido`.
-
-Exemplo:
+Crie a sessão Spark e instancie o extrator e o transformador:
 
 ```python
 from pyspark.sql import SparkSession
-from pyspark.sql import functions as F
-from teleutils.preprocessing import spark_normalize_number
 
-spark = SparkSession.builder.master("local[*]").appName("teleutils-normalize").getOrCreate()
-df = spark.createDataFrame([("11999999999",), ("numero_invalido",)], ["numero"])
-df = df.withColumn("normalizado", spark_normalize_number("numero"))
-df.select(
-    "numero",
-    F.col("normalizado.numero_formatado").alias("numero_formatado"),
-    F.col("normalizado.numero_valido").alias("numero_valido"),
-).show()
-```
+from teleutils.core.extractors import CDRParquetExtractor
+from teleutils.core.transformers import CDRTransformer
 
-##### `validar_cnpj(cnpj)`
+spark = SparkSession.builder.appName("teleutils").getOrCreate()
 
-Valida um CNPJ no Python puro.
+extractor = CDRParquetExtractor(spark)
+transformer = CDRTransformer(spark)
 
-Retorno:
-
-- `bool`: `True` quando o CNPJ é válido; `False` caso contrário.
-
-Comportamento relevante:
-
-- remove máscara e caracteres não numéricos;
-- rejeita sequências triviais;
-- valida os dois dígitos verificadores.
-
-Exemplo:
-
-```python
-from teleutils.preprocessing import validar_cnpj
-
-print(validar_cnpj("11222333000181"))
-```
-
-##### `spark_validar_cnpj(cnpj_series)`
-
-UDF vetorizada para Spark que valida uma série de CNPJs.
-
-Retorno:
-
-- `DataFrame` com a coluna `cnpj_valido`.
-
-Exemplo:
-
-```python
-from pyspark.sql import SparkSession
-from teleutils.preprocessing import spark_validar_cnpj
-
-spark = SparkSession.builder.master("local[*]").appName("teleutils-cnpj").getOrCreate()
-df = spark.createDataFrame([("11222333000181",), ("00000000000000",)], ["cnpj"])
-df = df.withColumn("validacao", spark_validar_cnpj("cnpj"))
-df.select("cnpj", "validacao.cnpj_valido").show()
-```
-
-[Voltar ao topo](#teleutils)
-
-### `teleutils.core.extractors.schemas`
-
-Módulo de configuração dos esquemas do Teleparser.
-
-#### Classes
-
-##### `CDRTeleparserSchema`
-
-Dataclass imutável que descreve o mapeamento de colunas de um layout Teleparser.
-
-Parâmetros principais:
-
-- `name`: nome amigável do layout;
-- `column_mapping`: lista de pares `(origem, destino)`;
-- `job_description`: descrição do job para uso em logs e Spark UI.
-
-Validação automática:
-
-- `column_mapping` não pode ser vazio;
-- cada item deve ser uma tupla de duas strings.
-
-Exemplo:
-
-```python
-from teleutils.core.extractors.schemas import TELEPARSER_DEFAULT_SCHEMAS
-
-schema = TELEPARSER_DEFAULT_SCHEMAS["ericsson"]
-print(schema.name)
-```
-
-#### Constantes
-
-##### `TELEPARSER_DEFAULT_SCHEMAS`
-
-Dicionário com os esquemas padrão dos layouts `ericsson`, `tim_huawei`, `vivo_fcdr` e `nokia`.
-
-[Voltar ao topo](#teleutils)
-
-### `teleutils.core.extractors.text_extractors`
-
-Módulo de extração de CDRs em CSV ou texto para um parquet intermediário.
-
-#### Classes
-
-##### `CDRSchema`
-
-Configuração imutável para leitura e mapeamento de um layout de CDR textual.
-
-Parâmetros principais:
-
-- `name`: nome do layout;
-- `delimiter`: delimitador do arquivo;
-- `schema`: schema Spark opcional;
-- `has_header`: indica presença de cabeçalho;
-- `column_to_filter`: filtro opcional `("coluna", "valor")`;
-- `column_indices`: índices das colunas a selecionar;
-- `column_names`: nomes finais na saída;
-- `job_description`: descrição do job.
-
-##### `CDRTextExtractor`
-
-Extrator para layouts textuais. Escreve o resultado em Parquet e preserva metadados de linhagem.
-
-Métodos públicos:
-
-- `extract_cdr(source_file, target_file, schema)`
-- `extract_cdr_ericsson(source_file, target_file)`
-- `extract_cdr_tim_huawei(source_file, target_file)`
-- `extract_cdr_vivo_fcdr(source_file, target_file)`
-- `extract_cdr_nokia(source_file, target_file)`
-
-Detalhes úteis:
-
-- `extract_cdr_tim_huawei` usa schema Spark explícito porque o cabeçalho nem sempre é confiável;
-- `extract_cdr_nokia` tolera variações de colunas ausentes;
-- a saída é gravada em Parquet com a coluna `tipo_de_chamada` particionada no pipeline de robocalls;
-- os metadados `prestadora`, `tipo_cdr` e `arquivo_origem` são derivados do caminho do arquivo.
-
-Exemplo:
-
-```python
-from pyspark.sql import SparkSession
-from teleutils.core.extractors import CDRTextExtractor
-
-spark = SparkSession.builder.master("local[*]").appName("teleutils-text").getOrCreate()
-extractor = CDRTextExtractor(spark)
-df = extractor.extract_cdr_ericsson("dados/ericsson.csv", "saida/ericsson_extracted")
-df.show(5)
-```
-
-[Voltar ao topo](#teleutils)
-
-### `teleutils.core.extractors.teleparser_extractors`
-
-Módulo de extração de CDRs em Parquet produzidos pelo Teleparser.
-
-#### Classes
-
-##### `CDRTeleparserExtractor`
-
-Extrator para layouts Teleparser com mapeamento por fornecedor.
-
-Construtor:
-
-- `CDRTeleparserExtractor(spark, schemas=None)`;
-- quando `schemas` não é informado, usa `TELEPARSER_DEFAULT_SCHEMAS`.
-
-Métodos públicos:
-
-- `extract_cdr(source_file, target_file, schema, ignore_missing_columns, unique)`
-- `extract_cdr_ericsson(source_file, target_file)`
-- `extract_cdr_tim_huawei(source_file, target_file)`
-- `extract_cdr_vivo_fcdr(source_file, target_file)`
-- `extract_cdr_nokia(source_file, target_file)`
-
-Detalhes úteis:
-
-- aceita colunas aninhadas com notação de ponto;
-- grava os resultados em Parquet;
-- `extract_cdr_nokia` ignora colunas ausentes quando necessário.
-
-Exemplo:
-
-```python
-from pyspark.sql import SparkSession
-from teleutils.core.extractors import CDRTeleparserExtractor
-
-spark = SparkSession.builder.master("local[*]").appName("teleutils-teleparser").getOrCreate()
-extractor = CDRTeleparserExtractor(spark)
-df = extractor.extract_cdr_nokia("dados/nokia_parquet", "saida/nokia_extracted")
-df.show(5)
-```
-
-[Voltar ao topo](#teleutils)
-
-### `teleutils.core.transformers.base_transformer`
-
-Módulo base de transformação compartilhado pelos transformadores do pacote `core`.
-
-#### Classes
-
-##### `CDRBaseTransformer`
-
-Classe base para padronização de CDRs.
-
-Esse componente não é o ponto de entrada principal do projeto, mas centraliza as regras reutilizadas pelos transformadores específicos.
-
-Responsabilidades principais:
-
-- normalizar `data_hora` e `duracao`;
-- padronizar números de origem e destino com `spark_normalize_number`;
-- derivar a coluna `autenticacao` a partir de `_autenticacao` quando existir;
-- selecionar e renomear as colunas finais do contrato padronizado;
-- gravar o resultado final em Parquet.
-
-Saída principal:
-
-| Coluna | Descrição |
-|---|---|
-| `nu_referencia` | Identificador único atribuído à chamada na plataforma da prestadora |
-| `nu_origem_original` | Número de origem registrado no CDR antes da aplicação de pré-processamento |
-| `nu_destino_original` | Número de destino registrado no CDR antes da aplicação de pré-processamento |
-| `nu_origem` | Número de origem da comunicação, correspondente ao terminal que iniciou a chamada |
-| `ic_origem_valido` | Indicador de que o formato do número de origem foi reconhecido e validado na aplicação do pré-processamento |
-| `nu_destino` | Número de destino da comunicação, correspondente ao terminal que recebeu a chamada |
-| `ic_destino_valido` | Indicador de que o formato do número de destino foi reconhecido e validado na aplicação do pré-processamento |
-| `dh_chamada` | Data e hora em que a rede iniciou o registro do segmento da chamada |
-| `qt_duracao_segundos` | Duração do registro do segmento da chamada em segundos |
-| `no_tipo_chamada` | Tipo de CDR representado pelo registro, indicando se corresponde ao CDR de chamadas originadas, terminadas, trânsito, etc.  |
-| `no_autenticacao` | Indicador da autenticação da chamada |
-| `no_rota_entrada` | Identifica por qual rota ou tronco a chamada ingressou na rede analisada |
-| `no_rota_saida` | Identifica por qual rota ou tronco a chamada deixou a rede analisada |
-| `no_prestadora` | Nome da prestadora responsável pelo registro e fornecimento do CDR |
-| `no_tipo_cdr` | Tipo, tecnologia ou fabricante do CDR, permitindo diferenciar, por exemplo, Ericsson, Nokia, VoLTE, etc. |
-| `no_arquivo_origem` | Nome do arquivo bruto recebido da prestadora |
-
-[Voltar ao topo](#teleutils)
-
-### `teleutils.core.transformers.text_transformers`
-
-Módulo de transformação para CDRs extraídos por texto ou CSV.
-
-#### Classes
-
-##### `CDRTextTransformer`
-
-Transformador com contrato de saída estável para os layouts textuais.
-
-Métodos públicos:
-
-- `transform_cdr_ericsson(source_file, target_file)`
-- `transform_cdr_nokia(source_file, target_file)`
-- `transform_cdr_tim_huawei(source_file, target_file)`
-- `transform_cdr_vivo_fcdr(source_file, target_file)`
-
-Notas relevantes:
-
-- o módulo é tratado como contrato estável;
-- `transform_cdr_nokia` corrige a referência BCD, deriva rotas e ajusta o tipo de chamada;
-- `transform_cdr_vivo_fcdr` separa autenticação embutida em `numero_origem`.
-
-Exemplo:
-
-```python
-from pyspark.sql import SparkSession
-from teleutils.core.transformers import CDRTextTransformer
-
-spark = SparkSession.builder.master("local[*]").appName("teleutils-text-transform").getOrCreate()
-transformer = CDRTextTransformer(spark)
-df = transformer.transform_cdr_ericsson("saida/ericsson_extracted", "saida/ericsson_transformed")
-df.show(5)
-```
-
-[Voltar ao topo](#teleutils)
-
-### `teleutils.core.transformers.teleparser_transformers`
-
-Módulo de transformação para CDRs vindos do Teleparser.
-
-#### Classes
-
-##### `CDRTeleparserTransformer`
-
-Transformador baseado em `CDRBaseTransformer` para layouts Teleparser.
-
-Métodos públicos:
-
-- `transform_cdr_ericsson(source_file, target_file)`
-- `transform_cdr_tim_huawei(source_file, target_file)`
-- `transform_cdr_vivo_fcdr(source_file, target_file)`
-- `transform_cdr_nokia(source_file, target_file)`
-
-Detalhes úteis:
-
-- TIM Huawei e Vivo FCDR aplicam regras específicas de tipo de chamada e autenticação;
-- Nokia consolida durações, data/hora e rotas com base em colunas variantes do layout;
-- a persistência final continua sendo Parquet.
-
-[Voltar ao topo](#teleutils)
-
-### `teleutils.robocalls`
-
-Pacote público que reexporta `RoboCallsExtractor`, `RoboCallsTransformer` e `RoboCallsAnalyzer`.
-
-#### Classes
-
-##### `RoboCallsExtractor`
-
-Extrai CDRs em CSV para o fluxo de análise de chamadas abusivas.
-
-Métodos públicos:
-
-- `extract_cdr_ericsson(source_file, target_file)`
-- `extract_cdr_tim_volte(source_file, target_file)`
-- `extract_cdr_vivo_volte(source_file, target_file)`
-- `extract_cdr_claro_nokia(source_file, target_file)`
-
-Comportamento relevante:
-
-- grava Parquet intermediário particionado por `tipo_de_chamada`;
-- usa esquemas de coluna específicos por layout;
-- os formatos suportados nesta camada são distintos dos formatos de `teleutils.core`.
-
-Exemplo:
-
-```python
-from pyspark.sql import SparkSession
-from teleutils.robocalls import RoboCallsExtractor
-
-spark = SparkSession.builder.master("local[*]").appName("teleutils-robocalls-extract").getOrCreate()
-extractor = RoboCallsExtractor(spark)
-df = extractor.extract_cdr_tim_volte("dados/tim_volte.csv", "saida/tim_volte_extracted")
-df.show(5)
-```
-
-##### `RoboCallsTransformer`
-
-Transforma os CDRs extraídos para um esquema analítico unificado.
-
-Construtor:
-
-- `RoboCallsTransformer(spark, limiar_chamada_ofensora=6)`.
-
-Métodos públicos:
-
-- `transform_cdr_ericsson(source_file, target_file)`
-- `transform_cdr_tim_volte(source_file, target_file)`
-- `transform_cdr_vivo_volte(source_file, target_file)`
-- `transform_cdr_claro_nokia(source_file, target_file)`
-
-Colunas principais da saída:
-
-- `referencia`
-- `tipo_de_chamada`
-- `data_hora`
-- `numero_de_a_formatado`
-- `numero_de_b_formatado`
-- `hora_da_chamada`
-- `duracao_da_chamada`
-- `chamada_curta`
-- `chamada_autenticada`
-- `chamada_caixa_postal`
-
-Semântica dos indicadores:
-
-- `chamada_curta`: `1` quando a duração é menor ou igual ao limiar;
-- `chamada_autenticada`: `-1` para falha, `0` para não verificada e `1` para autenticada;
-- `chamada_caixa_postal`: `1` quando o registro indica encaminhamento para caixa postal.
-
-Detalhes relevantes por formato:
-
-- TIM VoLTE identifica caixa postal por registros `FORv` relacionados a `TERv`;
-- Vivo VoLTE separa autenticação embutida no número de origem e cruza registros por referência, data e destino;
-- Claro Nokia consolida `MTC`, `UCA`, `FOR`, `MOC` e usa heurísticas para `PTC` e `POC`;
-- Ericsson força `chamada_autenticada` e `chamada_caixa_postal` para `0`.
-
-Exemplo:
-
-```python
-from pyspark.sql import SparkSession
-from teleutils.robocalls import RoboCallsTransformer
-
-spark = SparkSession.builder.master("local[*]").appName("teleutils-robocalls-transform").getOrCreate()
-transformer = RoboCallsTransformer(spark)
-df = transformer.transform_cdr_tim_volte("saida/tim_volte_extracted", "saida/tim_volte_transformed")
-df.select(
-    "referencia",
-    "numero_de_a_formatado",
-    "numero_de_b_formatado",
-    "chamada_curta",
-    "chamada_autenticada",
-    "chamada_caixa_postal",
-).show(5)
-```
-
-##### `RoboCallsAnalyzer`
-
-Agrega o parquet transformado e calcula métricas por número originador e hora.
-
-Método público:
-
-- `analyze(source_file, target_file="")`
-
-Retorno:
-
-- `DataFrame` com as colunas `numero_de_a_formatado`, `hora_da_chamada`, `total_chamadas`, `total_chamadas_curtas`, `total_chamadas_caixa_postal`, `total_chamadas_autenticadas`, `total_chamadas_curtas_autenticadas` e `total_chamadas_caixa_postal_autenticadas`.
-
-Observação importante:
-
-- sempre informe `target_file` com um caminho válido; o valor padrão vazio existe na assinatura, mas não é útil para execução real.
-
-Exemplo:
-
-```python
-from pyspark.sql import SparkSession
-from teleutils.robocalls import RoboCallsAnalyzer
-
-spark = SparkSession.builder.master("local[*]").appName("teleutils-robocalls-analyze").getOrCreate()
-analyzer = RoboCallsAnalyzer(spark)
-df = analyzer.analyze("saida/tim_volte_transformed", "saida/tim_volte_analyzed")
-df.orderBy("total_chamadas_curtas", ascending=False).show(10)
-```
-
-[Voltar ao topo](#teleutils)
-
-## Guias de Uso
-
-[Voltar ao topo](#teleutils)
-
-### Uso Básico
-
-Para normalizar um número e validar um CNPJ no Python puro:
-
-```python
-from teleutils.preprocessing import normalize_number, validar_cnpj
-
-print(normalize_number("0800-123-4567"))
-print(validar_cnpj("11222333000181"))
-```
-
-[Voltar ao topo](#teleutils)
-
-### Uso Avançado em Spark
-
-Para aplicar normalização e validação em lote, use as UDFs vetorizadas:
-
-```python
-from pyspark.sql import SparkSession
-from pyspark.sql import functions as F
-from teleutils.preprocessing import spark_normalize_number, spark_validar_cnpj
-
-spark = SparkSession.builder.master("local[*]").appName("teleutils-spark-guide").getOrCreate()
-df = spark.createDataFrame(
-    [("11999999999", "11222333000181"), ("numero_invalido", "00000000000000")],
-    ["numero", "cnpj"],
+intermediario = extractor.extract(
+    source_file="dados/prestadora/smp/ericsson/entrada.parquet",
+    target_file="saida/intermediario/ericsson",
+    cdr_schema="smp_ericsson_gsm",
 )
-
-df = df.withColumn("numero_norm", spark_normalize_number("numero"))
-df = df.withColumn("cnpj_norm", spark_validar_cnpj("cnpj"))
-
-df.select(
-    "numero",
-    F.col("numero_norm.numero_formatado").alias("numero_formatado"),
-    F.col("numero_norm.numero_valido").alias("numero_valido"),
-    F.col("cnpj_norm.cnpj_valido").alias("cnpj_valido"),
-).show()
-```
-
-[Voltar ao topo](#teleutils)
-
-### Pipeline Completo de Robocalls
-
-Use esta sequência quando o objetivo for identificar chamadas abusivas:
-
-```python
-from pyspark.sql import SparkSession
-from teleutils.robocalls import RoboCallsAnalyzer, RoboCallsExtractor, RoboCallsTransformer
-
-spark = SparkSession.builder.master("local[*]").appName("teleutils-pipeline").getOrCreate()
-
-extractor = RoboCallsExtractor(spark)
-extractor.extract_cdr_tim_volte(
-    source_file="dados/tim_volte.csv",
-    target_file="saida/tim_volte_extracted",
+resultado = transformer.transform_smp_ericsson_gsm(
+    source_file=intermediario,
+    target_file="saida/padronizado/ericsson",
 )
+```
 
-transformer = RoboCallsTransformer(spark, limiar_chamada_ofensora=6)
-transformer.transform_cdr_tim_volte(
-    source_file="saida/tim_volte_extracted",
-    target_file="saida/tim_volte_transformed",
+Os métodos retornam o caminho de destino. Tanto a extração quanto a
+transformação substituem dados já existentes no destino informado.
+
+#### Sem Parquet intermediário
+
+Crie o transformador primeiro e use sua sessão no extrator:
+
+```python
+transformer = CDRTransformer(spark)
+extractor = CDRParquetExtractor(transformer.spark)
+df = extractor.extract_dataframe(
+    source_file="dados/prestadora/smp/ericsson/entrada.parquet",
+    cdr_schema="smp_ericsson_gsm",
 )
-
-analyzer = RoboCallsAnalyzer(spark)
-df = analyzer.analyze(
-    source_file="saida/tim_volte_transformed",
-    target_file="saida/tim_volte_analyzed",
+resultado = transformer.transform_smp_ericsson_gsm(
+    source_file=df,
+    target_file="saida/padronizado/ericsson",
 )
-
-df.show(10)
 ```
 
-[Voltar ao topo](#teleutils)
+O mesmo contrato está disponível em `CDRTextExtractor.extract_dataframe`.
+Não há cache nem escrita intermediária automática. A validação de metadados
+inferidos ainda pode executar uma ação Spark; o processamento completo só é
+confirmado pela escrita final.
 
-### Pipeline Completo com o Pacote `core`
+A sessão do transformador é isolada e usa `TIMESTAMP_NTZ`. DataFrames de outra
+sessão são rejeitados com orientação para reconstruí-los com `transformer.spark`,
+mesmo que compartilhem o SparkContext. A biblioteca não altera a sessão do
+chamador nem copia seus overrides SQL de runtime. No modo direto, a extração
+também usa os defaults da sessão filha. Não altere essa sessão durante o pipeline.
 
-Quando a origem já estiver em CSV textual ou em Parquet do Teleparser, use `teleutils.core`:
+### Orquestração de lotes no Jupyter
+
+Use a `SparkSession` já disponibilizada pelo ambiente. O exemplo abaixo usa
+um bucket ilustrativo; configure os caminhos e o acesso S3A no ambiente antes
+de executá-lo:
+
+```python
+from teleutils.core.orchestrators import run_etl
+
+cdr_config = [{
+    "storage_type": "s3a",  # Opcional; este é o padrão.
+    "source_folder": "bucket-exemplo/cdr/bruto/algar/stfc/huawei_ngn",
+    "pattern": "*.gz",
+    "schema": "stfc_huawei_ngn",
+    "extracted_folder": "bucket-exemplo/cdr/extraido",
+    "transformed_folder": "bucket-exemplo/cdr/transformado",
+    "output_file_prefix": "algar_huawei_ngn",
+    "operator": "algar",
+    "service": "stfc",
+    "cdr_type": "huawei_ngn",
+}]
+
+report = run_etl(cdr_config, spark=spark)
+print(report.total, report.successes, report.validation_errors, report.execution_errors)
+for item in report.items:
+    print(item.index, item.schema, item.status, item.stage, item.error_message)
+```
+
+Para um único item, utilize `run_etl_item(cdr_config[0], spark=spark)`.
+Para ler um JSON, use `load_config("/dados/etl.json")` ou
+`load_config("s3a://bucket/caminho/etl.json", secure=True)`, importada de
+`teleutils.core.orchestrators`. A função rejeita prefixos duplicados no arquivo.
+Para MinIO, ela usa `MINIO_ENDPOINT`, `MINIO_USER` e `MINIO_SECRET` do ambiente
+se as opções não forem fornecidas; o endpoint não deve incluir o protocolo.
+O padrão `secure=False` usa HTTP sem criptografia; use HTTPS quando disponível.
+Listas passadas diretamente a `run_etl` não têm essa verificação de unicidade,
+embora conflitos de caminhos continuem sendo rejeitados.
+A configuração aceita os seis campos obrigatórios mostrados, os três metadados
+opcionais e `storage_type`, com valores exatos `"s3a"` (padrão) ou `"local"`.
+Em S3A, pastas aceitam `bucket/caminho` ou `s3a://bucket/caminho`, nunca
+caminhos iniciados por `/`. Endpoint, credenciais e conectores de acesso ao
+MinIO/S3A são responsabilidade do ambiente Spark/Hadoop, não da biblioteca.
+Os destinos são datasets com sufixos
+`_extracted.parquet` e `_transformed.parquet`, não necessariamente arquivos únicos.
+
+Para listar esses datasets no MinIO sem expor suas partições:
+
+```python
+from teleutils.core.orchestrators import list_files
+
+files = list_files(
+    "sandbox-sfi/cdr/processed/transformed",
+    pattern="*.parquet",
+    recursive=False,
+    secure=True,
+)
+# Exemplo de entrada na lista:
+# s3a://sandbox-sfi/cdr/processed/transformed/semana110_algar_smp_nokia_transformed.parquet
+```
+
+A base aceita `bucket/pasta` ou `s3a://bucket/pasta`; o retorno é uma lista
+ordenada de URIs `s3a://`, sem duplicatas ou barra final. Diretórios `.parquet`
+são tratados como arquivos lógicos e nunca são percorridos, mesmo com
+`recursive=True`; a base deve ser uma pasta contêiner, não um dataset ou seu
+interior. A máscara filtra nomes, com glob sensível a maiúsculas (`*`, `?`, `[]`,
+sem expansão `{a,b}`); `pattern=""` inclui todos os tipos. A conexão segue as
+opções e variáveis de ambiente de `load_config`, sem depender de Spark.
+Sem correspondências, retorna `[]`; erros MinIO são propagados.
+Consulte o [contrato completo da API](docs/teleutils_api.md#teleutilscoreorchestrators).
+
+Para execução totalmente local, informe diretórios absolutos Linux:
 
 ```python
 from pyspark.sql import SparkSession
-from teleutils.core.extractors import CDRTextExtractor
-from teleutils.core.transformers import CDRTextTransformer
+from teleutils.core.orchestrators import run_etl_item
 
-spark = SparkSession.builder.master("local[*]").appName("teleutils-core").getOrCreate()
+# Em um notebook com sessão existente, reutilize-a em vez de criar outra.
+spark = SparkSession.builder.master("local[2]").appName("cdr-local").getOrCreate()
 
-extractor = CDRTextExtractor(spark)
-extractor.extract_cdr_ericsson("dados/ericsson.csv", "saida/ericsson_extracted")
-
-transformer = CDRTextTransformer(spark)
-df = transformer.transform_cdr_ericsson("saida/ericsson_extracted", "saida/ericsson_transformed")
-
-df.show(5)
+config_local = {
+    "storage_type": "local",
+    "source_folder": "/dados/cdr/bruto/algar/stfc/huawei_ngn",
+    "pattern": "*.gz",
+    "schema": "stfc_huawei_ngn",
+    "extracted_folder": "/dados/cdr/temp/extraido",
+    "transformed_folder": "/dados/cdr/temp/transformado",
+    "output_file_prefix": "algar_huawei_ngn",
+}
+result = run_etl_item(config_local, spark=spark)
+print(result.status, result.paths, result.error_message)
 ```
 
-[Voltar ao topo](#teleutils)
+O modo local gera caminhos `file:///dados/...`, sem depender do filesystem
+padrão do Hadoop. Informe `/dados/...` na configuração, não `file:///dados/...`;
+caminhos relativos e protocolos explícitos são rejeitados nesse modo.
+Os diretórios e dados dos exemplos precisam existir no ambiente do chamador.
 
-## Configuração
+Cada item utiliza um único armazenamento para origem e destinos; configurações
+híbridas são rejeitadas. Um lote pode conter itens locais e S3A independentes,
+sem copiar ou transferir dados entre eles.
 
-[Voltar ao topo](#teleutils)
+Em Spark distribuído, `file:///` aponta para o filesystem de cada máquina:
+os caminhos necessários devem estar disponíveis nos executores, não apenas no
+driver. A validação é lexical, sem verificar existência, permissões, links
+simbólicos ou equivalência entre montagens.
 
-### Variáveis de Ambiente
+O lote valida os caminhos e resolve os métodos antes da extração. Falhas
+individuais são registradas e retornadas, sem impedir itens independentes.
+Inspecione o relatório: término do lote não significa sucesso de todos os itens.
+O orquestrador não cria/encerra o contexto Spark, não configura handlers de
+logging e não executa carga. Se necessário, configure logging no notebook.
 
-Não há variáveis de ambiente obrigatórias no código atual.
+Consulte o [contrato da orquestração](docs/teleutils_api.md#teleutilscoreorchestrators)
+para validação, conflitos e resultados.
 
-[Voltar ao topo](#teleutils)
-
-### Arquivos de Configuração
-
-- `pyproject.toml`: dependências, metadados do pacote e configuração de build;
-- `.pre-commit-config.yaml`: hooks de qualidade para `ruff`, `mypy`, `nbstripout` e verificações básicas;
-- `src/teleutils/_config.py`: constantes internas compartilhadas pelo pacote.
-
-[Voltar ao topo](#teleutils)
-
-### Valores e Parâmetros Relevantes
-
-- `SHORT_CALL_THRESHOLD = 6`: limiar padrão para classificar chamadas curtas;
-- `MAX_RECORDS_PER_FILE = 1000000`: limite usado na escrita de alguns Parquets;
-- `MIN_SAFE_DATE`: valor mínimo usado para descartar timestamps inválidos;
-- `AUTENTICATED_CALL_FLAG = "TN-Validation-Passed"`: marcador textual usado em regras de autenticação.
-
-[Voltar ao topo](#teleutils)
-
-### Formatos Aceitos
-
-- entrada CSV com delimitador `;` ou `|`, dependendo do layout;
-- entrada Parquet quando a etapa anterior já realizou a extração;
-- saída Parquet em todas as etapas de extração, transformação e análise.
-
-[Voltar ao topo](#teleutils)
-
-### Recomendações de Execução
-
-- use `SparkSession.builder.master("local[*]")` para testes locais;
-- sempre informe caminhos válidos para `source_file` e `target_file`;
-- trate os Parquets de saída como artefatos substituíveis, porque o projeto grava com `overwrite`;
-- mantenha os layouts de entrada alinhados com os schemas declarados nos módulos.
-
-[Voltar ao topo](#teleutils)
-
-## Exemplos Práticos
-
-[Voltar ao topo](#teleutils)
-
-### 1. Validar números telefônicos e CNPJ
-
-**Entrada**:
+Para ativar o modo direto no lote, sem administrar sessões:
 
 ```python
-from teleutils.preprocessing import normalize_number, validar_cnpj
-
-print(normalize_number("(11) 99999-9999"))
-print(validar_cnpj("11222333000181"))
+relatorio = run_etl(configs, spark=spark, materialize_intermediate=False)
 ```
 
-**Saída esperada**:
+`run_etl_item` e `get_config` aceitam a mesma opção. O padrão continua sendo
+`True`. No modo direto, `extracted_folder` pode ser omitido e
+`ConfigPaths.extracted_file` será `None`; intermediários antigos não são tocados.
+Falhas durante a execução conjunta aparecem na etapa `pipeline`, sem indicar
+extração concluída antes da escrita final. Avisos Spark da leitura adiada
+permanecem visíveis. Uma nova tentativa pode repetir a extração da origem.
 
-```text
-('11999999999', True)
-True
-```
+[⬆ Voltar ao topo](#sumário)
 
-[Voltar ao topo](#teleutils)
+### Carga Iceberg com controle de arquivos
 
-### 2. Normalizar um lote em Spark
-
-**Entrada**:
+Após transformar os dados, use uma sessão Spark configurada com extensões e
+catálogo Iceberg compartilhado com o Trino:
 
 ```python
-from pyspark.sql import SparkSession
-from pyspark.sql import functions as F
-from teleutils.preprocessing import spark_normalize_number
+from teleutils.core.loaders import TrinoLoader
 
-spark = SparkSession.builder.master("local[*]").appName("teleutils-spark-example").getOrCreate()
-df = spark.createDataFrame([("11999999999",), ("1234",)], ["numero"])
+loader = TrinoLoader(spark)
+loader.upsert_iceberg(
+    "/dados/cdr_padronizado.parquet",
+    "catalogo.schema.chamadas",
+    mode="insert_only",
+    control_table="catalogo.schema.controle_chamadas",
+)
 ```
 
-**Comando executado**:
+O controle identifica arquivos pelo conteúdo de `no_arquivo_origem`, não pelo
+nome do Parquet. Em `append` e `insert_only`, origens já carregadas são puladas
+com log; `merge` permite recarga. Após sucesso, o controle mantém uma linha por
+origem com `dh_carga` em UTC, armazenado como timestamp **sem fuso horário**.
+`control_table` é a única opção de controle: strings iniciadas por `s3a://` ou
+`file://` identificam um **dataset Parquet**, lido internamente como DataFrame;
+outras strings identificam uma tabela Iceberg no catálogo compartilhado com
+Trino. Por exemplo, use `control_table="file:///dados/controle/chamadas.parquet"`
+ou `control_table="s3a://bucket/controle/chamadas.parquet"`. Não passe um
+DataFrame diretamente. `None` mantém o fluxo sem controle.
 
-```python
-df = df.withColumn("normalizado", spark_normalize_number("numero"))
-df.select(
-    "numero",
-    F.col("normalizado.numero_formatado").alias("numero_formatado"),
-    F.col("normalizado.numero_valido").alias("numero_valido"),
-).show()
-```
+Antes de ler a origem, o loader cria o controle vazio se necessário e testa
+leitura/gravação. Qualquer falha interrompe a carga, sem escrever dados no
+destino. Essas sondagens não alteram registros existentes, mas podem gerar
+metadados/snapshots Iceberg. Um controle vazio pode permanecer mesmo se a carga
+posterior falhar ou não houver origens elegíveis.
 
-**Saída esperada**:
+**Limite de consistência:** a escrita dos dados e a do controle são commits
+separados. Falha no registro é propagada e registrada como falha parcial;
+repetir `append` pode duplicar dados. Serialize chamadas e use um controle
+exclusivo para cada destino. O controle Parquet é atualizado por sobrescrita
+direta, sem backup ou rollback: uma falha pode perder o controle anterior.
+Sondagens prévias não garantem o commit posterior. O loader não se conecta
+diretamente ao Trino.
 
-```text
-+-----------+----------------+-------------+
-|     numero|numero_formatado|numero_valido|
-+-----------+----------------+-------------+
-|11999999999|     11999999999|         true|
-|       1234|            1234|        false|
-+-----------+----------------+-------------+
-```
+Consulte [o contrato e os exemplos da API](docs/teleutils_api.md#teleutilscoreloaders).
 
-[Voltar ao topo](#teleutils)
+### Transferência de CDRs para o MinIO
 
-### 3. Executar o fluxo de robocalls
+Três scripts Bash em `scripts/` selecionam os CDRs de texto e/ou Parquet do
+Teleparser de uma semana (`SemanaNNN`) e os enviam ao MinIO ou os copiam para uma
+pasta local, sem alterar os arquivos de origem. Todos usam o mesmo arquivo de
+configuração JSON (`scripts/uploader.config.example.json`) e as mesmas regras de
+seleção e destino:
 
-**Entrada**:
+| Script | Uso |
+| :-- | :-- |
+| `scripts/upload_cdr_to_minio.sh` | Envio ao MinIO com `mc`, em lotes sequenciais. |
+| `scripts/upload_cdr_to_minio_parallel.sh` | Envio ao MinIO com vários `mc cp` simultâneos (`--jobs`, `--multipart-threads`). Requer Bash 4.4. |
+| `scripts/copy_cdr_to_local.sh` | Cópia para um diretório local com cópias simultâneas (`--jobs`). Não usa `mc`. Requer Bash 4.4. |
 
-- arquivo `dados/tim_volte.csv` com layout TIM VoLTE;
-- diretórios de saída para extração, transformação e análise.
-
-**Comando executado**:
-
-```python
-from pyspark.sql import SparkSession
-from teleutils.robocalls import RoboCallsAnalyzer, RoboCallsExtractor, RoboCallsTransformer
-
-spark = SparkSession.builder.master("local[*]").appName("robocalls-example").getOrCreate()
-
-extractor = RoboCallsExtractor(spark)
-extractor.extract_cdr_tim_volte("dados/tim_volte.csv", "saida/tim_volte_extracted")
-
-transformer = RoboCallsTransformer(spark)
-transformer.transform_cdr_tim_volte("saida/tim_volte_extracted", "saida/tim_volte_transformed")
-
-analyzer = RoboCallsAnalyzer(spark)
-df = analyzer.analyze("saida/tim_volte_transformed", "saida/tim_volte_analyzed")
-
-df.orderBy("total_chamadas_curtas", ascending=False).show(10)
-```
-
-**Saída esperada**:
-
-- um Parquet final com as métricas agregadas por `numero_de_a_formatado` e `hora_da_chamada`.
-
-[Voltar ao topo](#teleutils)
-
-### 4. Executar um fluxo textual com Ericsson
-
-**Entrada**:
-
-- arquivo `dados/ericsson.csv` com layout Ericsson.
-
-**Comando executado**:
-
-```python
-from pyspark.sql import SparkSession
-from teleutils.core.extractors import CDRTextExtractor
-from teleutils.core.transformers import CDRTextTransformer
-
-spark = SparkSession.builder.master("local[*]").appName("core-example").getOrCreate()
-
-extractor = CDRTextExtractor(spark)
-extractor.extract_cdr_ericsson("dados/ericsson.csv", "saida/ericsson_extracted")
-
-transformer = CDRTextTransformer(spark)
-df = transformer.transform_cdr_ericsson("saida/ericsson_extracted", "saida/ericsson_transformed")
-
-df.show(5)
-```
-
-**Saída esperada**:
-
-- um Parquet padronizado com colunas como `nu_referencia`, `nu_origem`, `nu_destino`, `dh_chamada` e `no_tipo_chamada`.
-
-[Voltar ao topo](#teleutils)
-
-## Solução de Problemas
-
-[Voltar ao topo](#teleutils)
-
-### Erros Comuns
-
-- `ValueError` informando colunas ausentes: o layout de entrada não bate com o schema esperado.
-- `AnalysisException` ao ler Parquet: o caminho de origem não existe, está vazio ou o Spark não tem acesso ao arquivo.
-- `JAVA_HOME` ausente ou Spark não inicia: o ambiente Java não está configurado corretamente.
-- saída vazia após a transformação: o filtro do formato pode ter removido todos os registros do lote.
-- o comando `teleutils` não funciona: o pacote é usado principalmente como biblioteca Python e o fluxo documentado aqui é a API pública.
-
-[Voltar ao topo](#teleutils)
-
-### Como Diagnosticar
+Os scripts de envio exigem `jq` e o MinIO Client `mc`; a cópia local exige `jq`.
+Em todos, a opção `--dry-run` planeja a transferência sem copiar arquivos:
 
 ```bash
-python -c "import pyspark; print(pyspark.__version__)"
-python -c "from teleutils.preprocessing import normalize_number; print(normalize_number('11999999999'))"
-python -m pytest -q
-pre-commit run --all-files
+./scripts/upload_cdr_to_minio.sh \
+  --config scripts/uploader.config.example.json --week-dir Semana110 \
+  --teleparser-folder /data/teleparser/ --dry-run
+
+./scripts/upload_cdr_to_minio_parallel.sh \
+  --config scripts/uploader.config.example.json --week-dir Semana110 \
+  --jobs 3 --multipart-threads 16 --dry-run
+
+./scripts/copy_cdr_to_local.sh \
+  --config scripts/uploader.config.example.json --week-dir Semana110 \
+  --destination /data/cdr_local --jobs 8 --dry-run
 ```
 
-[Voltar ao topo](#teleutils)
+O `--dry-run` dos scripts de envio consulta o MinIO e exige uma configuração `mc`
+existente. Veja a ajuda de cada script com `--help` e o guia
+[Transferência semanal de CDRs para MinIO](docs/teleutils_upload_cdr_to_minio.md)
+para o formato do arquivo JSON de configuração e como construí-lo, os
+pré-requisitos, a precedência de opções, as diferenças entre os scripts, o
+relatório e os códigos de saída.
 
-### Como Corrigir
+[⬆ Voltar ao topo](#sumário)
 
-- confirme o delimitador do arquivo de entrada (`;` ou `|`);
-- confirme se o arquivo possui cabeçalho quando o esquema espera cabeçalho;
-- verifique se o `source_file` realmente contém Parquet ou CSV no formato esperado;
-- use caminhos absolutos ou relativos válidos no seu sistema;
-- se o Spark falhar ao iniciar, ajuste `JAVA_HOME` e valide a instalação do Java.
+## Estrutura do projeto
 
-[Voltar ao topo](#teleutils)
+```text
+teleutils/
+├── src/teleutils/
+│   ├── core/
+│   │   ├── extractors/       # extratores e schemas de layouts
+│   │   ├── transformers/     # transformação para o contrato final
+│   │   ├── loaders/          # carga independente em Iceberg
+│   │   └── orchestrators/    # coordenação de extração e transformação
+│   ├── preprocessing/        # números telefônicos e CNPJ
+│   ├── robocalls/            # pacote depreciado
+│   ├── _config.py            # contrato final (TARGET_SCHEMA) e constantes internas
+│   └── _logging.py           # utilitários internos de logging
+├── scripts/                  # upload e cópia local semanal de CDRs (Bash)
+├── docs/                     # documentação técnica especializada
+├── tests/                    # testes pytest, testes Bats e notebooks de desenvolvimento
+└── pyproject.toml            # metadados e dependências do pacote
+```
 
-## Compatibilidade
+[⬆ Voltar ao topo](#sumário)
 
-[Voltar ao topo](#teleutils)
+## Documentação técnica
 
-### Versões Suportadas
+| Documento | Descrição |
+| :-- | :-- |
+| [Referência da API](docs/teleutils_api.md) | Interfaces públicas, parâmetros, retornos, erros e efeitos colaterais. |
+| [Linhagem e transformações dos dados](docs/teleutils_linhagem_transformacoes_dados.md) | Origem, regras de transformação e destino das colunas dos CDRs. |
+| [Transferência semanal de CDRs para MinIO](docs/teleutils_upload_cdr_to_minio.md) | Scripts Bash de upload (serial e paralelo) e de cópia local: configuração JSON, opções da CLI, relatório e testes. |
 
-- Python: `>=3.9`;
-- PySpark: `>=3.5.5`;
-- Pandas: `>=2.3.3`;
-- PyArrow: `==21.0.0`.
-
-[Voltar ao topo](#teleutils)
-
-### Sistemas Operacionais
-
-- Linux é o ambiente mais alinhado ao estado atual do repositório;
-- outros sistemas podem funcionar se tiverem Java e Spark compatíveis, mas não há validação formal no repositório para eles.
-
-[Voltar ao topo](#teleutils)
-
-### Dependências Obrigatórias
-
-- `pyspark`;
-- `pandas`;
-- `pyarrow`.
-
-[Voltar ao topo](#teleutils)
-
-### Limitações Conhecidas
-
-- o pacote é consumido via API Python; não há um CLI documentado e validado no código-fonte atual;
-- as saídas são gravadas em Parquet com sobrescrita do diretório informado;
-- a qualidade do processamento depende fortemente da aderência do arquivo de entrada ao layout esperado.
-
-[Voltar ao topo](#teleutils)
+[⬆ Voltar ao topo](#sumário)
 
 ## Desenvolvimento
 
-[Voltar ao topo](#teleutils)
-
-### Ambiente de Desenvolvimento
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install -U pip
-python -m pip install -e .
-python -m pip install pytest pre-commit jupyter matplotlib
-pre-commit install
-```
-
-[Voltar ao topo](#teleutils)
-
-### Testes
+Instale também as dependências de desenvolvimento e execute a suíte coletada
+pelo pytest:
 
 ```bash
-python -m pytest
+uv sync --all-groups
+uv run pytest
 ```
 
-[Voltar ao topo](#teleutils)
+O projeto configura `pytest`, `ruff`, `pre-commit` e ferramentas de notebook por
+meio do grupo de dependências `dev` em `pyproject.toml`. Os hooks de
+`.pre-commit-config.yaml` executam `ruff-check` (regra `I`), `ruff-format`,
+`mypy`, `nbstripout` e verificações básicas de arquivos. Os testes dos scripts de
+upload e de cópia local usam Bats (os de upload, com um mock de `mc`):
 
-### Qualidade de Código
+```bash
+bats tests/shell/upload_cdr_to_minio.bats
+bats tests/shell/upload_cdr_to_minio_parallel.bats
+bats tests/shell/copy_cdr_to_local.bats
+```
 
-- lint e organização de imports via `ruff-check`;
-- formatação via `ruff-format`;
-- verificação estática com `mypy`;
-- limpeza de notebooks com `nbstripout`.
+[⬆ Voltar ao topo](#sumário)
 
-[Voltar ao topo](#teleutils)
+## Limitações conhecidas
 
-### Cobertura
-
-Não há ferramenta de cobertura configurada no repositório no estado atual.
-
-[Voltar ao topo](#teleutils)
-
-### Notebooks
-
-Os notebooks em `tests/notebooks` foram mantidos como apoio ao desenvolvimento e exploração dos fluxos.
-
-[Voltar ao topo](#teleutils)
-
-## Alterações Recentes
-
-[Voltar ao topo](#teleutils)
-
-### Alterações recentes integradas na branch principal
-
-- criada a camada `teleutils.core` para separar extração e transformação genéricas por layout;
-- adicionada a dataclass `CDRTeleparserSchema` e o catálogo `TELEPARSER_DEFAULT_SCHEMAS`;
-- ampliada a extração para suportar colunas de entrada e saída de rota em layouts específicos;
-- introduzida a validação de CNPJ em Python puro e em Spark;
-- exposta a UDF vetorizada `spark_normalize_number` para processamento em lote;
-- revisadas heurísticas de autenticação, caixa postal e números telefônicos no pipeline de `robocalls`;
-- consolidado suporte a Ericsson, TIM Huawei, Vivo FCDR, Nokia, TIM VoLTE, Vivo VoLTE e Claro Nokia nas camadas apropriadas;
-- reorganizados módulos, docstrings e contratos de saída para melhorar legibilidade e manutenção.
-
-[Voltar ao topo](#teleutils)
-
-## Referências
-
-- Repositório oficial: [InovaFiscaliza/teleutils](https://github.com/InovaFiscaliza/teleutils)
-- DeepWiki do projeto: [InovaFiscaliza/teleutils](https://deepwiki.com/InovaFiscaliza/teleutils)
-- Apache Spark: [Documentação oficial](https://spark.apache.org/documentation.html)
-- Pandas: [Documentação oficial](https://pandas.pydata.org/docs/)
-- PyArrow: [Documentação oficial](https://arrow.apache.org/docs/python/)
-- pre-commit: [Documentação oficial](https://pre-commit.com/)
-- pytest: [Documentação oficial](https://docs.pytest.org/)
-- ANATEL: [Agência Nacional de Telecomunicações](https://www.anatel.gov.br/)
-- ITU-T E.164: [Plano de Numeração Internacional](https://handle.itu.int/11.1002/1000/10688)
-
----
-
-Desenvolvido por [InovaFiscaliza](https://github.com/InovaFiscaliza)
+- A orquestração possui testes com fakes e integração Spark local com dados
+  sintéticos. Esses testes não certificam o acesso S3A do ambiente Big Data.
+- Sucesso técnico não garante completude dos dados: permanecem as políticas
+  dos componentes, como `overwrite` e a tolerância a Parquet corrompido.
+- Não há transação entre etapas, limpeza de saídas parciais, retries,
+  paralelismo, retomada automática ou carga no orquestrador.
+- `CDRTransformer.transform` procura funções globais `transform_<cdr_schema>` e
+  não encontra os métodos de layout da instância; use os métodos
+  `transform_<cdr_schema>` ou o orquestrador.
+- Nenhum CLI Python é registrado em `pyproject.toml`. Os únicos utilitários de
+  linha de comando são os scripts Bash `scripts/upload_cdr_to_minio.sh`,
+  `scripts/upload_cdr_to_minio_parallel.sh` e `scripts/copy_cdr_to_local.sh`.
+- Alguns testes não acompanham o código atual. Em um subconjunto de testes
+  executado ao revisar esta documentação, o pytest reprovou os de
+  `tests/test_phone_number_extractor.py` (esperam o sentinela quando a extração
+  falha, mas `extract_number` devolve o valor de entrada) e dois de
+  `tests/test_cdr_schemas.py` (esperam que `CDRParquetExtractor` não toque nos
+  loggers Spark ao rejeitar um schema inválido). Essas falhas não foram
+  corrigidas, pois a documentação não altera testes.
+- Os pipelines Spark dependem dos layouts e da organização de caminhos
+  descritos na referência da API e na documentação de linhagem.

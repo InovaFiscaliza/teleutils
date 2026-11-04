@@ -1,159 +1,95 @@
-"""Módulo de funções utilitárias para pré-processamento de dados.
+"""Validação local de CNPJs numéricos e alfanuméricos.
 
-Este módulo foi projetado para concentrar utilitários reutilizáveis de uso
-geral dentro do pacote de pré-processamento. No estado atual, a única
-funcionalidade disponível é a validação de CNPJ, com suporte para execução
-local e em pipelines Spark via pandas UDF.
+O módulo fornece ``is_valid_cnpj``, função que sanitiza a entrada, verifica a
+estrutura de 14 caracteres e confere os dois dígitos verificadores pelo
+algoritmo de módulo 11. Ela aceita o formato numérico tradicional e o formato
+alfanumérico com 12 caracteres de base e dois DVs numéricos. A função também é
+reexportada pelo pacote ``teleutils.preprocessing``.
 
-Responsabilidades:
-    - Servir como ponto central para funções utilitárias gerais do domínio.
-    - Disponibilizar validação de CNPJ em memória para uso direto em Python.
-    - Expor UDF pandas para validação de CNPJ em lote no Apache Spark.
+Dependências:
+    - ``re`` (biblioteca padrão do Python), para sanitização e validação do
+      formato.
 
-Funcionalidades atualmente implementadas:
-    - Verificação de formato e tamanho do CNPJ.
-    - Rejeição de sequências triviais (todos os dígitos iguais).
-    - Cálculo e conferência de dígitos verificadores com pesos oficiais.
-    - Retorno estruturado em DataFrame com coluna booleana de validade.
-
-Dependências relevantes:
-    - pandas (DataFrame e Series)
-    - pyspark.sql.functions.pandas_udf
-    - pyspark.sql.types (StructType, StructField, BooleanType)
-
-Example:
-    >>> validar_cnpj("11222333000181")
+Examples:
+    >>> is_valid_cnpj("11.222.333/0001-81")
+    True
+    >>> is_valid_cnpj("12ABC34501DE35")
     True
 """
 
+from __future__ import annotations
+
 import re
-from typing import Union
-
-from pandas import DataFrame, Series
-from pyspark.sql.functions import pandas_udf  # type: ignore
-from pyspark.sql.types import BooleanType, StructField, StructType
 
 
-def validar_cnpj(cnpj: Union[str, int]) -> bool:
-    """Valida um CNPJ utilizando as regras oficiais de dígitos verificadores.
+def is_valid_cnpj(cnpj: str | int) -> bool:
+    """Valida um CNPJ numérico ou alfanumérico pelas regras oficiais de DV.
 
-    A validação ocorre em quatro etapas principais: sanitização da entrada,
-    checagem estrutural básica, descarte de sequências inválidas triviais e
-    verificação dos dois dígitos finais calculados pelo algoritmo de módulo
-    11 aplicado ao CNPJ.
+    O CNPJ alfanumérico tem 12 caracteres (``0-9`` e ``A-Z``) seguidos de
+    2 dígitos verificadores numéricos. Os DVs são calculados por módulo 11,
+    com pesos de 2 a 9 aplicados da direita para a esquerda (reiniciando
+    após o 8º caractere). Cada caractere vale ``ord(c) - 48``, o que mantém
+    os dígitos com o próprio valor (0-9) e dá às letras A=17, B=18, ..., Z=42.
+    O CNPJ numérico é um caso particular desse algoritmo.
 
     Args:
-        cnpj: CNPJ a ser validado. Aceita valores textuais com máscara,
-            valores numéricos inteiros e outras representações conversíveis
-            para string.
+        cnpj: CNPJ como texto (com ou sem máscara) ou inteiro.
 
     Returns:
-        bool:
-            True quando o CNPJ é estruturalmente válido e possui dígitos
-            verificadores consistentes; False caso contrário.
+        True se o formato e os dígitos verificadores forem válidos;
+        False caso contrário.
 
     Notes:
         Sanitização aplicada antes da validação:
-            - Conversão do valor de entrada para string.
-            - Remoção de todos os caracteres não numéricos.
-            - Preenchimento com zeros à esquerda até 14 dígitos.
+            - ``None`` e booleanos são rejeitados.
+            - Remoção de tudo que não seja ``0-9`` ou ``A-Z``/``a-z``
+              (pontos, barra, hífen, espaços etc.).
+            - Letras minúsculas são convertidas para maiúsculas.
+            - Entradas totalmente numéricas com menos de 14 dígitos são
+              preenchidas com zeros à esquerda (útil para ``int``).
+              Entradas com letras precisam ter exatamente 14 caracteres.
 
-        Entradas com mais de 14 dígitos numéricos são rejeitadas para evitar
-        ambiguidades e manter aderência ao formato oficial de CNPJ.
+        Os dois últimos caracteres (DVs) devem ser numéricos. Sequências de
+        14 caracteres idênticos são rejeitadas.
     """
     # 1. Sanitização e validações defensivas de entrada.
-    # bool é rejeitado explicitamente pois é subtipo de int em Python e
-    # poderia gerar resultados inesperados (True -> "1", False -> "0").
+    # bool é subtipo de int em Python (True -> "1"), então é rejeitado antes.
     if cnpj is None or isinstance(cnpj, bool):
         return False
 
     try:
-        cnpj = str(cnpj)
-    except Exception:
+        valor = str(cnpj)
+    except (TypeError, ValueError):
         return False
 
-    cnpj = re.sub(r"\D", "", cnpj)
+    # Mantém só ASCII alfanumérico e normaliza para maiúsculas.
+    valor = re.sub(r"[^0-9A-Za-z]", "", valor).upper()
 
-    if not cnpj:
+    if not valor:
         return False
 
-    if len(cnpj) > 14:
+    # Entradas puramente numéricas (ex.: int) podem ter perdido zeros à esquerda.
+    if valor.isdigit():
+        valor = valor.zfill(14)
+
+    # 2. Estrutura: 12 caracteres alfanuméricos + 2 dígitos verificadores.
+    if not re.fullmatch(r"[0-9A-Z]{12}[0-9]{2}", valor):
         return False
 
-    cnpj = cnpj.zfill(14)
-
-    # 2. Validação básica de formato e tamanho após sanitização.
-    if not cnpj.isdigit() or len(cnpj) != 14:
+    # Rejeita sequências formadas pelo mesmo caractere.
+    if len(set(valor)) == 1:
         return False
 
-    # 3. Elimina CNPJs com todos os números iguais (comum em geradores falsos)
-    if len(set(cnpj)) == 1:
-        return False
-
-    # Função auxiliar para calcular cada dígito verificador pelo algoritmo
-    # módulo 11. Mantida como função interna para preservar o escopo local da
-    # regra e evitar uso indevido fora do fluxo de validação de CNPJ.
-    def calcular_digito(fatia, pesos):
-        soma = sum(int(num) * peso for num, peso in zip(fatia, pesos))
+    def calcular_digito(base: str) -> int:
+        """Calcula um DV (módulo 11) para a base informada."""
+        # Pesos 2..9 da direita para a esquerda, reiniciando após o 9.
+        soma = sum((ord(c) - 48) * (2 + i % 8) for i, c in enumerate(reversed(base)))
         resto = soma % 11
         return 0 if resto < 2 else 11 - resto
 
-    # Pesos oficiais da Receita Federal
-    pesos_1 = [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
-    pesos_2 = [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
+    # 3. Cálculo dos DVs (o segundo inclui o primeiro na base).
+    digito_1 = calcular_digito(valor[:12])
+    digito_2 = calcular_digito(valor[:12] + str(digito_1))
 
-    # 4. Cálculo do primeiro dígito verificador
-    digito_1 = calcular_digito(cnpj[:12], pesos_1)
-
-    # 5. Cálculo do segundo dígito verificador
-    digito_2 = calcular_digito(cnpj[:13], pesos_2)
-
-    # 6. Verificação final
-    return cnpj[-2:] == f"{digito_1}{digito_2}"
-
-
-# Schema de retorno do UDF Spark para validação de CNPJ.
-# Anotação de manutenção: alterações no nome/tipo da coluna exigem revisão
-# coordenada de transformadores e consultas que dependam de cnpj_valido.
-CNPJ_RETURN_SCHEMA = StructType(
-    [
-        StructField("cnpj_valido", BooleanType(), True),
-    ]
-)
-
-
-@pandas_udf(CNPJ_RETURN_SCHEMA)  # type: ignore
-def spark_validar_cnpj(cnpj_series: Series) -> DataFrame:
-    """Valida CNPJs em lote para uso em pipelines Apache Spark.
-
-    Esta pandas UDF recebe uma série de CNPJs e aplica a função
-    validar_cnpj elemento a elemento, retornando um DataFrame com a
-    coluna booleana de validade conforme o schema declarado no módulo.
-
-    Args:
-        cnpj_series: Série pandas com valores de CNPJ a serem validados.
-
-    Returns:
-        DataFrame:
-            DataFrame de uma coluna com o resultado da validação:
-            - cnpj_valido (bool | None): indicador de validade do CNPJ.
-
-    Notes:
-        O processamento é vetorizado em lote (batch), reduzindo overhead de
-        serialização em comparação com UDFs linha a linha e melhorando
-        desempenho em grandes volumes.
-
-        Efeito colateral indireto: por ser executada no contexto Spark, a
-        função depende da serialização distribuída da lógica para workers.
-    """
-    # Processar em batch (vetorizado)
-    results = []
-    for cnpj in cnpj_series:
-        results.append(validar_cnpj(cnpj))
-
-    return DataFrame(
-        results,
-        columns=[
-            "cnpj_valido",
-        ],
-    )
+    # 4. Verificação final.
+    return valor[12:] == f"{digito_1}{digito_2}"
