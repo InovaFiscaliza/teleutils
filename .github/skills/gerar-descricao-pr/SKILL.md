@@ -129,81 +129,214 @@ público. Explique o impacto e a adaptação necessária.
 Descreva riscos concretos relacionados às mudanças. Não acrescente
 alertas genéricos ou benefícios de desempenho não demonstrados.
 
-## 5. Redigir o título e a descrição
+## 5. Redigir uma descrição técnica detalhada
 
-Respeite primeiro o template do repositório.
-Na ausência de template, use a estrutura abaixo.
+Produza uma descrição abrangente, adequada à revisão técnica.
+Não reduza o resultado a um resumo executivo.
 
-### Título
+Use o diff para explicar as mudanças efetivamente entregues e os commits
+para complementar o contexto e calcular as estatísticas do intervalo.
+
+Respeite o template obrigatório do repositório, quando existir, incorporando
+nele as informações abaixo. Na ausência de template, siga exatamente esta
+estrutura e ordem de seções.
+
+### Título do PR
 
 Use Conventional Commits:
 
 `<type>[escopo opcional][! se incompatível]: <descrição resumida>`
 
-Escreva um título específico e coerente com o objetivo principal.
-Não adicione emojis, salvo quando a convenção do projeto exigir.
+Escolha o tipo pelo objetivo principal do PR, sem tentar representar
+todos os tipos de alteração no título.
 
-### Corpo
+### Estrutura obrigatória do corpo
 
-#### Resumo
+# Descrição Geral
 
-Explique o problema e o resultado da mudança em um ou dois parágrafos.
-Quando útil, apresente um exemplo breve de antes e depois.
+Explique:
 
-#### Alterações
+- O problema ou a necessidade que motivou o PR.
+- O objetivo e o resultado das alterações.
+- Os principais eixos de implementação, em lista numerada.
+- A branch de origem, a branch de destino e o intervalo analisado.
 
-Agrupe as mudanças relevantes por tipo de Conventional Commits.
-Inclua apenas categorias presentes e evite repetir o resumo.
+Apresente o seguinte resumo quantitativo, calculado a partir do Git:
 
-#### Arquivos ou módulos relevantes
+- Commits no intervalo.
+- Arquivos alterados.
+- Linhas adicionadas e removidas.
+- Distribuição dos commits por tipo de Conventional Commits.
 
-Inclua esta seção somente quando ajudar a revisão.
-Liste os componentes principais e a responsabilidade de cada mudança.
-Não reproduza o inventário completo do diff.
+Para calcular:
 
-#### Validação
+- Conte os commits alcançáveis em HEAD e ausentes na branch de destino.
+- Obtenha arquivos e linhas do diff entre o ancestral comum e HEAD.
+- Classifique os commits pelos prefixos de suas mensagens.
+- Conte commits de merge separadamente.
+- Agrupe mensagens sem prefixo reconhecível como “não classificados”.
 
-Informe as verificações realizadas e seus resultados.
-Inclua comandos quando disponíveis e úteis para reprodução.
-Registre testes não executados, falhas e limitações conhecidas.
+Diferencie a classificação das mensagens de commit da classificação
+semântica das mudanças identificadas no diff.
 
-#### Compatibilidade e migração
+Não invente números nem use estimativas sem explicar a limitação.
+Se uma métrica não puder ser calculada, informe “não disponível”
+e explique brevemente o motivo.
 
-Inclua somente quando aplicável.
+# Alterações Organizadas por Tipo
 
-Para mudanças incompatíveis, use:
+Crie subseções para os tipos identificados:
 
-`BREAKING CHANGE: <impacto e adaptação necessária>`
+## feat
+## fix
+## refactor
+## perf
+## docs
+## test
+## chore / build / ci
+## style
 
-Descreva migrações, novas configurações ou ações manuais necessárias.
+Inclua somente subseções com alterações relevantes.
 
-#### Riscos e pontos de atenção
+Em cada subseção:
 
-Inclua somente riscos concretos, limitações ou aspectos que mereçam
-atenção especial dos revisores.
+- Detalhe as mudanças em itens separados por responsabilidade.
+- Identifique funcionalidades, módulos, contratos ou fluxos afetados.
+- Explique o comportamento resultante e sua finalidade.
+- Apresente diferenças entre antes e depois quando ajudarem a revisão.
+- Cubra todos os grupos relevantes de mudanças encontrados no diff.
 
-#### Issue relacionada
+Não limite cada categoria a uma frase genérica.
+Não transcreva o histórico de commits.
+Não repita a mesma mudança em diferentes categorias.
+
+Não classifique simplificações de código como melhorias de desempenho
+sem evidências. Diferencie otimização pretendida de ganho medido.
+
+# Principais Arquivos ou Módulos Afetados
+
+Liste os arquivos ou módulos relevantes, usando caminhos relativos
+ao repositório.
+
+Para cada item, explique concretamente:
+
+- Sua responsabilidade.
+- O que foi alterado.
+- O impacto relevante para o restante do projeto.
+
+Agrupe arquivos com a mesma responsabilidade quando isso melhorar
+a leitura. Evite listar individualmente arquivos gerados ou alterações
+puramente mecânicas.
+
+# Validação
+
+Separe:
+
+- Testes adicionados ou modificados e os cenários cobertos.
+- Verificações efetivamente executadas e seus resultados.
+- Verificações pendentes e limitações de cobertura.
+
+Inclua comandos e evidências quando disponíveis.
+
+Se não houver evidência de execução, declare:
+“Testes não executados nesta análise.”
+
+Não confunda existência de testes com execução bem-sucedida.
+Não presuma resultados de CI ou homologação.
+
+# Breaking Changes
+
+Para cada incompatibilidade confirmada, use:
+
+BREAKING CHANGE: <descrição da incompatibilidade>
+
+Explique:
+
+- O contrato ou comportamento anterior.
+- O novo contrato ou comportamento.
+- Os consumidores afetados.
+- A adaptação ou migração necessária.
+
+Não trate uma reorganização interna como incompatibilidade sem verificar
+se ela afeta interfaces ou comportamentos consumidos externamente.
+
+Se nenhuma incompatibilidade for identificada, escreva:
+“Não foram identificadas mudanças incompatíveis na análise realizada.”
+
+# Riscos e Pontos de Atenção
+
+Descreva riscos concretos associados ao diff, incluindo, quando aplicável:
+
+- Compatibilidade de APIs, imports, configurações e contratos de dados.
+- Mudanças de comportamento em fluxos existentes.
+- Migrações, dependências e requisitos operacionais.
+- Cenários relevantes ainda não validados.
+- Divergências entre a implementação e os critérios da issue.
+
+Diferencie problemas confirmados de riscos potenciais.
+Explique o possível impacto e a verificação recomendada.
+Evite alertas genéricos que poderiam se aplicar a qualquer PR.
+
+Se não houver pontos específicos, informe isso sem garantir ausência
+de riscos ou regressões.
+
+# Issue Relacionada
 
 Inclua somente referências confirmadas.
 
-Use `Closes #<número>` apenas quando o PR resolver integralmente a issue
-e o fechamento automático for apropriado. Para relação parcial, use
-`Refs #<número>`.
+Use `Closes #<número>` quando a implementação resolver integralmente
+a issue e o fechamento automático for apropriado.
 
-#### Checklist
+Use `Refs #<número>` quando a implementação for parcial ou quando
+não for possível confirmar o atendimento integral.
 
-Inclua quando exigido pelo template ou quando houver pendências úteis.
-Marque `[x]` somente com evidência; use `[ ]` para pendências.
-Não inclua afirmações vagas como “sem regressões aparentes”.
+Se nenhuma issue estiver identificada, escreva:
+“Issue não informada.”
+
+# Checklist
+
+Construa um checklist adequado às mudanças, considerando:
+
+- Revisão do código.
+- Execução dos testes relevantes.
+- Atualização da documentação, quando necessária.
+- Avaliação de compatibilidade, quando aplicável.
+- Atendimento aos critérios da issue, quando disponíveis.
+- Conformidade do título proposto com Conventional Commits.
+
+Marque `[x]` somente quando houver evidência de conclusão.
+Mantenha `[ ]` para itens pendentes ou não verificados.
+Omita itens que não se aplicam.
+
+A leitura do diff para escrever o PR não equivale a uma revisão
+completa do código nem comprova ausência de regressões.
+
+# Observações para Revisão Final
+
+Liste ações concretas ainda necessárias antes do merge,
+como validação funcional, execução de testes ou alinhamento
+de contratos com a issue.
+
+Se não houver ações adicionais identificadas, informe isso
+brevemente.
 
 ## 6. Regras de saída e atuação
 
-- Entregue o título separadamente do corpo, para copiar nos campos do GitHub.
-- Apresente o corpo em Markdown pronto para colar.
-- Não inclua comentários sobre o processo de geração dentro da descrição.
-- Dimensione o texto à complexidade do PR.
-- Omita seções opcionais vazias e textos de preenchimento.
-- Descreva o resultado final, sem narrar tentativas abandonadas.
+- Entregue uma descrição técnica detalhada, seguindo a estrutura
+  da seção 5. Priorize informações concretas e evite redundância.
+- Apresente o título e o corpo em dois blocos de código separados,
+  ambos identificados como `markdown`.
+- O primeiro bloco deve conter somente o título, em uma única linha,
+  sem o prefixo “Título” e sem marcação de cabeçalho.
+- O segundo bloco deve conter o corpo completo em Markdown,
+  pronto para ser copiado e colado diretamente no campo de descrição
+  de um Pull Request no GitHub.
+- Fora dos blocos, use apenas os rótulos “Título do PR” e
+  “Descrição do PR”. Informe antes dos blocos qualquer limitação
+  que impeça uma descrição definitiva.
+- Não inclua placeholders, instruções de preenchimento ou comentários
+  sobre o processo de geração dentro do conteúdo copiável.
+- Descreva o estado final das mudanças, sem narrar tentativas abandonadas.
 - Não exponha credenciais, tokens ou dados sensíveis encontrados no diff.
 - Gere somente a proposta: não crie, publique ou edite o PR remoto.
 - Não altere arquivos, faça commits ou modifique o histórico Git.
