@@ -397,21 +397,41 @@ Consulte [o contrato e os exemplos da API](docs/teleutils_api.md#teleutilscorelo
 
 ### Transferência de CDRs para o MinIO
 
-O script Bash `scripts/upload_cdr_to_minio.sh` envia os CDRs de texto e/ou
-Parquet do Teleparser de uma semana para o MinIO, sem alterar os arquivos de
-origem. Ele usa `jq` e o MinIO Client `mc`, e a opção `--dry-run` planeja a
-transferência sem copiar arquivos:
+Três scripts Bash em `scripts/` selecionam os CDRs de texto e/ou Parquet do
+Teleparser de uma semana (`SemanaNNN`) e os enviam ao MinIO ou os copiam para uma
+pasta local, sem alterar os arquivos de origem. Todos usam o mesmo arquivo de
+configuração JSON (`scripts/uploader.config.example.json`) e as mesmas regras de
+seleção e destino:
+
+| Script | Uso |
+| :-- | :-- |
+| `scripts/upload_cdr_to_minio.sh` | Envio ao MinIO com `mc`, em lotes sequenciais. |
+| `scripts/upload_cdr_to_minio_parallel.sh` | Envio ao MinIO com vários `mc cp` simultâneos (`--jobs`, `--multipart-threads`). Requer Bash 4.4. |
+| `scripts/copy_cdr_to_local.sh` | Cópia para um diretório local com cópias simultâneas (`--jobs`). Não usa `mc`. Requer Bash 4.4. |
+
+Os scripts de envio exigem `jq` e o MinIO Client `mc`; a cópia local exige `jq`.
+Em todos, a opção `--dry-run` planeja a transferência sem copiar arquivos:
 
 ```bash
 ./scripts/upload_cdr_to_minio.sh \
   --config scripts/uploader.config.example.json --week-dir Semana110 \
   --teleparser-folder /data/teleparser/ --dry-run
+
+./scripts/upload_cdr_to_minio_parallel.sh \
+  --config scripts/uploader.config.example.json --week-dir Semana110 \
+  --jobs 3 --multipart-threads 16 --dry-run
+
+./scripts/copy_cdr_to_local.sh \
+  --config scripts/uploader.config.example.json --week-dir Semana110 \
+  --destination /data/cdr_local --jobs 8 --dry-run
 ```
 
-O `--dry-run` consulta o MinIO e exige uma configuração `mc` existente. Veja
-`./scripts/upload_cdr_to_minio.sh --help` e o guia
+O `--dry-run` dos scripts de envio consulta o MinIO e exige uma configuração `mc`
+existente. Veja a ajuda de cada script com `--help` e o guia
 [Transferência semanal de CDRs para MinIO](docs/teleutils_upload_cdr_to_minio.md)
-para configuração, precedência de opções, relatório e códigos de saída.
+para o formato do arquivo JSON de configuração e como construí-lo, os
+pré-requisitos, a precedência de opções, as diferenças entre os scripts, o
+relatório e os códigos de saída.
 
 [⬆ Voltar ao topo](#sumário)
 
@@ -429,7 +449,7 @@ teleutils/
 │   ├── robocalls/            # pacote depreciado
 │   ├── _config.py            # contrato final (TARGET_SCHEMA) e constantes internas
 │   └── _logging.py           # utilitários internos de logging
-├── scripts/                  # upload semanal de CDRs para o MinIO (Bash)
+├── scripts/                  # upload e cópia local semanal de CDRs (Bash)
 ├── docs/                     # documentação técnica especializada
 ├── tests/                    # testes pytest, testes Bats e notebooks de desenvolvimento
 └── pyproject.toml            # metadados e dependências do pacote
@@ -443,7 +463,7 @@ teleutils/
 | :-- | :-- |
 | [Referência da API](docs/teleutils_api.md) | Interfaces públicas, parâmetros, retornos, erros e efeitos colaterais. |
 | [Linhagem e transformações dos dados](docs/teleutils_linhagem_transformacoes_dados.md) | Origem, regras de transformação e destino das colunas dos CDRs. |
-| [Transferência semanal de CDRs para MinIO](docs/teleutils_upload_cdr_to_minio.md) | Script Bash de upload: configuração JSON, opções da CLI, relatório e testes. |
+| [Transferência semanal de CDRs para MinIO](docs/teleutils_upload_cdr_to_minio.md) | Scripts Bash de upload (serial e paralelo) e de cópia local: configuração JSON, opções da CLI, relatório e testes. |
 
 [⬆ Voltar ao topo](#sumário)
 
@@ -460,11 +480,13 @@ uv run pytest
 O projeto configura `pytest`, `ruff`, `pre-commit` e ferramentas de notebook por
 meio do grupo de dependências `dev` em `pyproject.toml`. Os hooks de
 `.pre-commit-config.yaml` executam `ruff-check` (regra `I`), `ruff-format`,
-`mypy`, `nbstripout` e verificações básicas de arquivos. Os testes do script de
-upload usam Bats e um mock de `mc`:
+`mypy`, `nbstripout` e verificações básicas de arquivos. Os testes dos scripts de
+upload e de cópia local usam Bats (os de upload, com um mock de `mc`):
 
 ```bash
 bats tests/shell/upload_cdr_to_minio.bats
+bats tests/shell/upload_cdr_to_minio_parallel.bats
+bats tests/shell/copy_cdr_to_local.bats
 ```
 
 [⬆ Voltar ao topo](#sumário)
@@ -480,16 +502,15 @@ bats tests/shell/upload_cdr_to_minio.bats
 - `CDRTransformer.transform` procura funções globais `transform_<cdr_schema>` e
   não encontra os métodos de layout da instância; use os métodos
   `transform_<cdr_schema>` ou o orquestrador.
-- Nenhum CLI Python é registrado em `pyproject.toml`. O único utilitário de linha
-  de comando é o script Bash `scripts/upload_cdr_to_minio.sh`.
+- Nenhum CLI Python é registrado em `pyproject.toml`. Os únicos utilitários de
+  linha de comando são os scripts Bash `scripts/upload_cdr_to_minio.sh`,
+  `scripts/upload_cdr_to_minio_parallel.sh` e `scripts/copy_cdr_to_local.sh`.
 - Alguns testes não acompanham o código atual. Em um subconjunto de testes
   executado ao revisar esta documentação, o pytest reprovou os de
   `tests/test_phone_number_extractor.py` (esperam o sentinela quando a extração
   falha, mas `extract_number` devolve o valor de entrada) e dois de
   `tests/test_cdr_schemas.py` (esperam que `CDRParquetExtractor` não toque nos
-  loggers Spark ao rejeitar um schema inválido). A suíte Bats referenciava
-  `scripts/config.example.json`, nome anterior de
-  `scripts/uploader.config.example.json`. Essas falhas não foram corrigidas,
-  pois a documentação não altera testes.
+  loggers Spark ao rejeitar um schema inválido). Essas falhas não foram
+  corrigidas, pois a documentação não altera testes.
 - Os pipelines Spark dependem dos layouts e da organização de caminhos
   descritos na referência da API e na documentação de linhagem.
