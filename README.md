@@ -113,12 +113,16 @@ ExtractionResult(number='11987654321', success=True)
 ## Componentes e fluxo
 
 ```mermaid
+---
+config:
+  layout: elk
+---
 flowchart LR
-    A[CDR Parquet ou CSV] --> B[Extrator do layout]
-    B --> C[Parquet intermediário]
-    C --> D[CDRTransformer]
-    B -->|Modo direto: DataFrame| D
-    D --> E[Parquet padronizado]
+    A["CDR Parquet ou CSV"] --> B["Extrator do layout"]
+    B --> C["Parquet intermediário"] & F["Modo direto: DataFrame"]
+    C --> D["CDRTransformer"]
+    D --> E["Parquet padronizado"]
+    F --> D
 ```
 
 - `teleutils.preprocessing`: extração de números telefônicos e validação de
