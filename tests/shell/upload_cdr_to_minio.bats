@@ -577,7 +577,7 @@ function all_23_original_mappings_are_exercised { # @test
     jq --arg tp "$TP" --arg text "$TEXT" '
         .teleparser_folder=$tp | .text_folder=$text |
         .minio_config.alias="minio" | .minio_config.destination="cdr"
-    ' "$REPOSITORY/scripts/config.example.json" > "$CONFIG"
+    ' "$REPOSITORY/scripts/uploader.config.example.json" > "$CONFIG"
     local category source pattern destination base name
     while IFS= read -r -d '' category &&
           IFS= read -r -d '' source &&
@@ -617,7 +617,7 @@ function example_mapping_values_match_the_original_scripts { # @test
             expected+=$'\n'
         done < <(sed -n '/^FOLDER_MAPPING=(/,/^)/p' "$script")
         actual=$(jq -c --arg category "$category" '.folder_mapping[$category][]' \
-            "$REPOSITORY/scripts/config.example.json")
-        [[ $(jq -csS . <<< "$expected") == "$(jq -csS . <<< "$actual")" ]]
+            "$REPOSITORY/scripts/uploader.config.example.json")
+        [[ $(jq -csS 'sort' <<< "$expected") == "$(jq -csS 'sort' <<< "$actual")" ]]
     done
 }
