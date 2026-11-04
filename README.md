@@ -1,4 +1,4 @@
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/InovaFiscaliza/teleutils)
+[![Ask DeepWiki](./docs/deepwiki-badge.svg)](https://deepwiki.com/InovaFiscaliza/teleutils)
 
 # TeleUtils
 
