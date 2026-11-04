@@ -1,6 +1,6 @@
 ---
-name: criar-mensagem-commit
-description: Gera mensagem de commit seguindo o padrão Conventional Commits.
+name: gerar-mensagem-commit
+description: Gera mensagem de commit em inglês seguindo o padrão Conventional Commits.
 user-invocable: true
 ---
 
