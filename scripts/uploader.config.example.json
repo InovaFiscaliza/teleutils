@@ -6,6 +6,10 @@
     "destination": "sandbox-sfi/cdr/uploaded",
     "batchsize": 100
   },
+  "local_config": {
+    "destination": "/assets/data/cdr/to_minio",
+    "jobs": 8
+  },
   "folder_mapping": {
     "text": [
       {"source_folder": "Algar/FIXA/NGN",                           "destination_folder": "algar/stfc/huawei_ngn",  "pattern": "*.gz"},
