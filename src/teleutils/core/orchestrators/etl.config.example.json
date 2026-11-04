@@ -65,7 +65,7 @@
   },
   {
     "source_folder": "claro/stfc/sigma",
-    "pattern": "*.gz",
+    "pattern": "*.parquet",
     "schema": "stfc_sigma_claro",
     "extracted_folder": "sandbox-sfi/cdr/processed/extracted",
     "transformed_folder": "sandbox-sfi/cdr/processed/transformed",

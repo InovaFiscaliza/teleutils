@@ -17,7 +17,6 @@
       {"source_folder": "Claro/home/*/*/coleta/coletados/*_HUAWEI", "destination_folder": "claro/stfc/huawei_ngn",  "pattern": "*.gz"},
       {"source_folder": "Claro/home/*/*/coleta/coletados/*_PCL",    "destination_folder": "claro/stfc/pcl",         "pattern": "*.gz"},
       {"source_folder": "Claro/home/*/*/coleta/coletados/*_PIT",    "destination_folder": "claro/stfc/pit",         "pattern": "*.gz"},
-      {"source_folder": "Claro/home/*/*/coleta/coletados/*_SIGMA",  "destination_folder": "claro/stfc/sigma",       "pattern": "*.gz"},
       {"source_folder": "Claro/home/*/*/coleta/coletados/*_SS8BF",  "destination_folder": "claro/stfc/ss8bf",       "pattern": "*.gz"},
       {"source_folder": "Claro/home/*/*/coleta/coletados/*_HRI",    "destination_folder": "claro/stfc/tropico",     "pattern": "*.gz"},
       {"source_folder": "Oi/CDR",                                   "destination_folder": "oi/stfc/7n",             "pattern": "*7N*.gz"},
