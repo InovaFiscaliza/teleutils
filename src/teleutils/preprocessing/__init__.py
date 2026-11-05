@@ -9,6 +9,8 @@ direto pelo namespace ``teleutils.preprocessing``:
           Quando a extração falha, o número retornado é o próprio valor de
           entrada; para entrada vazia ou nula, é o valor sentinela
           ``SUBSCRIBER_NUMBER_NULL_SENTINEL_VALUE``.
+        - ``ExtractionResult``: tupla nomeada retornada por ``extract_number``,
+          definida em ``phone_number_extractor``.
         - ``is_valid_cnpj``: valida um CNPJ (numérico ou alfanumérico) conforme
           a implementação em ``utils``.
 
@@ -20,11 +22,13 @@ Example:
 """
 
 from teleutils.preprocessing.phone_number_extractor import (
+    ExtractionResult,
     extract_number,
 )
 from teleutils.preprocessing.utils import is_valid_cnpj
 
 __all__ = [
+    "ExtractionResult",
     "extract_number",
     "is_valid_cnpj",
 ]

@@ -13,6 +13,7 @@ Principais subpacotes:
       detecção de padrões de chamadas abusivas (robocalls).
 
 Notes:
-    Este módulo também expõe o ponto de entrada de linha de comando ``main``,
-    registrado como script ``teleutils`` em ``pyproject.toml``.
+    Este pacote não reexporta classes ou funções e não registra ponto de
+    entrada de linha de comando. As APIs devem ser importadas dos respectivos
+    subpacotes.
 """
