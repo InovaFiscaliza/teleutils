@@ -9,10 +9,11 @@ Quando a entrada não é vazia e nenhuma extração é válida, o valor de entra
 original é devolvido sem alteração, com ``success=False``.
 
 O processamento converte a entrada não vazia em texto minúsculo, remove um
-``f`` final e aplica ``CLEAN_PATTERN``. Em seguida, tenta o padrão associado
-ao tamanho do texto limpo; se não houver extração, pesquisa padrões de fallback
-em uma ordem definida. Números que correspondam ao padrão de rejeição não são
-retornados como extrações válidas.
+``f`` final e, quando solicitado, remove os caracteres não numéricos antes de
+aplicar ``CLEAN_PATTERN``. Em seguida, tenta o padrão associado ao tamanho do
+texto limpo; se não houver extração, pesquisa padrões de fallback em uma ordem
+definida. Números que correspondam ao padrão de rejeição não são retornados
+como extrações válidas.
 
 Os padrões incluem regras de formato comentadas no próprio código, algumas
 referenciadas à Resolução 749 da ANATEL. A validação corresponde às expressões
@@ -303,13 +304,16 @@ _LENGTH_RULES = (
 )
 
 
-def extract_number(subscriber_number) -> ExtractionResult:
+def extract_number(subscriber_number, remove_non_numeric=False) -> ExtractionResult:
     """Extrai um número reconhecido de uma entrada e indica se houve sucesso.
 
     Args:
         subscriber_number: Valor de entrada. Valores falsy são tratados como
             entrada vazia; os demais são convertidos para texto antes da
             limpeza e da busca.
+        remove_non_numeric: Quando ``True``, remove caracteres não numéricos
+            do texto usado na extração. O padrão ``False`` preserva o
+            comportamento atual.
 
     Returns:
         ExtractionResult: Tupla nomeada com o número extraído e o indicador de
@@ -320,19 +324,22 @@ def extract_number(subscriber_number) -> ExtractionResult:
 
     Notes:
         O texto é convertido para minúsculas, tem um ``f`` final removido e
-        passa por ``CLEAN_PATTERN`` antes da seleção dos padrões. A tentativa
-        inicial depende do comprimento resultante: serviços para comprimentos
-        de 3 a 7, padrões intermediários para 8 ou 9 e padrões longos para 10
-        ou 11. Se essa tentativa não produzir um número, os padrões de fallback
-        são pesquisados na ordem de ``FALLBACK_PATTERNS``. A limpeza não remove
-        espaços nem pontuação em geral.
+        opcionalmente tem os caracteres não numéricos removidos antes de passar
+        por ``CLEAN_PATTERN`` e pela seleção dos padrões. A tentativa inicial
+        depende do comprimento resultante: serviços para comprimentos de 3 a 7,
+        padrões intermediários para 8 ou 9 e padrões longos para 10 ou 11. Se
+        essa tentativa não produzir um número, os padrões de fallback são
+        pesquisados na ordem de ``FALLBACK_PATTERNS``. Por padrão, espaços e
+        pontuação não são removidos.
     """
     if not subscriber_number:
         return ExtractionResult(SUBSCRIBER_NUMBER_NULL_SENTINEL_VALUE, False)
 
-    clean_number = CLEAN_PATTERN.sub(
-        "", str(subscriber_number).lower().removesuffix("f")
-    )
+    source_number = str(subscriber_number).lower().removesuffix("f")
+    if remove_non_numeric:
+        source_number = re.sub(r"\D", "", source_number)
+
+    clean_number = CLEAN_PATTERN.sub("", source_number)
     length = len(clean_number)
 
     extracted_number = None

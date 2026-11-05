@@ -27,16 +27,48 @@ from teleutils.preprocessing.phone_number_extractor import (
         ("9011987654321", "11987654321"),
         ("9090987654321", "987654321"),
         (11987654321, "11987654321"),
-        ("11987654321F", "11987654321"),
         ("1198765432100000000", "11987654321"),
-        ("11987654321;21991234567", "21991234567"),
-        ("11987654321;2134567890", "11987654321"),
-        ("prefix11987654321suffix", "11987654321"),
     ],
 )
 def test_extract_number(subscriber_number, expected_number):
     result = extract_number(subscriber_number=subscriber_number)
     assert result == ExtractionResult(expected_number, True)
+
+
+@pytest.mark.parametrize(
+    "subscriber_number, remove_non_numeric, expected",
+    [
+        ("11987654321F", True, "11987654321"),
+        ("11987654321F", False, "11987654321"),
+        ("11987654321;21991234567", False, "21991234567"),
+        ("11987654321;2134567890", False, "11987654321"),
+        ("prefix11987654321suffix", False, "11987654321"),
+        ("(11) 98765-4321", True, "11987654321"),
+        ("11 98765-4321", True, "11987654321"),
+        ("0800-123-4567", True, "8001234567"),
+    ],
+)
+def test_extract_number_non_numeric_characters(
+    subscriber_number, remove_non_numeric, expected
+):
+    result = extract_number(
+        subscriber_number=subscriber_number,
+        remove_non_numeric=remove_non_numeric,
+    )
+    assert result == ExtractionResult(expected, True)
+
+
+@pytest.mark.parametrize(
+    "subscriber_number",
+    ["(11) 98765-4321", "11 98765-4321", "0800-123-4567"],
+)
+def test_extract_number_preserves_non_numeric_input_when_option_is_false(
+    subscriber_number,
+):
+    result = extract_number(
+        subscriber_number=subscriber_number, remove_non_numeric=False
+    )
+    assert result == ExtractionResult(subscriber_number, False)
 
 
 @pytest.mark.parametrize("subscriber_number", ["987654321", "34567890", "76543210"])
@@ -59,11 +91,18 @@ def test_extract_number_utility_service_removes_area_code():
 
 @pytest.mark.parametrize(
     "subscriber_number",
+    [None, "", 0, False],
+)
+def test_extract_number_empty_input_returns_sentinel(subscriber_number):
+    result = extract_number(
+        subscriber_number=subscriber_number, remove_non_numeric=False
+    )
+    assert result == ExtractionResult(SUBSCRIBER_NUMBER_NULL_SENTINEL_VALUE, False)
+
+
+@pytest.mark.parametrize(
+    "subscriber_number",
     [
-        None,
-        "",
-        0,
-        False,
         "invalid",
         "00000000000",
         "12345",
@@ -73,14 +112,13 @@ def test_extract_number_utility_service_removes_area_code():
         "199",
         "1331",
         "13312",
-        "(11) 98765-4321",
-        "11 98765-4321",
-        "0800-123-4567",
     ],
 )
-def test_extract_number_failure_returns_sentinel(subscriber_number):
-    result = extract_number(subscriber_number=subscriber_number)
-    assert result == ExtractionResult(SUBSCRIBER_NUMBER_NULL_SENTINEL_VALUE, False)
+def test_extract_number_failure_returns_original_input(subscriber_number):
+    result = extract_number(
+        subscriber_number=subscriber_number, remove_non_numeric=False
+    )
+    assert result == ExtractionResult(subscriber_number, False)
 
 
 def test_extract_number_return_type_and_public_export():
