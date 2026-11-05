@@ -24,7 +24,7 @@ from __future__ import annotations
 import logging
 from functools import wraps
 from time import perf_counter
-from typing import TYPE_CHECKING, Any, Callable, TypeVar, cast
+from typing import TYPE_CHECKING, Any, Callable, TypeVar, cast, overload
 
 if TYPE_CHECKING:
     from pyspark.sql import DataFrame
@@ -64,7 +64,17 @@ def format_source_file_for_log(source_file: str | list[str] | DataFrame) -> str:
     return f"<{type(source_file).__name__}>"
 
 
-def log_operation(method: Method) -> Method:
+@overload
+def log_operation(method: Method, *, none_is_incomplete: bool = False) -> Method: ...
+
+
+@overload
+def log_operation(*, none_is_incomplete: bool) -> Callable[[Method], Method]: ...
+
+
+def log_operation(
+    method: Method | None = None, *, none_is_incomplete: bool = False
+) -> Method | Callable[[Method], Method]:
     """Registra início, sucesso, duração e falhas de extração, transformação e carga.
 
     Usa o logger do módulo que implementa o método e seu nome qualificado.
@@ -75,6 +85,8 @@ def log_operation(method: Method) -> Method:
     Args:
         method: Método de instância cujo primeiro argumento após ``self`` é a
             entrada (``source_file``): caminho, lista de caminhos ou DataFrame.
+        none_is_incomplete: Se verdadeiro, um retorno ``None`` não gera log de
+            sucesso. O método decorado deve registrar o motivo da interrupção.
 
     Returns:
         Wrapper com a assinatura ``(self, source_file, *args, **kwargs)``; o
@@ -90,17 +102,26 @@ def log_operation(method: Method) -> Method:
         log de falha.
     """
 
-    @wraps(method)
+    if method is None:
+
+        def decorate(target: Method) -> Method:
+            return log_operation(target, none_is_incomplete=none_is_incomplete)
+
+        return decorate
+
+    target = method
+
+    @wraps(target)
     def wrapper(
         self: Any, source_file: str | list[str] | DataFrame, *args: Any, **kwargs: Any
     ) -> Any:
         source_file_log = format_source_file_for_log(source_file)
-        logger = logging.getLogger(method.__module__)
-        operation = method.__qualname__
+        logger = logging.getLogger(target.__module__)
+        operation = target.__qualname__
         logger.info("Iniciando operação [%s]: %s", operation, source_file_log)
         started_at = perf_counter()
         try:
-            result = method(self, source_file, *args, **kwargs)
+            result = target(self, source_file, *args, **kwargs)
         except Exception:
             logger.exception(
                 "Falha na operação [%s]: %s (duração: %.3f s)",
@@ -109,9 +130,11 @@ def log_operation(method: Method) -> Method:
                 perf_counter() - started_at,
             )
             raise
+        if none_is_incomplete and result is None:
+            return result
         success_message = (
             "Plano [%s] preparado, sem persistência: %s (preparação/validação: %.3f s)"
-            if method.__name__ == "extract_dataframe"
+            if target.__name__ == "extract_dataframe"
             else "Operação [%s] concluída com sucesso: %s (duração: %.3f s)"
         )
         logger.info(

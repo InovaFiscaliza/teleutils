@@ -47,13 +47,16 @@ from __future__ import annotations
 
 import logging
 
+from pyspark.errors import AnalysisException
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
 
 from teleutils._logging import format_source_file_for_log, log_operation
 from teleutils.core.extractors._extractors_utils import (
     SOURCE_PATH_COLUMN,
+    SourcePathNotFoundError,
     add_source_metadata,
+    is_missing_spark_path,
     read_text_with_source,
     validate_metadata_arguments,
 )
@@ -109,7 +112,7 @@ class CDRTextExtractor:
         self.spark = spark
         self.schemas = schemas
 
-    @log_operation
+    @log_operation(none_is_incomplete=True)
     def extract(
         self,
         source_file: str | list[str],
@@ -119,7 +122,7 @@ class CDRTextExtractor:
         operator: str | None = "",
         service: str | None = "",
         cdr_type: str | None = "",
-    ) -> str:
+    ) -> str | None:
         """Extrai campos e metadados de um layout CDR e grava Parquet intermediário.
 
         Fluxo de processamento:
@@ -148,7 +151,8 @@ class CDRTextExtractor:
                 diretório cdr_type. A coluna ``_tipo_cdr`` prevalece, se existir.
 
         Returns:
-            str: Caminho do diretório Parquet persistido em ``target_file``.
+            str | None: Caminho persistido ou ``None`` se a entrada não for
+                encontrada na leitura inicial.
 
         Raises:
             TypeError: Se ``cdr_schema`` não for uma string ou um argumento
@@ -160,8 +164,6 @@ class CDRTextExtractor:
                 lidas; um argumento contiver somente espaços; ou algum metadado
                 obrigatório não puder ser inferido do caminho. A verificação de
                 índices não é realizada no ramo de largura fixa.
-            FileNotFoundError: No ramo ``read_rdd``, se algum caminho de entrada
-                não corresponder a nenhum item no filesystem.
             RuntimeError: No ramo ``read_rdd``, se a sessão Spark não possuir
                 contexto Hadoop ativo.
 
@@ -233,9 +235,10 @@ class CDRTextExtractor:
             ``"is null"`` testam nulidade. Qualquer outro valor exige igualdade
             com um literal e não mantém nulos na coluna filtrada.
 
-            A gravação executa o plano distribuído e persiste o resultado antes
-            do retorno. O decorador ``log_operation`` registra início, sucesso
-            e falhas, relançando as exceções sem tratamento adicional.
+            Se uma entrada não for encontrada na leitura inicial, um aviso é
+            registrado e ``None`` é retornado sem escrita. As demais exceções
+            são registradas e relançadas; falhas podem ocorrer posteriormente
+            durante a execução lazy do Spark.
 
             Manutenção: ``source_file`` aceita um caminho ou uma lista de
             caminhos, conforme a assinatura ``str | list[str]``. No ramo RDD,
@@ -253,11 +256,13 @@ class CDRTextExtractor:
             service=service,
             cdr_type=cdr_type,
         )
+        if df is None:
+            return None
         logger.info("Escrevendo DataFrame extraído para parquet: %s", target_file)
         df.write.mode("overwrite").parquet(target_file)
         return target_file
 
-    @log_operation
+    @log_operation(none_is_incomplete=True)
     def extract_dataframe(
         self,
         source_file: str | list[str],
@@ -266,7 +271,7 @@ class CDRTextExtractor:
         operator: str | None = "",
         service: str | None = "",
         cdr_type: str | None = "",
-    ) -> DataFrame:
+    ) -> DataFrame | None:
         """Constrói a extração sem gravar Parquet intermediário.
 
         Args:
@@ -277,9 +282,9 @@ class CDRTextExtractor:
             cdr_type: Tipo explícito ou inferido; ``_tipo_cdr`` prevalece.
 
         Returns:
-            DataFrame associado a ``self.spark``, com campos e metadados
-            extraídos. Para consumo direto por um transformador, construa
-            este extrator com ``transformer.spark``.
+            DataFrame associado a ``self.spark`` ou ``None`` se a entrada não
+            for encontrada na leitura inicial. Para consumo direto por um
+            transformador, construa este extrator com ``transformer.spark``.
 
         Notes:
             Preserva as validações de ``extract``, inclusive a ação Spark
@@ -302,19 +307,28 @@ class CDRTextExtractor:
 
         # read_rdd controla a leitura de linhas, independentemente de column_sizes.
         # O ramo RDD contorna falhas do leitor CSV relatadas para caminhos com "@".
-        if schema.read_rdd:
-            df = read_text_with_source(self.spark, source_file)
-        else:
-            df = self.spark.read.csv(
-                source_file,
-                sep=schema.delimiter,
-                header=schema.has_header,
-                schema=schema.schema,
-                inferSchema=False,
-                ignoreLeadingWhiteSpace=True,
-                ignoreTrailingWhiteSpace=True,
-            )
-            df = df.withColumn(SOURCE_PATH_COLUMN, F.input_file_name())
+        try:
+            if schema.read_rdd:
+                df = read_text_with_source(self.spark, source_file)
+            else:
+                df = self.spark.read.csv(
+                    source_file,
+                    sep=schema.delimiter,
+                    header=schema.has_header,
+                    schema=schema.schema,
+                    inferSchema=False,
+                    ignoreLeadingWhiteSpace=True,
+                    ignoreTrailingWhiteSpace=True,
+                )
+                df = df.withColumn(SOURCE_PATH_COLUMN, F.input_file_name())
+        except SourcePathNotFoundError as error:
+            logger.warning("%s", error)
+            return None
+        except AnalysisException as error:
+            if not is_missing_spark_path(error):
+                raise
+            logger.warning("Entrada não encontrada em %s: %s", source_file_log, error)
+            return None
         # O recorte de largura fixa exige uma coluna value produzida pela leitura.
         if schema.column_sizes:
             columns_expressions = []

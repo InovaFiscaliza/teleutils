@@ -55,6 +55,7 @@ from __future__ import annotations
 
 import logging
 
+from pyspark.errors import AnalysisException
 from pyspark.sql import DataFrame, SparkSession  # type: ignore
 from pyspark.sql import functions as F  # type: ignore
 
@@ -62,6 +63,7 @@ from teleutils._logging import format_source_file_for_log, log_operation
 from teleutils.core.extractors._extractors_utils import (
     SOURCE_PATH_COLUMN,
     add_source_metadata,
+    is_missing_spark_path,
     suppress_spark_loggers,
     validate_metadata_arguments,
 )
@@ -124,7 +126,7 @@ class CDRParquetExtractor:
         self.spark = spark
         self.schemas = schemas
 
-    @log_operation
+    @log_operation(none_is_incomplete=True)
     @suppress_spark_loggers(*PARQUET_EXTRACTOR_LOGGERS_TO_SUPPRESS)
     def extract(
         self,
@@ -136,7 +138,7 @@ class CDRParquetExtractor:
         operator: str | None = "",
         service: str | None = "",
         cdr_type: str | None = "",
-    ) -> str:
+    ) -> str | None:
         """Seleciona campos e metadados conforme a chave de um contrato Parquet.
 
         Fluxo de processamento:
@@ -169,7 +171,8 @@ class CDRParquetExtractor:
                 diretório cdr_type. A coluna ``_tipo_cdr`` prevalece, se existir.
 
         Returns:
-            str: Caminho do parquet persistido em ``target_file``.
+            str | None: Caminho persistido ou ``None`` se a entrada não for
+                encontrada na leitura inicial.
 
         Raises:
             TypeError: Se ``cdr_schema`` não for uma string ou um argumento
@@ -240,9 +243,9 @@ class CDRParquetExtractor:
             nova deduplicação após remover a coluna intermediária.
 
             A escrita em modo ``overwrite`` materializa o plano Spark e
-            sobrescreve o destino antes do retorno. ``log_operation`` registra
-            início, sucesso e falhas da execução do método e relança exceções;
-            não há recuperação de falhas de leitura, transformação ou escrita.
+            sobrescreve o destino antes do retorno. Se uma entrada não for
+            encontrada na leitura inicial, registra um aviso e retorna ``None``
+            sem escrita. Outras exceções são registradas e relançadas.
         """
 
         df = self.extract_dataframe(
@@ -253,11 +256,13 @@ class CDRParquetExtractor:
             service=service,
             cdr_type=cdr_type,
         )
+        if df is None:
+            return None
         logger.info("Escrevendo DataFrame extraído para parquet: %s", target_file)
         df.write.mode("overwrite").parquet(target_file)
         return target_file
 
-    @log_operation
+    @log_operation(none_is_incomplete=True)
     def extract_dataframe(
         self,
         source_file: str | list[str],
@@ -267,7 +272,7 @@ class CDRParquetExtractor:
         operator: str | None = "",
         service: str | None = "",
         cdr_type: str | None = "",
-    ) -> DataFrame:
+    ) -> DataFrame | None:
         """Constrói a extração Parquet sem persistir um intermediário.
 
         Args:
@@ -279,8 +284,9 @@ class CDRParquetExtractor:
             cdr_type: Tipo explícito ou inferido; ``_tipo_cdr`` prevalece.
 
         Returns:
-            DataFrame associado a ``self.spark``. Para consumo direto por
-            um transformador, construa o extrator com ``transformer.spark``.
+            DataFrame associado a ``self.spark`` ou ``None`` se a entrada não
+            for encontrada na leitura inicial. Para consumo direto por um
+            transformador, construa o extrator com ``transformer.spark``.
 
         Notes:
             Preserva as validações e opções de leitura de ``extract``.
@@ -299,10 +305,16 @@ class CDRParquetExtractor:
         reader = self.spark.read.option("mergeSchema", "true").option(
             "ignoreCorruptFiles", "true"
         )
-        if isinstance(source_file, list):
-            df = reader.parquet(*source_file)
-        else:
-            df = reader.parquet(source_file)
+        try:
+            if isinstance(source_file, list):
+                df = reader.parquet(*source_file)
+            else:
+                df = reader.parquet(source_file)
+        except AnalysisException as error:
+            if not is_missing_spark_path(error):
+                raise
+            logger.warning("Entrada não encontrada em %s: %s", source_file_log, error)
+            return None
 
         if SOURCE_PATH_COLUMN not in df.columns:
             df = df.withColumn(SOURCE_PATH_COLUMN, F.input_file_name())

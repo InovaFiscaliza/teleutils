@@ -27,6 +27,7 @@ import logging
 from functools import wraps
 from typing import Any, Callable, TypeVar, cast
 
+from pyspark.errors import AnalysisException
 from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql import functions as F
 
@@ -37,6 +38,18 @@ DecoratorMethod = TypeVar("DecoratorMethod", bound=Callable[..., Any])
 # É criada pela leitura (``read_text_with_source`` ou ``input_file_name``),
 # consumida por ``add_source_metadata`` e removida do resultado final.
 SOURCE_PATH_COLUMN = "__teleutils_source_path"
+
+
+class SourcePathNotFoundError(FileNotFoundError):
+    """Um caminho de entrada não corresponde a nenhum item no filesystem."""
+
+
+def is_missing_spark_path(error: AnalysisException) -> bool:
+    """Identifica a condição estruturada de caminho ausente do Spark."""
+    get_condition = getattr(error, "getCondition", None)
+    if callable(get_condition):
+        return get_condition() == "PATH_NOT_FOUND"
+    return error.getErrorClass() == "PATH_NOT_FOUND"
 
 
 def suppress_spark_loggers(
@@ -170,7 +183,9 @@ def read_text_with_source(
         filesystem = path.getFileSystem(configuration)
         matches = filesystem.globStatus(path)
         if not matches:
-            raise FileNotFoundError(f"Caminho de entrada não encontrado: {source!r}")
+            raise SourcePathNotFoundError(
+                f"Caminho de entrada não encontrado: {source!r}"
+            )
         pending = list(matches)
         while pending:
             status = pending.pop()

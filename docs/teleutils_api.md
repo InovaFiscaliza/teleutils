@@ -383,6 +383,10 @@ As demais chaves de texto usam seleção por coluna delimitada.
 
 Os extratores recebem uma `SparkSession`. `extract` grava com `overwrite` e
 retorna o caminho; `extract_dataframe` retorna o DataFrame sem essa escrita.
+Ambos retornam `None` e registram um aviso quando uma entrada não é encontrada
+na leitura inicial; nesse caso não há escrita. Chamadores devem verificar o
+retorno antes de usá-lo. Outras exceções e erros tardios do Spark mantêm o
+tratamento normal.
 Os argumentos `operator`, `service` e `cdr_type` prevalecem sobre a inferência
 da hierarquia `prestadora/servico/tipo_cdr/arquivo`. A coluna `_tipo_cdr`, quando
 presente, prevalece inclusive quando nula.
@@ -397,8 +401,8 @@ Extrai CDRs de Parquet.
 
 | Método | Entrada | Comportamento e retorno |
 | :-- | :-- | :-- |
-| `extract(source_file, target_file, cdr_schema, unique=False, *, operator="", service="", cdr_type="") -> str` | Caminho Parquet ou lista não vazia de caminhos | Delega a `extract_dataframe`, grava com overwrite e retorna `target_file`. |
-| `extract_dataframe(source_file, cdr_schema, unique=False, *, operator="", service="", cdr_type="") -> DataFrame` | Mesma origem e chave do catálogo | Lê com `mergeSchema=true` e `ignoreCorruptFiles=true`, projeta campos e metadados, aplica deduplicação opcional e retorna o DataFrame sem escrita. |
+| `extract(source_file, target_file, cdr_schema, unique=False, *, operator="", service="", cdr_type="") -> str \| None` | Caminho Parquet ou lista não vazia de caminhos | Delega a `extract_dataframe`, grava com overwrite e retorna `target_file`, ou `None` para entrada ausente. |
+| `extract_dataframe(source_file, cdr_schema, unique=False, *, operator="", service="", cdr_type="") -> DataFrame \| None` | Mesma origem e chave do catálogo | Lê com `mergeSchema=true` e `ignoreCorruptFiles=true`, projeta campos e metadados, aplica deduplicação opcional e retorna o DataFrame sem escrita, ou `None` para entrada ausente. |
 
 Quando uma coluna declarada no schema não existe no Parquet, o extrator a
 representa como literal nulo tipado como string. Os metadados `prestadora`,
@@ -416,8 +420,8 @@ Extrai CDRs de arquivos CSV/texto.
 
 | Método | Entrada | Comportamento e retorno |
 | :-- | :-- | :-- |
-| `extract(source_file, target_file, cdr_schema, *, operator="", service="", cdr_type="") -> str` | Caminho CSV/texto ou lista não vazia de caminhos | Delega a `extract_dataframe`, grava com overwrite e retorna `target_file`. |
-| `extract_dataframe(source_file, cdr_schema, *, operator="", service="", cdr_type="") -> DataFrame` | Mesma origem e chave do catálogo | Lê CSV ou RDD, seleciona campos ou recorta largura fixa, adiciona metadados e aplica `lines_to_keep`, sem escrita intermediária. |
+| `extract(source_file, target_file, cdr_schema, *, operator="", service="", cdr_type="") -> str \| None` | Caminho CSV/texto ou lista não vazia de caminhos | Delega a `extract_dataframe`, grava com overwrite e retorna `target_file`, ou `None` para entrada ausente. |
+| `extract_dataframe(source_file, cdr_schema, *, operator="", service="", cdr_type="") -> DataFrame \| None` | Mesma origem e chave do catálogo | Lê CSV ou RDD, seleciona campos ou recorta largura fixa, adiciona metadados e aplica `lines_to_keep`, sem escrita intermediária, ou retorna `None` para entrada ausente. |
 
 `arquivo_origem` é decodificado preservando sinais de mais literais; uma
 coluna `arquivo_origem` já mapeada pelo contrato é mantida. O filtro
@@ -700,8 +704,8 @@ e devem ser informados juntos; eles prefixam a origem sem alterar `config`.
 | `status` | `success`, `validation_error` ou `execution_error`. |
 | `stage` | `configuration`, `paths`, `resolution`, `initialization`, `extraction`, `transformation`, `pipeline` ou `completed`. |
 | `completed_stages` | Tupla das etapas concluídas: vazia, `("extraction",)` ou `("extraction", "transformation")`. |
-| `error_type` | Nome da classe da exceção, ou `None` no sucesso. |
-| `error_message` | Mensagem da exceção, ou `None` no sucesso. |
+| `error_type` | Nome da classe da exceção, `InputNotFound` para entrada ausente detectada pelo extrator, ou `None` no sucesso. |
+| `error_message` | Mensagem da falha, ou `None` no sucesso. |
 
 `ETLReport.items` é uma tupla ordenada, com um resultado por item.
 As propriedades `total`, `successes`, `validation_errors` e `execution_errors`
@@ -717,6 +721,9 @@ quando a exceção original é `ValueError`. Falha de inicialização compartilh
 é reportada para todos os itens ainda válidos.
 
 Uma extração malsucedida impede a transformação daquele item. No modo
+de entrada não encontrada na leitura inicial, o item recebe `execution_error`
+na etapa `extraction`, com `error_type="InputNotFound"` e etapas concluídas
+vazias. O extrator registra um aviso sem traceback e o lote prossegue. No modo
 materializado, falha na transformação preserva o registro de extração concluída,
 mas não é sucesso. No modo direto, `completed_stages` permanece vazio até a
 escrita final concluir; falhas após obter o DataFrame usam `stage="pipeline"`,

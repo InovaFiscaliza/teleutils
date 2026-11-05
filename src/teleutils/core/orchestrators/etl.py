@@ -90,8 +90,9 @@ class ETLItemResult:
             direto, pipeline identifica a execução conjunta, cujas falhas
             podem ter origem na extração lazy.
         completed_stages: Etapas concluídas, em ordem de execução.
-        error_type: Nome da classe da exceção, ou None no sucesso.
-        error_message: Mensagem original da falha, ou None no sucesso.
+        error_type: Nome da classe da exceção, ``InputNotFound`` para entrada
+            ausente detectada pelo extrator, ou None no sucesso.
+        error_message: Mensagem da falha, ou None no sucesso.
     """
 
     index: int
@@ -196,7 +197,8 @@ class _Extractor(Protocol):
     Corresponde à interface de ``CDRParquetExtractor`` e ``CDRTextExtractor``:
     ``schemas`` expõe o catálogo de chaves aceitas, ``extract`` grava o
     Parquet intermediário em ``target_file`` e ``extract_dataframe`` retorna
-    o DataFrame extraído, sem escrita (modo direto).
+    o DataFrame extraído, sem escrita (modo direto). Ambos retornam ``None``
+    quando o caminho de entrada não é encontrado na leitura inicial.
     """
 
     @property
@@ -211,7 +213,7 @@ class _Extractor(Protocol):
         operator: str | None = "",
         service: str | None = "",
         cdr_type: str | None = "",
-    ) -> str: ...
+    ) -> str | None: ...
 
     def extract_dataframe(
         self,
@@ -221,7 +223,7 @@ class _Extractor(Protocol):
         operator: str | None = "",
         service: str | None = "",
         cdr_type: str | None = "",
-    ) -> DataFrame: ...
+    ) -> DataFrame | None: ...
 
 
 @dataclass(frozen=True)
@@ -459,7 +461,8 @@ def _execute_item(
 
     A transformação só é iniciada se a chamada ao extrator terminar sem exceção.
     No modo direto esse retorno não certifica a execução: a etapa conjunta
-    ``pipeline`` só conclui extração e transformação após a escrita final. Qualquer
+    ``pipeline`` só conclui extração e transformação após a escrita final. Uma
+    entrada ausente retorna ``execution_error`` sem traceback. Qualquer outra
     ``Exception`` é registrada em log e convertida em ``execution_error`` na
     etapa em que ocorreu, preservando em ``completed_stages`` as etapas
     concluídas antes da falha. Intermediários e saídas parciais não são
@@ -481,17 +484,17 @@ def _execute_item(
     logger.info("Iniciando item %d, schema=%r.", index, paths.schema)
     try:
         source: str | DataFrame
+        extracted: str | DataFrame | None
         if paths.extracted_file is None:
-            source = extractor.extract_dataframe(
+            extracted = extractor.extract_dataframe(
                 paths.source_file,
                 paths.schema,
                 operator=config.operator,
                 service=config.service,
                 cdr_type=config.cdr_type,
             )
-            stage = "pipeline"
         else:
-            extractor.extract(
+            extracted = extractor.extract(
                 paths.source_file,
                 paths.extracted_file,
                 paths.schema,
@@ -499,6 +502,21 @@ def _execute_item(
                 service=config.service,
                 cdr_type=config.cdr_type,
             )
+        if extracted is None:
+            return ETLItemResult(
+                index,
+                paths.schema,
+                paths,
+                "execution_error",
+                "extraction",
+                (),
+                "InputNotFound",
+                f"Entrada não encontrada: {paths.source_file!r}",
+            )
+        if paths.extracted_file is None:
+            source = extracted
+            stage = "pipeline"
+        else:
             source = paths.extracted_file
             completed = ("extraction",)
             stage = "transformation"

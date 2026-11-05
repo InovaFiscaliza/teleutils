@@ -184,14 +184,18 @@ intermediario = extractor.extract(
     target_file="saida/intermediario/ericsson",
     cdr_schema="smp_ericsson_gsm",
 )
-resultado = transformer.transform_smp_ericsson_gsm(
-    source_file=intermediario,
-    target_file="saida/padronizado/ericsson",
-)
+if intermediario is not None:
+    resultado = transformer.transform_smp_ericsson_gsm(
+        source_file=intermediario,
+        target_file="saida/padronizado/ericsson",
+    )
 ```
 
-Os métodos retornam o caminho de destino. Tanto a extração quanto a
-transformação substituem dados já existentes no destino informado.
+Quando a entrada não é encontrada na leitura inicial, o extrator registra um
+aviso e retorna `None`, sem gravar no destino. Caso contrário, retorna o caminho
+de destino. Tanto a extração quanto a transformação substituem dados já existentes
+no destino informado. Outras falhas, inclusive erros tardios do Spark,
+continuam sendo propagadas.
 
 #### Sem Parquet intermediário
 
@@ -204,13 +208,16 @@ df = extractor.extract_dataframe(
     source_file="dados/prestadora/smp/ericsson/entrada.parquet",
     cdr_schema="smp_ericsson_gsm",
 )
-resultado = transformer.transform_smp_ericsson_gsm(
-    source_file=df,
-    target_file="saida/padronizado/ericsson",
-)
+if df is not None:
+    resultado = transformer.transform_smp_ericsson_gsm(
+        source_file=df,
+        target_file="saida/padronizado/ericsson",
+    )
 ```
 
 O mesmo contrato está disponível em `CDRTextExtractor.extract_dataframe`.
+Ambos retornam `None` com um aviso se a entrada não for encontrada na leitura
+inicial; verifique o retorno antes de passá-lo ao transformador.
 Não há cache nem escrita intermediária automática. A validação de metadados
 inferidos ainda pode executar uma ação Spark; o processamento completo só é
 confirmado pela escrita final.
@@ -250,6 +257,8 @@ for item in report.items:
 ```
 
 Para um único item, utilize `run_etl_item(cdr_config[0], spark=spark)`.
+Uma entrada não encontrada impede a transformação do item e é relatada como
+`execution_error` na etapa `extraction`, sem interromper os demais itens.
 Para ler um JSON, use `load_config("/dados/etl.json")` ou
 `load_config("s3a://bucket/caminho/etl.json", secure=True)`, importada de
 `teleutils.core.orchestrators`. A função rejeita prefixos duplicados no arquivo.

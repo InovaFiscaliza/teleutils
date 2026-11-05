@@ -133,6 +133,46 @@ def test_direct_pipeline_passes_frame_and_ignores_unused_destination(harness):
     )
 
 
+@pytest.mark.parametrize("materialize_intermediate", [True, False])
+def test_missing_input_stops_item_and_continues_batch(
+    harness, monkeypatch, caplog, materialize_intermediate
+):
+    method = "extract" if materialize_intermediate else "extract_dataframe"
+    original = getattr(harness.text, method)
+
+    def missing_first(source, *args, **kwargs):
+        if args[0 if not materialize_intermediate else 1] == "stfc_huawei_ngn":
+            return None
+        return original(source, *args, **kwargs)
+
+    monkeypatch.setattr(harness.text, method, missing_first)
+    with caplog.at_level(logging.INFO):
+        report = run_etl(
+            [make_config(), make_config("next", "stfc_fcdr_vivo")],
+            spark=harness.spark,
+            materialize_intermediate=materialize_intermediate,
+        )
+
+    failed, succeeded = report.items
+    assert (failed.status, failed.stage, failed.completed_stages) == (
+        "execution_error",
+        "extraction",
+        (),
+    )
+    assert failed.error_type == "InputNotFound"
+    assert failed.paths.source_file in failed.error_message
+    assert succeeded.status == "success"
+    assert (report.successes, report.execution_errors, report.validation_errors) == (
+        1,
+        1,
+        0,
+    )
+    assert not any(
+        event[:2] == ("transform", "stfc_huawei_ngn") for event in harness.events
+    )
+    assert not any(record.exc_info for record in caplog.records)
+
+
 @pytest.mark.parametrize("stage", ["extract_dataframe", "transform"])
 def test_direct_failure_never_certifies_extraction(harness, stage):
     config = make_config()

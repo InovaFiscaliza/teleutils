@@ -112,3 +112,16 @@ def test_dataframe_builder_log_does_not_certify_execution(caplog):
         Extractor().extract_dataframe("input")
     assert "preparado, sem persistência" in caplog.text
     assert "concluída com sucesso" not in caplog.text
+
+
+@pytest.mark.parametrize("incomplete", [True, False])
+def test_none_success_logging_is_opt_in(caplog, incomplete):
+    class Extractor:
+        @log_operation(none_is_incomplete=incomplete)
+        def extract(self, source_file):
+            return None
+
+    with caplog.at_level(logging.INFO):
+        assert Extractor().extract("input") is None
+    assert ("concluída com sucesso" in caplog.text) is not incomplete
+    assert "Iniciando operação" in caplog.text
