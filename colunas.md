@@ -45,12 +45,14 @@ O `CDRBaseTransformer._apply_standard_pipeline` executa estas operações:
 | 2 | `_extract_phone_numbers` | Aplica `extract_number` a `numero_origem` e `numero_destino`, criando números extraídos e indicadores de sucesso. |
 | 3 | `_add_tn_validation_status` | Converte `_autenticacao` em `autenticacao`; quando a origem não fornece autenticação, cria o campo com valor nulo. |
 
-A extração usa `extract_number(subscriber_number)` e retorna
-`ExtractionResult(number, success)`. Falhas recebem
-`SUBSCRIBER_NUMBER_NULL_SENTINEL_VALUE` (`"99999999999"`), sem substituir os
-valores brutos de origem/destino. Os campos finais `ic_origem_valido` e
-`ic_destino_valido` mantêm seus nomes por compatibilidade, mas representam
-`success`. A renomeação final não modifica o conteúdo extraído.
+A extração usa `extract_number(subscriber_number)` com
+`remove_non_numeric=False` e retorna `ExtractionResult(number, success)`.
+Entradas vazias (falsy) recebem `SUBSCRIBER_NUMBER_NULL_SENTINEL_VALUE`
+(`"5599999999999"`) e `success=False`; se uma entrada não vazia não produzir
+uma extração aceita, o valor original é retornado com `success=False`. Os
+campos finais `ic_origem_valido` e `ic_destino_valido` mantêm seus nomes por
+compatibilidade, mas representam `success`. A renomeação final não modifica o
+conteúdo extraído.
 Consulte o [contrato de extração](docs/teleutils_api.md#integração-com-o-transformador-base).
 
 ## Ericsson

@@ -158,11 +158,13 @@ print(resultado.number, resultado.success)  # 11987654321 True
 cnpj_valido = is_valid_cnpj("11.222.333/0001-81")  # True
 ```
 
-`extract_number` retorna um `ExtractionResult(number, success)`. Se nenhuma
-extração for aceita, `number` mantém o valor de entrada e `success` é `False`;
-entradas vazias retornam o valor sentinela `5599999999999`. `is_valid_cnpj`
-também aceita o CNPJ alfanumérico. Consulte os contratos completos na referência
-da API.
+`extract_number` retorna um `ExtractionResult(number, success)`. Entradas vazias
+(falsy) retornam o valor sentinela `5599999999999`; se nenhuma extração for
+aceita para uma entrada não vazia, `number` mantém o valor original e
+`success` é `False`. O parâmetro opcional `remove_non_numeric` é `False` por
+padrão; quando `True`, remove caracteres não numéricos antes da extração.
+`is_valid_cnpj` também aceita o CNPJ alfanumérico. Consulte os contratos
+completos na referência da API.
 
 ### Processamento de CDRs com Spark
 
@@ -514,12 +516,11 @@ bats tests/shell/copy_cdr_to_local.bats
 - Nenhum CLI Python é registrado em `pyproject.toml`. Os únicos utilitários de
   linha de comando são os scripts Bash `scripts/upload_cdr_to_minio.sh`,
   `scripts/upload_cdr_to_minio_parallel.sh` e `scripts/copy_cdr_to_local.sh`.
-- Alguns testes não acompanham o código atual. Em um subconjunto de testes
-  executado ao revisar esta documentação, o pytest reprovou os de
-  `tests/test_phone_number_extractor.py` (esperam o sentinela quando a extração
-  falha, mas `extract_number` devolve o valor de entrada) e dois de
+- `tests/test_phone_number_extractor.py` passou com 48 testes e verifica que o
+  sentinela é retornado para entradas vazias (falsy), enquanto uma entrada não
+  vazia sem extração aceita é preservada. Em um subconjunto de testes executado
+  ao revisar esta documentação, o pytest reprovou dois testes de
   `tests/test_cdr_schemas.py` (esperam que `CDRParquetExtractor` não toque nos
-  loggers Spark ao rejeitar um schema inválido). Essas falhas não foram
-  corrigidas, pois a documentação não altera testes.
+  loggers Spark ao rejeitar um schema inválido).
 - Os pipelines Spark dependem dos layouts e da organização de caminhos
   descritos na referência da API e na documentação de linhagem.

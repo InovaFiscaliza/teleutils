@@ -13,8 +13,8 @@ O pacote raiz não reexporta essas interfaces. Importe-as dos subpacotes
 indicados.
 
 Não há CLI Python nem ponto de entrada registrado: `pyproject.toml` não define
-`[project.scripts]` e `teleutils` não expõe a função `main` citada na docstring
-de `src/teleutils/__init__.py`. O utilitário de linha de comando existente é o
+`[project.scripts]` e `teleutils` não expõe a função `main`. O utilitário de
+linha de comando existente é o
 script Bash descrito em
 [Transferência semanal de CDRs para MinIO](teleutils_upload_cdr_to_minio.md).
 O pacote `teleutils.robocalls` está depreciado e não faz parte desta API.
@@ -211,26 +211,31 @@ comprovam permissões ou comportamento real de S3A.
 ## `teleutils.preprocessing`
 
 Funções para extração de números telefônicos brasileiros e validação de
-CNPJ, exportadas por `__all__`: `extract_number` e `is_valid_cnpj`. A classe
-`ExtractionResult` é definida em `teleutils.preprocessing.phone_number_extractor`
-e não é reexportada pelo pacote.
+CNPJ, exportadas por `__all__`: `ExtractionResult`, `extract_number` e
+`is_valid_cnpj`. A classe `ExtractionResult` é definida em
+`teleutils.preprocessing.phone_number_extractor` e também pode ser importada
+de `teleutils.preprocessing`.
 
-### `extract_number(subscriber_number) -> ExtractionResult`
+### `extract_number(subscriber_number, remove_non_numeric=False) -> ExtractionResult`
 
 Extrai um número reconhecido pelos padrões implementados em
 [`phone_number_extractor.py`](../src/teleutils/preprocessing/phone_number_extractor.py).
 
-- `subscriber_number`: único argumento, obrigatório e sem anotação de tipo.
-  Valores falsy são tratados como vazios; os demais são convertidos com `str`.
-  Não há argumento para adicionar DDD.
+- `subscriber_number`: obrigatório e sem anotação de tipo. Valores falsy são
+  tratados como vazios; os demais são convertidos com `str`.
+- `remove_non_numeric`: opcional, padrão `False`. Quando `True`, remove
+  caracteres não numéricos do texto usado na extração. Não há argumento para
+  adicionar DDD.
 - Retorno: `ExtractionResult(number: str, success: bool)`, uma tupla nomeada.
   Entrada vazia (falsy) retorna `(SUBSCRIBER_NUMBER_NULL_SENTINEL_VALUE, False)`;
   o sentinela atual, definido em `teleutils._config`, é `"5599999999999"`.
   Quando a entrada não é vazia e nenhuma extração é aceita, retorna
   `(subscriber_number, False)`, com o valor de entrada original, sem limpeza
   nem conversão para texto.
-- A limpeza converte para minúsculas, remove um `f` final, zeros iniciais e
-  sufixos de oito ou mais dígitos iguais. Não remove pontuação e espaços em geral.
+- A limpeza converte para minúsculas, remove um `f` final e, se
+  `remove_non_numeric=True`, caracteres não numéricos. Também remove zeros
+  iniciais e sufixos de oito ou mais dígitos iguais. Com o padrão `False`, não
+  remove pontuação e espaços em geral.
 - A busca inicial depende do comprimento. O fallback prioriza móveis, fixos
   e CNG, com buscas no fim e início; depois chamada a cobrar e buscas em
   qualquer posição, conforme `FALLBACK_PATTERNS`.
