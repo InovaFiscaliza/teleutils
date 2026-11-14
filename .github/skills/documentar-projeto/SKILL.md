@@ -141,6 +141,21 @@ Utilize inglês apenas quando necessário para:
 
 Toda explicação, descrição e orientação deve ser escrita em português.
 
+## Idioma dos exemplos de código
+
+Em todos os exemplos de código (README, API e demais documentos), os identificadores criados pelo exemplo devem ser escritos em inglês, em `snake_case` para variáveis e funções:
+
+* nomes de variáveis (`intermediate`, `parquet_extractor`, `result`);
+* nomes de funções, métodos e classes definidos no exemplo;
+* nomes de parâmetros e atributos definidos no exemplo;
+* nomes de alias de importação.
+
+Não traduza nem altere identificadores que pertencem ao projeto ou a bibliotecas (módulos, classes, funções, métodos, parâmetros, campos e valores aceitos pela interface), mesmo que estejam em português: o exemplo deve refletir a interface real.
+
+Valores literais (caminhos, nomes de arquivos, mensagens) e comentários explicativos acompanham o idioma da documentação, a menos que o usuário peça outro idioma. Não use nomes que misturem idiomas (por exemplo, `parquet_extrator`).
+
+Ao atualizar um exemplo existente, renomeie as variáveis em português para inglês e atualize, na mesma edição, as menções a elas no texto ao redor.
+
 ---
 
 # Público-alvo
@@ -574,44 +589,95 @@ O README não deve duplicar desnecessariamente o conteúdo técnico detalhado di
 
 ---
 
+# Princípios de redação do README
+
+Estes princípios valem para qualquer projeto Python e prevalecem sobre a tendência de documentar tudo no README.
+
+## Essencial, claro e visual
+
+O README é uma **visão geral** que apresenta o projeto a quem nunca teve contato com ele. Deve conter apenas o estritamente essencial para compreender, instalar e usar o projeto, em linguagem clara e bem formatada, com o mínimo de jargão técnico.
+
+Todo o restante pertence a `docs/` e deve ser acessado por link:
+
+* contratos completos de funções, classes e parâmetros;
+* regras internas, detalhes de implementação e comportamentos de borda;
+* efeitos colaterais raros, políticas de consistência e tratamento detalhado de erros;
+* resultados de testes e registros históricos ou datados.
+
+Teste de inclusão: se o leitor consegue instalar e executar o fluxo sem a informação, ela não pertence ao README.
+
+## Tabelas em vez de listas e parágrafos
+
+Use tabelas sempre que houver três ou mais itens com atributos comparáveis. Em especial para:
+
+* componentes e módulos (tipo, nome, função);
+* pré-requisitos (requisito, detalhe);
+* parâmetros, campos de configuração e opções (nome, obrigatório, descrição);
+* comandos, scripts e classes equivalentes (nome, uso);
+* variantes suportadas, como formatos, layouts, provedores ou backends (categoria, itens);
+* documentação técnica (documento, descrição).
+
+Use listas apenas para passos sequenciais e para ressalvas curtas (uma linha cada). Parágrafos devem ter no máximo 3 ou 4 linhas; explicações maiores devem ser quebradas em tabela, lista ou movidas para `docs/`.
+
+## Principal antes do auxiliar
+
+Apresente sempre primeiro os componentes **principais**, os que implementam o propósito central do projeto (identificados pelo código, pela descrição em `pyproject.toml` e pela documentação técnica), na ordem do fluxo de dados. Só depois apresente os componentes **auxiliares**: utilitários independentes, scripts de apoio e módulos acessórios.
+
+Nunca intercale componentes auxiliares entre os principais.
+
+## Conteúdo mínimo por exemplo
+
+Cada exemplo deve ser o menor trecho que demonstra o uso real da interface. Declare uma vez as premissas comuns (por exemplo, uma sessão, cliente ou variável já criada) em vez de repeti-las em cada exemplo. Não inclua exemplos de variações raras, que ficam em `docs/`. Variáveis e nomes de funções definidos nos exemplos devem estar em inglês, conforme "Idioma dos exemplos de código".
+
+---
+
 # Conteúdo do README
 
 Adapte o conteúdo à realidade do projeto.
 
 Inclua apenas seções que possuam conteúdo real e relevante.
 
-A estrutura pode incluir:
+Use, nesta ordem, as seções abaixo que se aplicarem:
 
 ```text
+Badge DeepWiki (primeira linha)
 Título e introdução
 Sumário
-Visão geral
-Início rápido
-Arquitetura em alto nível
-Principais componentes
-Principais fluxos
+Visão geral (com a tabela "Componentes")
+Início rápido (Pré-requisitos, Instalação, Verificação da instalação)
+Como funciona (diagrama e passos)
+Como usar (um item por componente principal e "Módulos auxiliares")
+Catálogo de variantes suportadas (quando houver)
 Estrutura do projeto
-Configuração
-Guias de uso
-Documentação técnica complementar
+Documentação técnica
 Desenvolvimento
-Solução de problemas
-Compatibilidade
-Referências
+Limitações conhecidas
 ```
+
+Configuração, solução de problemas e compatibilidade entram como seção própria apenas quando tiverem conteúdo essencial que não caiba em "Início rápido" ou "Como usar".
+
+Títulos de seção devem ser únicos, curtos e em português, para que as âncoras do sumário não colidam.
 
 ---
 
 # Introdução e visão geral
 
-Apresente:
+A introdução (logo abaixo do título) tem no máximo três linhas: o que o projeto é, o problema que resolve e o resultado que entrega.
 
-* nome do projeto;
-* propósito;
-* problema resolvido;
-* cenários de utilização;
-* benefícios principais;
-* usuários esperados.
+A seção "Visão geral" apresenta, em no máximo dois parágrafos curtos:
+
+* o problema resolvido;
+* o que o projeto faz, em uma frase por etapa;
+* os usuários esperados e os cenários de utilização.
+
+Em seguida, inclua uma subseção "Componentes" com uma tabela de colunas `Tipo`, `Módulo` e `Função`:
+
+* `Tipo` recebe `Principal` ou `Auxiliar`;
+* as linhas principais vêm primeiro, na ordem do fluxo de dados; as auxiliares, depois;
+* `Módulo` usa o nome real do pacote, módulo ou diretório, em código;
+* `Função` descreve a responsabilidade em uma frase.
+
+Antes da tabela, uma frase deve explicar a distinção entre principais e auxiliares.
 
 A explicação deve ser compreensível para uma pessoa sem conhecimento prévio do projeto.
 
@@ -650,13 +716,29 @@ Exemplo:
 </details>
 ```
 
+Exemplo com subseções de nível 4 (`####`) aninhadas em uma subseção de nível 3:
+
+```html
+<details>
+<summary><a href="#como-usar">Como Usar</a></summary>
+
+- [Processar dados](#processar-dados)
+- [Módulos auxiliares](#módulos-auxiliares)
+  - [Normalizar números](#normalizar-números)
+  - [Transferir arquivos](#transferir-arquivos)
+
+</details>
+```
+
 Regras:
 
 * não utilizar bullets para itens de nível superior;
 * utilizar bullets dentro dos blocos `<details>`;
+* quando houver subseções de nível 4, listá-las como bullets indentados com dois espaços sob a subseção de nível 3 correspondente;
 * manter uma linha em branco após `<summary>`;
 * utilizar âncoras compatíveis com o GitHub;
-* refletir os títulos efetivamente presentes no README.
+* refletir os títulos efetivamente presentes no README;
+* ao alterar a hierarquia ou os títulos, atualizar o sumário na mesma edição.
 
 ---
 
@@ -684,18 +766,20 @@ A seção deve permitir que um novo usuário instale e execute o projeto.
 
 ## Pré-requisitos
 
-Documente apenas requisitos confirmáveis, como:
+Documente apenas requisitos confirmáveis e apresente-os em uma tabela com as colunas `Requisito` e `Detalhe`, como:
 
 * versões suportadas do Python;
 * dependências do sistema operacional;
 * softwares externos;
 * ferramentas necessárias.
 
+Indique em uma frase que as bibliotecas Python declaradas no projeto são instaladas automaticamente, sem listá-las uma a uma. Indique na tabela, quando aplicável, os requisitos exigidos apenas por componentes específicos.
+
 Não invente versões mínimas.
 
 ## Instalação
 
-Forneça um passo a passo baseado na estrutura real do projeto.
+Forneça um passo a passo baseado na estrutura real do projeto: um único bloco de comandos para o método principal e, no máximo, uma linha com a alternativa suportada.
 
 Os comandos devem ser compatíveis com:
 
@@ -705,9 +789,9 @@ Os comandos devem ser compatíveis com:
 
 Não utilize comandos genéricos que não correspondam ao projeto.
 
-## Verificação
+## Verificação da instalação
 
-Forneça um método realista para verificar a instalação.
+Forneça um método realista para verificar a instalação, preferindo um comando leve que não dependa de serviços externos nem de componentes pesados.
 
 Baseie-se em:
 
@@ -716,22 +800,28 @@ Baseie-se em:
 * importações válidas;
 * funcionalidades confirmadas.
 
+Execute o comando e transcreva a saída real. Se não for possível executá-lo, não apresente uma saída esperada: descreva apenas o critério de sucesso confirmável pelo código.
+
 ---
 
-# Arquitetura e principais fluxos
+# Como funciona
 
-Apresente no README apenas uma visão de alto nível.
+Apresente no README apenas uma visão de alto nível, composta por:
 
-Explique, quando aplicável:
+1. um diagrama Mermaid do fluxo principal;
+2. uma lista numerada de 3 a 5 passos curtos, um por componente principal, na ordem do fluxo;
+3. uma frase sobre qualquer comportamento global que afete o usuário (por exemplo, sobrescrita de saídas).
 
-* principais componentes;
-* responsabilidades;
-* fluxo geral;
-* relações relevantes entre componentes.
+Regras do diagrama:
 
-Utilize diagramas Mermaid apenas quando agregarem valor.
-
-Não crie diagramas artificiais.
+* use `flowchart LR` simples, sem blocos `config` ou opções de layout específicas de renderizadores;
+* agrupe com `subgraph` a origem dos dados, os componentes principais e, quando útil, as saídas;
+* represente dados e artefatos persistidos como nós de cilindro (`[( )]`) e componentes como retângulos;
+* represente etapas, artefatos ou coordenações opcionais com setas tracejadas;
+* use rótulos curtos, com quebra de linha `<br/>`;
+* inclua somente componentes e relações confirmados pelo código;
+* não crie diagramas artificiais nem inclua componentes auxiliares que não participam do fluxo principal;
+* valide a sintaxe com uma ferramenta disponível (por exemplo, `mmdc`) ou, na ausência dela, revise-a manualmente e informe que a renderização não foi verificada.
 
 Quando houver documentação detalhada em `docs/`, apresente uma visão resumida e inclua um link para o documento correspondente.
 
@@ -739,7 +829,7 @@ Quando houver documentação detalhada em `docs/`, apresente uma visão resumida
 
 # Estrutura do projeto
 
-Apresente a árvore principal de diretórios e arquivos relevantes.
+Apresente a árvore principal de diretórios e arquivos relevantes em um bloco `text`, com um comentário curto (`#`) alinhado à direita em cada elemento.
 
 Explique brevemente a finalidade de cada elemento apresentado.
 
@@ -751,6 +841,8 @@ Não inclua:
 * arquivos temporários;
 * artefatos gerados;
 * diretórios sem relevância para usuários ou desenvolvedores.
+
+Módulos depreciados só podem aparecer na árvore, marcados como depreciados, e nunca são documentados no README.
 
 ---
 
@@ -766,24 +858,30 @@ Considere, quando aplicável:
 * parâmetros opcionais;
 * formatos aceitos.
 
+Apresente-as em tabela (nome, obrigatório, descrição). Em geral, a configuração essencial fica junto do componente que a utiliza, em "Como usar", e não em seção própria.
+
 Não invente configurações.
 
 Quando a documentação for extensa, mantenha os detalhes em documento técnico específico e referencie-o.
 
 ---
 
-# Guias de uso
+# Como usar
 
-Apresente os principais fluxos de utilização identificados.
+A seção "Como usar" apresenta os principais fluxos de utilização identificados. Estruture-a assim:
 
-Podem incluir, quando aplicável:
+1. **Introdução:** uma frase informando que os exemplos são ilustrativos (caminhos, nomes e ambiente devem ser ajustados), um link para a referência da API e a declaração única das premissas comuns dos exemplos (por exemplo, uma sessão ou cliente já criado em uma variável).
+2. **Um item `###` por componente principal**, na ordem do fluxo de dados e com títulos orientados à ação (por exemplo, "Extrair…", "Transformar…", "Processar lotes…", "Carregar…"). Se o projeto tiver um componente que coordena os demais, apresente-o depois dos componentes que ele coordena.
+3. **Um item `###` "Módulos auxiliares"**, depois de todos os principais, com uma frase de introdução e uma tabela (`Utilitário`, `Para que serve`). Cada auxiliar detalhado recebe uma subseção `####` abaixo dele. Omita o item se não houver auxiliares relevantes.
 
-* uso básico;
-* uso avançado;
-* processamento em lote;
-* processamento de arquivos;
-* integração com outros componentes;
-* execução de pipelines.
+Cada item de componente deve conter, nesta ordem:
+
+* uma ou duas frases sobre o que o componente faz;
+* uma tabela, quando houver classes, funções, opções ou campos de configuração a distinguir;
+* o exemplo mínimo;
+* de 3 a 5 ressalvas essenciais em lista de uma linha cada (valor de retorno que exige verificação, metadados inferidos, sobrescrita de saídas, comportamento em caso de falha e similares), com link para a API quando houver mais detalhes.
+
+Variações do uso principal (por exemplo, um modo sem etapa intermediária) ficam no mesmo item, depois do exemplo principal, com um segundo exemplo curto. Não use blocos `<details>` para conteúdo de uso: separe em itens ou mova para `docs/`.
 
 Os exemplos devem refletir funcionalidades reais.
 
@@ -791,11 +889,21 @@ Quando possível, valide exemplos.
 
 Não apresente exemplos como executados quando não tiverem sido executados.
 
-Quando a validação não for possível, construa os exemplos exclusivamente a partir de interfaces confirmadas.
+Quando a validação não for possível, construa os exemplos exclusivamente a partir de interfaces confirmadas (assinaturas, nomes de métodos e parâmetros conferidos no código) e não afirme que foram executados.
+
+Não inclua no README detalhes que pertençam à documentação técnica, como isolamento interno de sessões, consistência entre commits, validações lexicais e comportamentos de borda.
+
+---
+
+# Catálogo de variantes suportadas
+
+Quando o projeto aceitar um conjunto relevante de variantes (formatos, layouts, provedores, backends, versões), inclua uma seção com uma tabela de colunas `Categoria` e `Itens`, com os nomes reais em código e agrupados por categoria, e indique onde o usuário informa a variante. Apresente a contagem total. Não repita atributos que já constem da documentação técnica.
 
 ---
 
 # Documentação técnica complementar
+
+Título da seção no README: "Documentação técnica".
 
 Após concluir a documentação técnica, liste automaticamente no README apenas documentos relevantes existentes em `docs/` cujo nome comece com:
 
@@ -829,13 +937,11 @@ A tabela deve conter apenas documentos realmente existentes.
 
 # Desenvolvimento
 
-Quando relevante, apresente informações resumidas sobre:
+Quando relevante, apresente de forma resumida, em um bloco de comandos curto seguido de uma ou duas frases:
 
-* ambiente de desenvolvimento;
-* execução de testes;
-* ferramentas de qualidade;
-* linters;
-* formatadores.
+* instalação das dependências de desenvolvimento;
+* execução dos testes;
+* ferramentas de qualidade, linters e formatadores configurados (confirmados nos arquivos de configuração).
 
 Detalhes extensos podem permanecer em documentação técnica especializada.
 
@@ -845,27 +951,24 @@ Detalhes extensos podem permanecer em documentação técnica especializada.
 
 Inclua esta seção apenas quando houver problemas e soluções confirmáveis.
 
-Organize, quando aplicável, em:
-
-* erros comuns;
-* diagnóstico;
-* resolução.
+Organize, quando aplicável, em tabela com as colunas `Problema`, `Diagnóstico` e `Resolução`.
 
 Não invente problemas ou soluções.
 
 ---
 
-# Compatibilidade
+# Compatibilidade e limitações conhecidas
 
 Documente apenas informações confirmáveis sobre:
 
 * versões suportadas do Python;
 * sistemas operacionais;
 * dependências obrigatórias;
-* ferramentas externas;
-* limitações conhecidas.
+* ferramentas externas.
 
 Não presuma compatibilidade.
+
+Reúna as limitações conhecidas na seção final "Limitações conhecidas", com no máximo cinco itens de uma linha, cada um relevante para quem usa o projeto (por exemplo, ausência de transações, de retentativas ou de uma interface de linha de comando, e armadilhas de uso). Não inclua nela resultados de testes, relatos datados ou detalhes internos; mantenha-os em `docs/` com data e contexto.
 
 ---
 
@@ -922,7 +1025,12 @@ Verifique:
 * não existem duplicações desnecessárias;
 * a documentação produzida ou atualizada está escrita em português brasileiro, preservando registros históricos e conteúdo protegido;
 * o Markdown é válido;
-* a navegação do README funciona corretamente;
+* a navegação do README funciona corretamente, e cada âncora do sumário (níveis 2, 3 e 4) corresponde a um título existente, verificadas por script ou revisão;
+* o README segue os "Princípios de redação": contém só o essencial, usa tabelas para componentes, pré-requisitos, parâmetros, variantes e documentos, e não contém detalhes técnicos que pertençam a `docs/`;
+* os componentes principais aparecem antes dos auxiliares na tabela "Componentes" e em "Como usar";
+* os comandos e exemplos foram executados ou, quando não foi possível, foram construídos a partir de interfaces conferidas no código e não foram apresentados como executados;
+* as variáveis e os nomes de funções definidos nos exemplos estão em inglês e as menções a eles no texto foram atualizadas;
+* o diagrama Mermaid segue as regras de "Como funciona" e teve a sintaxe validada ou a ausência de validação registrada;
 * o badge DeepWiki está na primeira linha do README, sem outras referências ao DeepWiki nesse arquivo e sem consulta aos URLs.
 
 Corrija inconsistências apenas dentro do escopo autorizado. Registre as demais e não apresente a revisão como validação completa da documentação.
@@ -968,8 +1076,14 @@ Corrija inconsistências apenas dentro do escopo autorizado. Registre as demais 
 * [ ] Existe uma forma de verificar a instalação.
 * [ ] O README não duplica desnecessariamente a documentação técnica.
 * [ ] Os documentos técnicos relevantes são facilmente localizáveis.
-* [ ] O sumário corresponde à estrutura atual.
+* [ ] O sumário corresponde à estrutura atual, inclusive subseções aninhadas.
 * [ ] Os links de retorno ao topo foram aplicados corretamente.
+* [ ] Visão geral com tabela "Componentes" (principais antes dos auxiliares).
+* [ ] Pré-requisitos, parâmetros, variantes e documentação técnica estão em tabelas.
+* [ ] "Como usar" tem um item por componente principal e "Módulos auxiliares" ao final.
+* [ ] O diagrama Mermaid de "Como funciona" é simples, validado e acompanhado de passos numerados.
+* [ ] Detalhes técnicos extensos e resultados de testes foram deixados em `docs/`.
+* [ ] "Limitações conhecidas" tem no máximo cinco itens relevantes ao usuário.
 
 ## DeepWiki
 
@@ -984,6 +1098,7 @@ Corrija inconsistências apenas dentro do escopo autorizado. Registre as demais 
 * [ ] Nenhuma interface foi inventada.
 * [ ] Nenhuma configuração foi inventada.
 * [ ] Os exemplos refletem interfaces reais.
+* [ ] Variáveis e nomes de funções definidos nos exemplos estão em inglês, sem alterar os identificadores reais da interface.
 * [ ] A documentação produzida ou atualizada está em português brasileiro, respeitados os conteúdos históricos e protegidos.
 * [ ] Não existem duplicações desnecessárias.
 * [ ] O Markdown produzido é válido.
@@ -1004,6 +1119,7 @@ Corrija inconsistências apenas dentro do escopo autorizado. Registre as demais 
 10. Preserve conteúdo correto, relevante e não confirmado; fundamente alterações substantivas e mantenha ressalvas e evidências históricas.
 11. Não consulte o DeepWiki; mantenha apenas o badge especificado na primeira linha do README, sem verificar os URLs.
 12. Valide o trabalho dentro do escopo autorizado e relate inconsistências, referências e informações pendentes.
+13. Escreva o README como visão geral essencial: tabelas para dados comparáveis, componentes principais antes dos auxiliares, exemplos mínimos e detalhes técnicos apenas em `docs/`.
 
 ---
 

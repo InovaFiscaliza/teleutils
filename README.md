@@ -2,11 +2,9 @@
 
 # TeleUtils
 
-Biblioteca Python para normalizar dados de telecomunicações e processar
-registros de chamadas (CDRs) de prestadoras brasileiras. O projeto oferece
-funções para números telefônicos e CNPJs, além de extratores, transformadores,
-um orquestrador e um loader Apache Spark que convertem diferentes layouts de CDR
-em um contrato analítico comum.
+Biblioteca Python que transforma registros de chamadas (CDRs) de diferentes prestadoras de telecomunicações brasileiras em um **dataset único e padronizado**, pronto para análise.
+
+Também oferece utilitários para normalizar números telefônicos e validar CNPJs.
 
 ## Sumário
 
@@ -21,18 +19,22 @@ em um contrato analítico comum.
 
 </details>
 
-[Componentes e fluxo](#componentes-e-fluxo)
+[Como funciona](#como-funciona)
 
 <details>
-<summary><a href="#uso">Uso</a></summary>
+<summary><a href="#como-usar">Como usar</a></summary>
 
-- [Pré-processamento em Python](#pré-processamento-em-python)
-- [Processamento de CDRs com Spark](#processamento-de-cdrs-com-spark)
-- [Orquestração de lotes no Jupyter](#orquestração-de-lotes-no-jupyter)
-- [Carga Iceberg com controle de arquivos](#carga-iceberg-com-controle-de-arquivos)
-- [Transferência de CDRs para o MinIO](#transferência-de-cdrs-para-o-minio)
+- [Extrair CDRs (extratores)](#extrair-cdrs-extratores)
+- [Transformar CDRs (transformador)](#transformar-cdrs-transformador)
+- [Processar lotes de CDRs (orquestrador)](#processar-lotes-de-cdrs-orquestrador)
+- [Carregar o resultado em Iceberg](#carregar-o-resultado-em-iceberg)
+- [Módulos auxiliares](#módulos-auxiliares)
+  - [Normalizar números e validar CNPJ](#normalizar-números-e-validar-cnpj)
+  - [Transferir CDRs para o MinIO](#transferir-cdrs-para-o-minio)
 
 </details>
+
+[Layouts de CDR suportados](#layouts-de-cdr-suportados)
 
 [Estrutura do projeto](#estrutura-do-projeto)
 
@@ -46,23 +48,27 @@ em um contrato analítico comum.
 
 ## Visão geral
 
-O `teleutils` atende dois cenários principais:
+Cada prestadora entrega seus CDRs com colunas, formatos de data e hora e
+estruturas diferentes. O TeleUtils lê esses arquivos (Parquet do Teleparser ou
+texto), aplica as regras de cada layout e grava um Parquet padronizado com
+**38 colunas**, com carga opcional em tabelas Iceberg.
 
-- extração de números telefônicos brasileiros (`extract_number`) e validação de
-  CNPJ numérico ou alfanumérico (`is_valid_cnpj`);
-- extração de CDRs Parquet do Teleparser ou texto (CSV, delimitado ou de largura
-  fixa) para uma representação intermediária e transformação desse resultado em
-  um dataset Parquet padronizado de 38 colunas, com carga opcional em Iceberg.
+Ele é voltado a quem precisa consolidar CDRs de várias fontes em notebooks
+Jupyter ou scripts Python com Apache Spark.
 
-Há 17 layouts de CDR: seis em Parquet (`smp_ericsson_gsm`, `smp_nokia_gsm`,
-`smp_huawei_volte_tim`, `smp_ericsson_volte_vivo`, `stfc_italtel_ngn_tim` e
-`stfc_sigma_claro`) e onze em texto (`stfc_huawei_ngn`, `stfc_huawei_ngn_tim`,
-`stfc_fcdr_vivo`, `stfc_7n_oi`, `stfc_tropico_oi`, `stfc_axe_claro`,
-`stfc_pcl_claro`, `stfc_tropico_claro_lega`, `stfc_tropico_claro_legb`,
-`stfc_pit_claro` e `stfc_ss8bf_claro`). O processamento usa Spark e grava os
-destinos em modo `overwrite`; a saída transformada é particionada por
-`no_tipo_chamada`. O pacote `teleutils.robocalls` está depreciado e não é
-documentado aqui.
+### Componentes
+
+Os módulos principais ficam em `teleutils.core` e formam o pipeline de CDRs. Os
+demais são acessórios e podem ser usados de forma independente.
+
+| Tipo | Módulo | Função |
+| :-- | :-- | :-- |
+| Principal | `teleutils.core.extractors` | Lê os arquivos de origem (Parquet ou texto) e gera uma estrutura intermediária. |
+| Principal | `teleutils.core.transformers` | Aplica as regras de cada layout e gera o dataset padronizado. |
+| Principal | `teleutils.core.orchestrators` | Executa extração e transformação de vários arquivos a partir de uma configuração e informa o resultado de cada um. |
+| Principal | `teleutils.core.loaders` | Carrega o dataset padronizado em tabelas Iceberg (`TrinoLoader`). |
+| Acessório | `teleutils.preprocessing` | Extrai números telefônicos brasileiros e valida CNPJ, sem Spark. |
+| Acessório | `scripts/` | Scripts Bash que enviam CDRs ao MinIO ou os copiam para uma pasta local. |
 
 [⬆ Voltar ao topo](#sumário)
 
@@ -70,17 +76,17 @@ documentado aqui.
 
 ### Pré-requisitos
 
-- Python 3.9 ou superior (`requires-python = ">=3.9"`; `.python-version` fixa 3.9);
-- um ambiente Java funcional para os fluxos que iniciam o Apache Spark;
-- Git para obter o repositório.
+| Requisito | Detalhe |
+| :-- | :-- |
+| Python | 3.9 ou superior |
+| Java | Necessário para os fluxos que usam Apache Spark |
+| Git | Para obter o repositório |
+| `jq` e `mc` (MinIO Client) | Apenas para os scripts de envio ao MinIO; a cópia local exige só `jq` |
 
-As dependências de execução declaradas em `pyproject.toml` são `minio>=7.2.0`,
-`pandas>=2.3.3`, `pyarrow==21.0.0` e `pyspark>=3.5.5`. O script Bash de
-transferência para o MinIO exige, além disso, `jq` e o MinIO Client `mc`.
+As bibliotecas Python (`minio`, `pandas`, `pyarrow`, `pyspark`) são instaladas
+automaticamente.
 
 ### Instalação
-
-Com `uv`:
 
 ```bash
 git clone https://github.com/InovaFiscaliza/teleutils.git
@@ -88,21 +94,17 @@ cd teleutils
 uv sync
 ```
 
-Para instalar apenas o pacote em um ambiente virtual já ativado:
-
-```bash
-python -m pip install .
-```
+Alternativa, em um ambiente virtual já ativado: `python -m pip install .`
 
 ### Verificação da instalação
 
-Execute uma chamada que não precisa iniciar o Spark:
+Este comando não inicia o Spark:
 
 ```bash
 uv run python -c "from teleutils.preprocessing import extract_number; print(extract_number('5511987654321'))"
 ```
 
-Resultado esperado:
+Saída esperada:
 
 ```text
 ExtractionResult(number='11987654321', success=True)
@@ -110,262 +112,180 @@ ExtractionResult(number='11987654321', success=True)
 
 [⬆ Voltar ao topo](#sumário)
 
-## Componentes e fluxo
+## Como funciona
 
 ```mermaid
----
-config:
-  layout: elk
----
 flowchart LR
-    A["CDR Parquet ou CSV"] --> B["Extrator do layout"]
-    B --> C["Parquet intermediário"] & F["Modo direto: DataFrame"]
-    C --> D["CDRTransformer"]
-    D --> E["Parquet padronizado"]
-    F --> D
+    subgraph origem["Origem"]
+        A["CDRs brutos<br/>Parquet (Teleparser) ou texto"]
+    end
+
+    subgraph core["teleutils.core"]
+        direction LR
+        B["extractors<br/>lê e adapta o layout"]
+        C["transformers<br/>aplica as regras do layout"]
+        D["loaders<br/>carga em Iceberg (opcional)"]
+        O["orchestrators<br/>coordena extração e transformação"]
+    end
+
+    I[("Parquet intermediário<br/>(opcional)")]
+    F[("Parquet padronizado<br/>38 colunas")]
+    T[("Tabela Iceberg")]
+
+    A --> B --> C --> F --> D --> T
+    B -.-> I -.-> C
+    O -. coordena .-> B
+    O -. coordena .-> C
 ```
 
-- `teleutils.preprocessing`: extração de números telefônicos e validação de
-  CNPJ em Python puro, sem Spark;
-- `teleutils.core.extractors`: leitura, seleção, renomeação e enriquecimento de
-  CDRs com metadados de origem;
-- `teleutils.core.extractors.schemas`: contratos e catálogos dos layouts
-  aceitos pelos extratores;
-- `teleutils.core.transformers`: regras específicas por layout e pipeline comum
-  de padronização do dataset final;
-- `teleutils.core.orchestrators`: validação de configurações e coordenação
-  sequencial de extração e transformação, com relatório por item e por lote;
-- `teleutils.core.loaders`: `TrinoLoader`, carga independente do Parquet final em
-  tabelas Iceberg, com controle opcional de arquivos já carregados.
+1. O **extrator** do layout lê o arquivo e produz uma estrutura intermediária.
+   Ele pode gravá-la em Parquet ou repassá-la diretamente ao transformador.
+2. O **transformador** padroniza datas, números e demais campos e grava o Parquet padronizado.
+3. O **orquestrador** repete essas etapas para vários arquivos, sem interromper o lote quando um item falha.
+4. O **loader** (opcional) carrega o resultado em uma tabela Iceberg.
 
-Os extratores podem inferir `prestadora`, `servico`, `tipo_cdr` e `arquivo_origem`
-da estrutura `.../operator/service/cdr_type/arquivo`. Os argumentos opcionais
-`operator`, `service` e `cdr_type` permitem informar metadados explicitamente;
-`_tipo_cdr` do conteúdo, quando presente, prevalece sobre o tipo informado.
+Os dados gerados em cada etapa **substituem** o conteúdo existente no destino
+informado (modo `overwrite`).
 
 [⬆ Voltar ao topo](#sumário)
 
-## Uso
+## Como usar
 
-### Pré-processamento em Python
+Os exemplos abaixo são ilustrativos: ajuste caminhos, bucket e nomes ao seu
+ambiente. Parâmetros e contratos completos estão na
+[referência da API](docs/teleutils_api.md). Os exemplos a seguir pressupõem uma
+`SparkSession` já criada na variável `spark`.
 
-```python
-from teleutils.preprocessing import extract_number, is_valid_cnpj
+### Extrair CDRs (extratores)
 
-resultado = extract_number("5511987654321")
-print(resultado.number, resultado.success)  # 11987654321 True
+O extrator lê o arquivo de origem, seleciona e renomeia as colunas do layout e
+grava um Parquet intermediário. Há um extrator para cada formato de origem:
 
-cnpj_valido = is_valid_cnpj("11.222.333/0001-81")  # True
-```
-
-`extract_number` retorna um `ExtractionResult(number, success)`. Entradas vazias
-(falsy) retornam o valor sentinela `5599999999999`; se nenhuma extração for
-aceita para uma entrada não vazia, `number` mantém o valor original e
-`success` é `False`. O parâmetro opcional `remove_non_numeric` é `False` por
-padrão; quando `True`, remove caracteres não numéricos antes da extração.
-`is_valid_cnpj` também aceita o CNPJ alfanumérico. Consulte os contratos
-completos na referência da API.
-
-### Processamento de CDRs com Spark
-
-Crie a sessão Spark e instancie o extrator e o transformador:
+| Classe | Entrada |
+| :-- | :-- |
+| `CDRParquetExtractor` | Parquet do Teleparser |
+| `CDRTextExtractor` | Texto (CSV, delimitado ou de largura fixa) |
 
 ```python
-from pyspark.sql import SparkSession
+from teleutils.core.extractors import CDRParquetExtractor, CDRTextExtractor
 
-from teleutils.core.extractors import CDRParquetExtractor
-from teleutils.core.transformers import CDRTransformer
-
-spark = SparkSession.builder.appName("teleutils").getOrCreate()
-
-extractor = CDRParquetExtractor(spark)
-transformer = CDRTransformer(spark)
-
-intermediario = extractor.extract(
+# Parquet do Teleparser
+parquet_extractor = CDRParquetExtractor(spark)
+intermediate = parquet_extractor.extract(
     source_file="dados/prestadora/smp/ericsson/entrada.parquet",
     target_file="saida/intermediario/ericsson",
     cdr_schema="smp_ericsson_gsm",
 )
-if intermediario is not None:
-    resultado = transformer.transform_smp_ericsson_gsm(
-        source_file=intermediario,
-        target_file="saida/padronizado/ericsson",
-    )
+
+# Arquivos de texto
+text_extractor = CDRTextExtractor(spark)
+text_intermediate = text_extractor.extract(
+    source_file="dados/prestadora/stfc/huawei_ngn/entrada.csv",
+    target_file="saida/intermediario/huawei_ngn",
+    cdr_schema="stfc_huawei_ngn",
+)
 ```
 
-Quando a entrada não é encontrada na leitura inicial, o extrator registra um
-aviso e retorna `None`, sem gravar no destino. Caso contrário, retorna o caminho
-de destino. Tanto a extração quanto a transformação substituem dados já existentes
-no destino informado. Outras falhas, inclusive erros tardios do Spark,
-continuam sendo propagadas.
+- `cdr_schema` indica o layout (veja [Layouts de CDR suportados](#layouts-de-cdr-suportados)).
+- O retorno é o caminho gravado, ou `None` se a entrada não for encontrada (um
+  aviso é registrado e nada é gravado). Verifique o retorno antes da próxima etapa.
+- Os metadados `prestadora`, `servico`, `tipo_cdr` e `arquivo_origem` são
+  inferidos da estrutura `.../operator/service/cdr_type/arquivo`. Para
+  informá-los explicitamente, use `operator=`, `service=` e `cdr_type=`.
+- O destino é sobrescrito se já existir.
 
-#### Sem Parquet intermediário
+### Transformar CDRs (transformador)
 
-Crie o transformador primeiro e use sua sessão no extrator:
+O transformador converte a estrutura extraída para o dataset padronizado de 38
+colunas. Cada layout tem seu método `transform_<layout>` em `CDRTransformer`:
+
+```python
+from teleutils.core.transformers import CDRTransformer
+
+transformer = CDRTransformer(spark)
+result = transformer.transform_smp_ericsson_gsm(
+    source_file=intermediate,  # retorno da extração
+    target_file="saida/padronizado/ericsson",
+)
+print(result)  # caminho do Parquet padronizado
+```
+
+- `source_file` aceita o Parquet intermediário ou um DataFrame (veja abaixo).
+- O Parquet final é particionado por `no_tipo_chamada` e sobrescreve o destino
+  se ele já existir.
+- Os layouts `stfc_tropico_claro_lega` e `stfc_tropico_claro_legb` têm métodos
+  próprios com esses nomes (`transform_stfc_tropico_claro_lega` e
+  `transform_stfc_tropico_claro_legb`).
+
+Para evitar gravar o Parquet intermediário, use `extract_dataframe` (disponível
+nos dois extratores) e passe o DataFrame ao transformador. Nesse modo, crie o
+extrator com a sessão do transformador (`transformer.spark`):
 
 ```python
 transformer = CDRTransformer(spark)
 extractor = CDRParquetExtractor(transformer.spark)
+
 df = extractor.extract_dataframe(
     source_file="dados/prestadora/smp/ericsson/entrada.parquet",
     cdr_schema="smp_ericsson_gsm",
 )
-if df is not None:
-    resultado = transformer.transform_smp_ericsson_gsm(
+if df is not None:  # None: entrada não encontrada
+    transformer.transform_smp_ericsson_gsm(
         source_file=df,
         target_file="saida/padronizado/ericsson",
     )
 ```
 
-O mesmo contrato está disponível em `CDRTextExtractor.extract_dataframe`.
-Ambos retornam `None` com um aviso se a entrada não for encontrada na leitura
-inicial; verifique o retorno antes de passá-lo ao transformador.
-Não há cache nem escrita intermediária automática. A validação de metadados
-inferidos ainda pode executar uma ação Spark; o processamento completo só é
-confirmado pela escrita final.
+DataFrames criados em outra sessão Spark são rejeitados.
 
-A sessão do transformador é isolada e usa `TIMESTAMP_NTZ`. DataFrames de outra
-sessão são rejeitados com orientação para reconstruí-los com `transformer.spark`,
-mesmo que compartilhem o SparkContext. A biblioteca não altera a sessão do
-chamador nem copia seus overrides SQL de runtime. No modo direto, a extração
-também usa os defaults da sessão filha. Não altere essa sessão durante o pipeline.
+### Processar lotes de CDRs (orquestrador)
 
-### Orquestração de lotes no Jupyter
-
-Use a `SparkSession` já disponibilizada pelo ambiente. O exemplo abaixo usa
-um bucket ilustrativo; configure os caminhos e o acesso S3A no ambiente antes
-de executá-lo:
+O orquestrador executa extração e transformação em sequência para um ou vários tipos de CDRs e é a forma recomendada de processar CDRs em notebooks:
 
 ```python
 from teleutils.core.orchestrators import run_etl
 
 cdr_config = [{
-    "storage_type": "s3a",  # Opcional; este é o padrão.
     "source_folder": "bucket-exemplo/cdr/bruto/algar/stfc/huawei_ngn",
     "pattern": "*.gz",
     "schema": "stfc_huawei_ngn",
     "extracted_folder": "bucket-exemplo/cdr/extraido",
     "transformed_folder": "bucket-exemplo/cdr/transformado",
     "output_file_prefix": "algar_huawei_ngn",
-    "operator": "algar",
-    "service": "stfc",
-    "cdr_type": "huawei_ngn",
 }]
 
 report = run_etl(cdr_config, spark=spark)
 print(report.total, report.successes, report.validation_errors, report.execution_errors)
-for item in report.items:
-    print(item.index, item.schema, item.status, item.stage, item.error_message)
 ```
 
-Para um único item, utilize `run_etl_item(cdr_config[0], spark=spark)`.
-Uma entrada não encontrada impede a transformação do item e é relatada como
-`execution_error` na etapa `extraction`, sem interromper os demais itens.
-Para ler um JSON, use `load_config("/dados/etl.json")` ou
-`load_config("s3a://bucket/caminho/etl.json", secure=True)`, importada de
-`teleutils.core.orchestrators`. A função rejeita prefixos duplicados no arquivo.
-Para MinIO, ela usa `MINIO_ENDPOINT`, `MINIO_USER` e `MINIO_SECRET` do ambiente
-se as opções não forem fornecidas; o endpoint não deve incluir o protocolo.
-O padrão `secure=False` usa HTTP sem criptografia; use HTTPS quando disponível.
-Listas passadas diretamente a `run_etl` não têm essa verificação de unicidade,
-embora conflitos de caminhos continuem sendo rejeitados.
-A configuração aceita os seis campos obrigatórios mostrados, os três metadados
-opcionais e `storage_type`, com valores exatos `"s3a"` (padrão) ou `"local"`.
-Em S3A, pastas aceitam `bucket/caminho` ou `s3a://bucket/caminho`, nunca
-caminhos iniciados por `/`. Endpoint, credenciais e conectores de acesso ao
-MinIO/S3A são responsabilidade do ambiente Spark/Hadoop, não da biblioteca.
-Os destinos são datasets com sufixos
-`_extracted.parquet` e `_transformed.parquet`, não necessariamente arquivos únicos.
+Campos de cada item da configuração:
 
-Para listar esses datasets no MinIO sem expor suas partições:
+| Campo | Obrigatório | Descrição |
+| :-- | :-- | :-- |
+| `source_folder` | Sim | Pasta com os arquivos de origem. |
+| `pattern` | Sim | Máscara dos arquivos a processar (por exemplo, `*.gz`). |
+| `schema` | Sim | Layout do CDR (veja [Layouts de CDR suportados](#layouts-de-cdr-suportados)). |
+| `extracted_folder` | Sim | Pasta de destino dos dados extraídos. |
+| `transformed_folder` | Sim | Pasta de destino dos dados padronizados. |
+| `output_file_prefix` | Sim | Prefixo dos nomes de saída (`<prefixo>_extracted.parquet` e `<prefixo>_transformed.parquet`). |
+| `operator`, `service`, `cdr_type` | Não | Metadados da origem; quando omitidos, são inferidos da estrutura `.../operator/service/cdr_type/arquivo`. |
+| `storage_type` | Não | `"s3a"` (padrão, MinIO/S3) ou `"local"` (diretórios absolutos, como `/dados/cdr`). |
 
-```python
-from teleutils.core.orchestrators import list_files
+Pontos de atenção:
 
-files = list_files(
-    "sandbox-sfi/cdr/processed/transformed",
-    pattern="*.parquet",
-    recursive=False,
-    secure=True,
-)
-# Exemplo de entrada na lista:
-# s3a://sandbox-sfi/cdr/processed/transformed/semana110_algar_smp_nokia_transformed.parquet
-```
-
-A base aceita `bucket/pasta` ou `s3a://bucket/pasta`; o retorno é uma lista
-ordenada de URIs `s3a://`, sem duplicatas ou barra final. Diretórios `.parquet`
-são tratados como arquivos lógicos e nunca são percorridos, mesmo com
-`recursive=True`; a base deve ser uma pasta contêiner, não um dataset ou seu
-interior. A máscara filtra nomes, com glob sensível a maiúsculas (`*`, `?`, `[]`,
-sem expansão `{a,b}`); `pattern=""` inclui todos os tipos. A conexão segue as
-opções e variáveis de ambiente de `load_config`, sem depender de Spark.
-Sem correspondências, retorna `[]`; erros MinIO são propagados.
-Consulte o [contrato completo da API](docs/teleutils_api.md#teleutilscoreorchestrators).
-
-Para execução totalmente local, informe diretórios absolutos Linux:
-
-```python
-from pyspark.sql import SparkSession
-from teleutils.core.orchestrators import run_etl_item
-
-# Em um notebook com sessão existente, reutilize-a em vez de criar outra.
-spark = SparkSession.builder.master("local[2]").appName("cdr-local").getOrCreate()
-
-config_local = {
-    "storage_type": "local",
-    "source_folder": "/dados/cdr/bruto/algar/stfc/huawei_ngn",
-    "pattern": "*.gz",
-    "schema": "stfc_huawei_ngn",
-    "extracted_folder": "/dados/cdr/temp/extraido",
-    "transformed_folder": "/dados/cdr/temp/transformado",
-    "output_file_prefix": "algar_huawei_ngn",
-}
-result = run_etl_item(config_local, spark=spark)
-print(result.status, result.paths, result.error_message)
-```
-
-O modo local gera caminhos `file:///dados/...`, sem depender do filesystem
-padrão do Hadoop. Informe `/dados/...` na configuração, não `file:///dados/...`;
-caminhos relativos e protocolos explícitos são rejeitados nesse modo.
-Os diretórios e dados dos exemplos precisam existir no ambiente do chamador.
-
-Cada item utiliza um único armazenamento para origem e destinos; configurações
-híbridas são rejeitadas. Um lote pode conter itens locais e S3A independentes,
-sem copiar ou transferir dados entre eles.
-
-Em Spark distribuído, `file:///` aponta para o filesystem de cada máquina:
-os caminhos necessários devem estar disponíveis nos executores, não apenas no
-driver. A validação é lexical, sem verificar existência, permissões, links
-simbólicos ou equivalência entre montagens.
-
-O lote valida os caminhos e resolve os métodos antes da extração. Falhas
-individuais são registradas e retornadas, sem impedir itens independentes.
-Inspecione o relatório: término do lote não significa sucesso de todos os itens.
-O orquestrador não cria/encerra o contexto Spark, não configura handlers de
-logging e não executa carga. Se necessário, configure logging no notebook.
-
-Consulte o [contrato da orquestração](docs/teleutils_api.md#teleutilscoreorchestrators)
-para validação, conflitos e resultados.
-
-Para ativar o modo direto no lote, sem administrar sessões:
-
-```python
-relatorio = run_etl(configs, spark=spark, materialize_intermediate=False)
-```
-
-`run_etl_item` e `get_config` aceitam a mesma opção. O padrão continua sendo
-`True`. No modo direto, `extracted_folder` pode ser omitido e
-`ConfigPaths.extracted_file` será `None`; intermediários antigos não são tocados.
-Falhas durante a execução conjunta aparecem na etapa `pipeline`, sem indicar
-extração concluída antes da escrita final. Avisos Spark da leitura adiada
-permanecem visíveis. Uma nova tentativa pode repetir a extração da origem.
+- confira o relatório (`report.items`): o término do lote não significa que todos
+  os itens tiveram sucesso;
+- um mesmo item usa um único tipo de armazenamento para origem e destinos;
+- para ler a configuração de um JSON, use `load_config`; para listar arquivos
+  no MinIO, use `list_files`;
+- `run_etl(..., materialize_intermediate=False)` dispensa o Parquet
+  intermediário e `extracted_folder`.
 
 [⬆ Voltar ao topo](#sumário)
 
-### Carga Iceberg com controle de arquivos
+### Carregar o resultado em Iceberg
 
-Após transformar os dados, use uma sessão Spark configurada com extensões e
-catálogo Iceberg compartilhado com o Trino:
+Use uma sessão Spark com extensões e catálogo Iceberg compartilhado com o Trino:
 
 ```python
 from teleutils.core.loaders import TrinoLoader
@@ -379,70 +299,74 @@ loader.upsert_iceberg(
 )
 ```
 
-O controle identifica arquivos pelo conteúdo de `no_arquivo_origem`, não pelo
-nome do Parquet. Em `append` e `insert_only`, origens já carregadas são puladas
-com log; `merge` permite recarga. Após sucesso, o controle mantém uma linha por
-origem com `dh_carga` em UTC, armazenado como timestamp **sem fuso horário**.
-`control_table` é a única opção de controle: strings iniciadas por `s3a://` ou
-`file://` identificam um **dataset Parquet**, lido internamente como DataFrame;
-outras strings identificam uma tabela Iceberg no catálogo compartilhado com
-Trino. Por exemplo, use `control_table="file:///dados/controle/chamadas.parquet"`
-ou `control_table="s3a://bucket/controle/chamadas.parquet"`. Não passe um
-DataFrame diretamente. `None` mantém o fluxo sem controle.
+| Opção | Efeito |
+| :-- | :-- |
+| `mode="append"` ou `"insert_only"` | Pula arquivos de origem já carregados. |
+| `mode="merge"` | Permite recarregar arquivos já carregados. |
+| `control_table` | Tabela (ou dataset Parquet `s3a://` / `file://`) que registra os arquivos já carregados; sem ele, não há controle. |
 
-Antes de ler a origem, o loader cria o controle vazio se necessário e testa
-leitura/gravação. Qualquer falha interrompe a carga, sem escrever dados no
-destino. Essas sondagens não alteram registros existentes, mas podem gerar
-metadados/snapshots Iceberg. Um controle vazio pode permanecer mesmo se a carga
-posterior falhar ou não houver origens elegíveis.
+A escrita dos dados e a do controle são operações separadas: use um controle
+exclusivo para cada destino e evite execuções simultâneas. Detalhes na
+[referência da API](docs/teleutils_api.md#teleutilscoreloaders).
 
-**Limite de consistência:** a escrita dos dados e a do controle são commits
-separados. Falha no registro é propagada e registrada como falha parcial;
-repetir `append` pode duplicar dados. Serialize chamadas e use um controle
-exclusivo para cada destino. O controle Parquet é atualizado por sobrescrita
-direta, sem backup ou rollback: uma falha pode perder o controle anterior.
-Sondagens prévias não garantem o commit posterior. O loader não se conecta
-diretamente ao Trino.
+### Módulos auxiliares
 
-Consulte [o contrato e os exemplos da API](docs/teleutils_api.md#teleutilscoreloaders).
+Além do pipeline de CDRs, o projeto inclui utilitários independentes, que não
+dependem do Spark nem uns dos outros:
 
-### Transferência de CDRs para o MinIO
+| Utilitário | Para que serve |
+| :-- | :-- |
+| `teleutils.preprocessing` | Normalizar números telefônicos e validar CNPJ. |
+| `scripts/` | Enviar CDRs ao MinIO ou copiá-los para uma pasta local. |
 
-Três scripts Bash em `scripts/` selecionam os CDRs de texto e/ou Parquet do
-Teleparser de uma semana (`SemanaNNN`) e os enviam ao MinIO ou os copiam para uma
-pasta local, sem alterar os arquivos de origem. Todos usam o mesmo arquivo de
-configuração JSON (`scripts/uploader.config.example.json`) e as mesmas regras de
-seleção e destino:
+#### Normalizar números e validar CNPJ
+
+```python
+from teleutils.preprocessing import extract_number, is_valid_cnpj
+
+result = extract_number("5511987654321")
+print(result.number, result.success)  # 11987654321 True
+
+is_valid_cnpj("11.222.333/0001-81")  # True
+```
+
+`extract_number` retorna o número extraído e um indicador de sucesso; se nada for
+reconhecido, devolve o valor original com `success=False`. `is_valid_cnpj`
+aceita CNPJ numérico e alfanumérico.
+
+#### Transferir CDRs para o MinIO
+
+Os scripts de `scripts/` selecionam os CDRs de uma semana (`SemanaNNN`) e os
+enviam ao MinIO ou os copiam para uma pasta local, sem alterar a origem. Todos
+usam o mesmo arquivo de configuração JSON
+(`scripts/uploader.config.example.json`) e aceitam `--dry-run` (planeja sem
+copiar) e `--help`.
 
 | Script | Uso |
 | :-- | :-- |
 | `scripts/upload_cdr_to_minio.sh` | Envio ao MinIO com `mc`, em lotes sequenciais. |
-| `scripts/upload_cdr_to_minio_parallel.sh` | Envio ao MinIO com vários `mc cp` simultâneos (`--jobs`, `--multipart-threads`). Requer Bash 4.4. |
-| `scripts/copy_cdr_to_local.sh` | Cópia para um diretório local com cópias simultâneas (`--jobs`). Não usa `mc`. Requer Bash 4.4. |
-
-Os scripts de envio exigem `jq` e o MinIO Client `mc`; a cópia local exige `jq`.
-Em todos, a opção `--dry-run` planeja a transferência sem copiar arquivos:
+| `scripts/upload_cdr_to_minio_parallel.sh` | Envio ao MinIO com várias cópias simultâneas (`--jobs`). Requer Bash 4.4. |
+| `scripts/copy_cdr_to_local.sh` | Cópia para um diretório local (`--destination`, `--jobs`). Não usa `mc`. Requer Bash 4.4. |
 
 ```bash
 ./scripts/upload_cdr_to_minio.sh \
   --config scripts/uploader.config.example.json --week-dir Semana110 \
   --teleparser-folder /data/teleparser/ --dry-run
-
-./scripts/upload_cdr_to_minio_parallel.sh \
-  --config scripts/uploader.config.example.json --week-dir Semana110 \
-  --jobs 3 --multipart-threads 16 --dry-run
-
-./scripts/copy_cdr_to_local.sh \
-  --config scripts/uploader.config.example.json --week-dir Semana110 \
-  --destination /data/cdr_local --jobs 8 --dry-run
 ```
 
-O `--dry-run` dos scripts de envio consulta o MinIO e exige uma configuração `mc`
-existente. Veja a ajuda de cada script com `--help` e o guia
-[Transferência semanal de CDRs para MinIO](docs/teleutils_upload_cdr_to_minio.md)
-para o formato do arquivo JSON de configuração e como construí-lo, os
-pré-requisitos, a precedência de opções, as diferenças entre os scripts, o
-relatório e os códigos de saída.
+O formato do JSON, as opções e os códigos de saída estão em
+[Transferência semanal de CDRs para MinIO](docs/teleutils_upload_cdr_to_minio.md).
+
+[⬆ Voltar ao topo](#sumário)
+
+## Layouts de CDR suportados
+
+São 17 layouts, informados no campo `schema` (ou em `cdr_schema`):
+
+| Formato de origem | Layouts |
+| :-- | :-- |
+| Parquet (Teleparser) | `smp_ericsson_gsm`, `smp_nokia_gsm`, `smp_huawei_volte_tim`, `smp_ericsson_volte_vivo`, `stfc_italtel_ngn_tim`, `stfc_sigma_claro` |
+| Texto (CSV, delimitado ou largura fixa) | `stfc_huawei_ngn`, `stfc_huawei_ngn_tim`, `stfc_fcdr_vivo`, `stfc_7n_oi`, `stfc_tropico_oi`, `stfc_axe_claro`, `stfc_pcl_claro`, `stfc_tropico_claro_lega`, `stfc_tropico_claro_legb`, `stfc_pit_claro`, `stfc_ss8bf_claro` |
 
 [⬆ Voltar ao topo](#sumário)
 
@@ -452,18 +376,16 @@ relatório e os códigos de saída.
 teleutils/
 ├── src/teleutils/
 │   ├── core/
-│   │   ├── extractors/       # extratores e schemas de layouts
-│   │   ├── transformers/     # transformação para o contrato final
-│   │   ├── loaders/          # carga independente em Iceberg
-│   │   └── orchestrators/    # coordenação de extração e transformação
+│   │   ├── extractors/       # leitura dos CDRs e catálogo de layouts
+│   │   ├── transformers/     # regras de transformação e dataset final
+│   │   ├── orchestrators/    # execução em lote a partir de configuração
+│   │   └── loaders/          # carga em Iceberg
 │   ├── preprocessing/        # números telefônicos e CNPJ
-│   ├── robocalls/            # pacote depreciado
-│   ├── _config.py            # contrato final (TARGET_SCHEMA) e constantes internas
-│   └── _logging.py           # utilitários internos de logging
-├── scripts/                  # upload e cópia local semanal de CDRs (Bash)
-├── docs/                     # documentação técnica especializada
-├── tests/                    # testes pytest, testes Bats e notebooks de desenvolvimento
-└── pyproject.toml            # metadados e dependências do pacote
+│   └── robocalls/            # pacote depreciado
+├── scripts/                  # envio e cópia semanal de CDRs (Bash)
+├── docs/                     # documentação técnica
+├── tests/                    # testes automatizados e notebooks de apoio
+└── pyproject.toml            # metadados e dependências
 ```
 
 [⬆ Voltar ao topo](#sumário)
@@ -474,25 +396,20 @@ teleutils/
 | :-- | :-- |
 | [Referência da API](docs/teleutils_api.md) | Interfaces públicas, parâmetros, retornos, erros e efeitos colaterais. |
 | [Linhagem e transformações dos dados](docs/teleutils_linhagem_transformacoes_dados.md) | Origem, regras de transformação e destino das colunas dos CDRs. |
-| [Transferência semanal de CDRs para MinIO](docs/teleutils_upload_cdr_to_minio.md) | Scripts Bash de upload (serial e paralelo) e de cópia local: configuração JSON, opções da CLI, relatório e testes. |
+| [Transferência semanal de CDRs para MinIO](docs/teleutils_upload_cdr_to_minio.md) | Scripts Bash de envio e cópia local: configuração JSON, opções, relatório e testes. |
 
 [⬆ Voltar ao topo](#sumário)
 
 ## Desenvolvimento
-
-Instale também as dependências de desenvolvimento e execute a suíte coletada
-pelo pytest:
 
 ```bash
 uv sync --all-groups
 uv run pytest
 ```
 
-O projeto configura `pytest`, `ruff`, `pre-commit` e ferramentas de notebook por
-meio do grupo de dependências `dev` em `pyproject.toml`. Os hooks de
-`.pre-commit-config.yaml` executam `ruff-check` (regra `I`), `ruff-format`,
-`mypy`, `nbstripout` e verificações básicas de arquivos. Os testes dos scripts de
-upload e de cópia local usam Bats (os de upload, com um mock de `mc`):
+O grupo `dev` de `pyproject.toml` inclui `pytest`, `ruff` e `pre-commit`; os
+hooks de `.pre-commit-config.yaml` executam `ruff`, `mypy`, `nbstripout` e
+verificações básicas. Os scripts Bash são testados com Bats:
 
 ```bash
 bats tests/shell/upload_cdr_to_minio.bats
@@ -504,23 +421,9 @@ bats tests/shell/copy_cdr_to_local.bats
 
 ## Limitações conhecidas
 
-- A orquestração possui testes com fakes e integração Spark local com dados
-  sintéticos. Esses testes não certificam o acesso S3A do ambiente Big Data.
-- Sucesso técnico não garante completude dos dados: permanecem as políticas
-  dos componentes, como `overwrite` e a tolerância a Parquet corrompido.
-- Não há transação entre etapas, limpeza de saídas parciais, retries,
-  paralelismo, retomada automática ou carga no orquestrador.
-- `CDRTransformer.transform` procura funções globais `transform_<cdr_schema>` e
-  não encontra os métodos de layout da instância; use os métodos
-  `transform_<cdr_schema>` ou o orquestrador.
-- Nenhum CLI Python é registrado em `pyproject.toml`. Os únicos utilitários de
-  linha de comando são os scripts Bash `scripts/upload_cdr_to_minio.sh`,
-  `scripts/upload_cdr_to_minio_parallel.sh` e `scripts/copy_cdr_to_local.sh`.
-- `tests/test_phone_number_extractor.py` passou com 48 testes e verifica que o
-  sentinela é retornado para entradas vazias (falsy), enquanto uma entrada não
-  vazia sem extração aceita é preservada. Em um subconjunto de testes executado
-  ao revisar esta documentação, o pytest reprovou dois testes de
-  `tests/test_cdr_schemas.py` (esperam que `CDRParquetExtractor` não toque nos
-  loggers Spark ao rejeitar um schema inválido).
-- Os pipelines Spark dependem dos layouts e da organização de caminhos
-  descritos na referência da API e na documentação de linhagem.
+- O orquestrador não oferece transação entre etapas, retentativas, paralelismo,
+  retomada automática nem carga em Iceberg; saídas parciais não são removidas.
+- Os testes não certificam o acesso S3A de um ambiente Big Data específico.
+- `CDRTransformer.transform` não localiza os métodos de layout da instância: use
+  `transform_<layout>` ou o orquestrador.
+- Não há CLI Python; os únicos utilitários de linha de comando são os scripts Bash.
