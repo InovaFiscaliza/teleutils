@@ -920,13 +920,13 @@ class CDRTransformer(CDRBaseTransformer):
         # 11-55-18-99-78-14-80-F2
         #  ↓  ↓  ↓  ↓  ↓  ↓  ↓  ↓
         # 11-55-81-99-87-41-08-2F
-        # Além disso trazem prefixo 11 ou 14 que podem ser confundidos como os respectivos CN.
-        # ``substr(3, 9999)`` remove os prefixos antes da normalização para evitar confundi-los com CN.
-        extract_ats_calling_party = F.get_json_object(
+        # Além disso trazem prefixos adicionas que eram removidos, mas deixaram de ser removidos nos dados atuais.
+        # após desenvolvimento de melhorias no módulo de pré-processamento, os prefixos adicionais passaram a ser mantidos nos dados.
+        original_ats_calling_party = F.get_json_object(
             F.col("_numero_origem_ats_ibcf"), "$[0].tEL-URI"
         )
         ats_calling_party = F.regexp_replace(
-            extract_ats_calling_party.substr(3, 9999),
+            original_ats_calling_party,
             "(.)(.)",
             "$2$1",
         )
@@ -940,11 +940,14 @@ class CDRTransformer(CDRBaseTransformer):
             F.when(is_ats, ats_calling_party).when(is_ibcf, ibfc_calling_party),
         ).withColumn(
             "_numero_origem_original",
-            F.when(is_ats, extract_ats_calling_party).otherwise(F.col("numero_origem")),
+            F.when(is_ats, original_ats_calling_party).otherwise(
+                F.col("numero_origem")
+            ),
         )
 
+        # Inverte as posições dos dígitos 2 a 2
         ats_called_party = F.regexp_replace(
-            F.col("_numero_destino_ats").substr(3, 9999),
+            F.col("_numero_destino_ats"),
             "(.)(.)",
             "$2$1",
         )
