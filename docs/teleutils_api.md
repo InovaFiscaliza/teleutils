@@ -42,142 +42,54 @@ conexão direta ao Trino. O loader não configura nem encerra a sessão.
 ```python
 def upsert_iceberg(
     self,
-    source_file,
-    target_table,
-    primary_keys=PRIMARY_KEY_COLUMNS,
-    *,
-    mode="merge",
-    control_table=None,
+    source_file: str,
+    target_table: str,
 ) -> None:
     ...
 ```
 
 - `source_file`: arquivo ou diretório Parquet com todas as colunas finais de
-  `TARGET_SCHEMA`; colunas adicionais são mantidas.
+  `TARGET_SCHEMA` e todas as linhas de cada origem presente.
 - `target_table`: nome com um a três componentes separados por pontos, sem
   delimitadores SQL. Componentes vazios são rejeitados; crases são escapadas.
-- `primary_keys`: sequência não vazia de colunas únicas, usada para deduplicar
-  a entrada e comparar chaves com igualdade null-safe. Ignorada em `append`.
-- `mode`: `merge` atualiza correspondências e insere chaves novas;
-  `insert_only` insere apenas chaves novas; `append` preserva todas as linhas.
-  Se o destino não existir, cria uma tabela Iceberg com o schema de entrada.
 - Retorno: `None`. Não retorna DataFrame ou contagens.
 
-#### Controle opcional de arquivos
+#### Substituição por origem
 
-| Configuração | Uso |
-|---|---|
-| `control_table=None` | Mantém o comportamento anterior, sem controle |
-| `control_table="catalogo.schema.controle"` | Consulta e persiste uma tabela Iceberg nomeada |
-| `control_table="s3a://bucket/controle"` | Dataset Parquet no armazenamento S3A |
-| `control_table="file:///dados/controle"` | Dataset Parquet no filesystem local acessível pelo Spark |
+1. Valida as colunas finais e exige `no_arquivo_origem` do tipo string,
+   sem valores nulos, vazios ou compostos apenas por espaços. Se o Parquet
+   tiver schema válido e nenhuma linha, não acessa o destino.
+2. Cria o destino ausente como tabela Iceberg com o schema da entrada. Para
+   um destino existente, valida a coluna de origem e consulta se algum nome
+   da entrada já está presente. Os nomes distintos são reutilizados no Spark;
+   não são coletados no driver.
+3. Havendo correspondência, verifica a compatibilidade das colunas antes de
+   excluir somente as linhas atribuídas às origens da entrada. Insere todas
+   as linhas do Parquet, incluindo duplicadas, sem aplicar casts ou filtros
+   no loader. Sem correspondências, insere sem executar `DELETE`.
 
-`control_table` aceita somente string ou `None`. A inferência usa os prefixos
-exatos `s3a://` e `file://`; demais strings devem ser nomes de tabela válidos.
-DataFrame é o formato interno da leitura do Parquet, não um argumento aceito.
-O Parquet de controle é um diretório/dataset, mesmo com sufixo `.parquet`.
-Use URI absoluta; `/dados/controle` não é convertido automaticamente em URI.
-URIs podem usar percent-encoding para caracteres literais, como espaços.
+A comparação usa o valor de `no_arquivo_origem`, sem normalização, não o
+caminho físico do Parquet. Cada nome precisa identificar uma única origem no
+destino. Não envie um fragmento isolado se a mesma origem estiver distribuída
+em outros arquivos ou partições. Não há tabela externa de controle.
 
-Tipos inválidos geram `TypeError`; nomes/URIs inválidos geram `ValueError`.
-Raízes, wildcard, traversal e sobreposição com origem ou localização física
-do destino existente são rejeitados. Não compartilhar diretórios de controle e
-dados. A verificação lexical/Hadoop e a resolução local de links não detectam
-todos os aliases entre montagens, endpoints ou catálogos.
+#### Consistência e desempenho
 
-**Migração:** os argumentos `control_table_name` e `control_table_path` foram
-removidos e causam erro de assinatura. Substitua-os por uma única string em
-`control_table`; o recebimento de DataFrame inicial também foi removido.
-
-O controle deve conter **exatamente duas colunas**, com os seguintes tipos:
-
-| Coluna | Spark | Conteúdo |
-|---|---|---|
-| `no_arquivo_origem` | `StringType` | Nome da origem presente nas linhas do Parquet |
-| `dh_carga` | `TimestampNTZType` | Instante da última carga bem-sucedida, UTC por convenção, sem fuso armazenado |
-
-No Iceberg, o tipo temporal é timestamp sem fuso, consultável pelo Trino como
-timestamp sem fuso. A precisão é de microssegundos. O loader não altera o fuso
-da sessão Spark. O controle é validado: nomes e timestamps não podem ser nulos,
-nomes não podem ser vazios/só espaços e deve haver uma única linha por origem.
-Não há conversão ou migração silenciosa de controles incompatíveis.
-
-O fluxo com controle habilitado é:
-
-1. **Antes de ler a origem**, verificar o controle. Se ausente, criar dataset
-   Parquet ou tabela Iceberg vazios com schema explícito. Se presente, ler e
-   validar o schema e conteúdo. Diretórios existentes sem schema ou arquivos
-   isolados são rejeitados, não sobrescritos para inicialização.
-2. Testar gravação: em Parquet, escrever/remover datasets temporários no prefixo
-   do controle e em área irmã; em tabela, executar append vazio e MERGE vazio
-   na própria tabela. Não inserir linhas fictícias nem mudar timestamps.
-   Metadados/snapshots Iceberg podem mudar. Falhas, inclusive no cleanup das
-   sondagens, interrompem a chamada antes da carga. Somente então ler o Parquet
-   de origem e validar colunas, chaves e nomes de origem.
-3. Em `append`/`insert_only`, excluir todas as linhas cujos nomes de origem já
-estejam no controle. Ao final do `source_file`, emitir no máximo uma linha
-agregada informando que houve linhas não carregadas e quantas origens foram
-ignoradas, sem listar nomes de arquivos. Em `merge`, mantê-las e não gerar
-logs por arquivo. Nomes são comparados exatamente, sem normalização.
-4. Se não houver origens elegíveis, retornar com log sem carregar dados nem
-   registrar novas origens. O controle vazio e os metadados das sondagens podem
-   permanecer. Isso inclui entradas vazias.
-5. Carregar as linhas elegíveis e só então registrar o controle. Cada origem
-   recebe uma única linha; em recargas `merge`, `dh_carga` é atualizado. Uma
-   chamada usa o mesmo timestamp para todas as origens registradas.
-
-Um diretório pode conter várias origens e uma origem pode estar distribuída em
-vários arquivos físicos. A unidade do controle é o valor de `no_arquivo_origem`,
-não o caminho físico. Registra-se toda origem consumida antes da deduplicação,
-mesmo se suas linhas forem eliminadas por chaves coincidentes ou `insert_only`
-não inserir nenhuma chave nova. As chaves de negócio não são alteradas.
-
-Exemplo de controle Parquet:
-
-```python
-from teleutils.core.loaders import TrinoLoader
-
-TrinoLoader(spark).upsert_iceberg(
-    "/dados/cdr_padronizado.parquet",
-    "catalogo.schema.chamadas",
-    mode="append",
-    control_table="s3a://bucket/controle/chamadas.parquet",
-)
-```
-
-O controle é relido do armazenamento em cada chamada. Para tabelas Iceberg,
-atualiza-se por MERGE. Para Parquet, monta-se o controle completo atualizado,
-materializa-se em dataset temporário irmão e então lê-se esse temporário para
-sobrescrever o caminho original. Isso evita um plano lazy que tente ler arquivos
-removidos pelo próprio overwrite. Não há coleta do controle inteiro no driver,
-backup do controle anterior ou publicação atômica por rename.
-
-`append_to_iceberg(source_file, target_table, *, control_table=None)` encaminha a opção
-para `upsert_iceberg(..., mode="append")`.
-
-#### Pré-requisitos e consistência
-
-- Catálogo, namespace, extensões Iceberg, acesso ao armazenamento e handlers de
-  logging são responsabilidade do chamador.
-- S3A usa o filesystem Hadoop e as credenciais da sessão Spark. As permissões
-  devem permitir leitura, escrita e remoção no controle e na área temporária
-  irmã. Em `file://`, os caminhos precisam estar disponíveis nos executores,
-  não apenas no driver.
-- Falhas de permissão, schema e catálogo são propagadas, não interpretadas como
-  controle ausente. Ausência do controle, por si só, não é erro: tenta-se criá-lo.
-- Sondagens não garantem commits futuros: permissões específicas por objeto,
-  otimizações de escritas vazias e mudanças externas podem causar falhas depois.
-- **Dados e controle não compartilham transação.** Falha na escrita de dados
-  impede o registro; falha no registro após o commit dos dados é reportada como
-  falha parcial e propagada. Repetir `append` pode duplicar registros. Não há
-  rollback automático, retry ou garantia de exactly-once. O controle Parquet
-  anterior pode ser perdido caso a sobrescrita falhe.
-- Serialize chamadas que compartilham destino/controle e mantenha os Parquets
-  estáveis durante a carga. Use um controle exclusivo por destino; as duas
-  colunas não distinguem tabelas de destino. Não permitir leitores externos do
-  controle Parquet durante sua sobrescrita; não há garantia de atomicidade.
-- O Trino precisa acessar o mesmo catálogo e armazenamento. Tabelas acessíveis
-  exclusivamente por conexão direta ao Trino não são suportadas.
+- **`DELETE` e `INSERT` são commits separados.** Leitores do Iceberg podem
+  observar o estado intermediário. Falhas são relançadas; se a inserção falhar
+  após a exclusão, verifique o estado do destino e reprocesse a mesma entrada
+  completa. Não há rollback ou retry automático.
+- Serialize as escritas no destino e mantenha o Parquet imutável e disponível
+  até validar a carga. A rotina não bloqueia outros escritores.
+- A consulta de existência lê apenas a coluna de origem e pode parar no
+  primeiro resultado. Em recargas, o destino é acessado novamente pelo
+  `DELETE`. Sem poda eficaz de arquivos, ambas as operações podem ler grande
+  parte da tabela. O `DELETE` por linha pode reescrever arquivos afetados;
+  o custo depende do layout, dos metadados e da configuração Iceberg. O loader
+  não altera o particionamento.
+- O chamador configura catálogo, namespace, extensões Iceberg, permissões
+  de armazenamento e logs. O Trino deve acessar o mesmo catálogo e os mesmos
+  dados; o loader não abre conexão direta ao Trino.
 
 #### Testes de integração do loader
 

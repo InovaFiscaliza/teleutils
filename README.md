@@ -294,20 +294,17 @@ loader = TrinoLoader(spark)
 loader.upsert_iceberg(
     "/dados/cdr_padronizado.parquet",
     "catalogo.schema.chamadas",
-    mode="insert_only",
-    control_table="catalogo.schema.controle_chamadas",
 )
 ```
 
-| Opção | Efeito |
-| :-- | :-- |
-| `mode="append"` ou `"insert_only"` | Pula arquivos de origem já carregados. |
-| `mode="merge"` | Permite recarregar arquivos já carregados. |
-| `control_table` | Tabela (ou dataset Parquet `s3a://` / `file://`) que registra os arquivos já carregados; sem ele, não há controle. |
+Origens novas são inseridas. Em recargas, o loader exclui somente as linhas
+cujos valores de `no_arquivo_origem` aparecem na entrada e depois insere todo
+o Parquet. Cada nome deve identificar uma única origem por tabela, e a entrada
+deve conter todas as linhas das origens que apresenta.
 
-A escrita dos dados e a do controle são operações separadas: use um controle
-exclusivo para cada destino e evite execuções simultâneas. Detalhes na
-[referência da API](docs/teleutils_api.md#teleutilscoreloaders).
+Exclusão e inserção têm commits separados. Serialize as escritas no destino e
+mantenha a entrada disponível para reprocessamento. Veja a
+[referência da API](docs/teleutils_api.md#teleutilscoreloaders) para detalhes.
 
 ### Módulos auxiliares
 

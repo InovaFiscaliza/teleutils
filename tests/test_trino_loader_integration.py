@@ -1,19 +1,16 @@
 import os
 import sys
-from datetime import datetime, timezone
-from pathlib import Path
+from collections import Counter
 from uuid import uuid4
 
 import pytest
+from pyspark.errors import AnalysisException
 from pyspark.sql import SparkSession
-from pyspark.sql import functions as F
 from pyspark.sql import types as T
+from pyspark.sql.readwriter import DataFrameWriterV2
 
 from teleutils._config import TARGET_SCHEMA
 from teleutils.core.loaders import TrinoLoader
-from teleutils.core.loaders.trino_loader import _CONTROL_SCHEMA
-
-_OLD_LOAD = datetime(2020, 1, 1, tzinfo=timezone.utc).replace(tzinfo=None)
 
 pytestmark = pytest.mark.skipif(
     not (os.environ.get("ICEBERG_TESTS") or os.environ.get("ICEBERG_TEST_JARS")),
@@ -60,23 +57,23 @@ def spark(tmp_path_factory):
             session.stop()
 
 
-@pytest.fixture(params=["table", "parquet"])
-def tables(spark, request, tmp_path):
-    suffix = uuid4().hex
-    target, control = f"test.loads.data_{suffix}", f"test.loads.control_{suffix}"
-    if request.param == "parquet":
-        control = (tmp_path / "control.parquet").as_uri()
-    yield target, control
-    for table in (target, control):
-        if not table.startswith("file://"):
-            spark.sql(f"DROP TABLE IF EXISTS {table} PURGE")
+@pytest.fixture
+def target(spark):
+    table = f"test.loads.data_{uuid4().hex}"
+    yield table
+    spark.sql(f"DROP TABLE IF EXISTS {table} PURGE")
 
 
-def write_source(spark, path, records):
+def write_source(spark, path, records, *, reference_type=None):
     schema = T.StructType(
         [
-            T.StructField(name, data_type, True)
-            for name, data_type in TARGET_SCHEMA.values()
+            T.StructField(
+                name,
+                reference_type
+                if name == "nu_referencia" and reference_type is not None
+                else kind,
+            )
+            for name, kind in TARGET_SCHEMA.values()
         ]
     )
     spark.createDataFrame(
@@ -89,317 +86,83 @@ def write_source(spark, path, records):
     return str(path)
 
 
-def read_control(spark, table):
-    df = (
-        spark.read.parquet(table) if table.startswith("file://") else spark.table(table)
+def rows(spark, target):
+    return Counter(
+        tuple(row)
+        for row in spark.table(target)
+        .select("no_arquivo_origem", "nu_referencia", "no_bilhetador")
+        .collect()
     )
-    assert df.columns == _CONTROL_SCHEMA.names
-    assert isinstance(df.schema["dh_carga"].dataType, T.TimestampNTZType)
-    rows = df.collect()
-    assert len({row.no_arquivo_origem for row in rows}) == len(rows)
-    return {row.no_arquivo_origem: row.dh_carga for row in rows}
 
 
-def write_control(df, control):
-    if control.startswith("file://"):
-        df.write.parquet(control)
-    else:
-        df.writeTo(control).using("iceberg").create()
-
-
-@pytest.mark.parametrize("mode", ["merge", "insert_only", "append"])
-def test_persistent_control_filters_and_records_all_write_paths(
-    spark, tables, tmp_path, caplog, mode
-):
-    target, control = tables
+def test_new_origins_only_append_to_existing_iceberg(spark, target, tmp_path):
     loader = TrinoLoader(spark)
-    first = write_source(spark, tmp_path / "first", [("a'`.csv", "1", "old")])
-    with caplog.at_level("INFO"):
-        loader.upsert_iceberg(
-            first, target, ["nu_referencia"], mode=mode, control_table=control
-        )
-    first_control = read_control(spark, control)
-    assert set(first_control) == {"a'`.csv"}
-    assert "não existe" in caplog.text
-    second = write_source(
-        spark,
-        tmp_path / "second",
-        [("a'`.csv", "1", "updated"), ("new.csv", "2", "new")],
-    )
-    with caplog.at_level("INFO"):
-        loader.upsert_iceberg(
-            second, target, ["nu_referencia"], mode=mode, control_table=control
-        )
-    actual = {
-        row.nu_referencia: row.no_bilhetador for row in spark.table(target).collect()
-    }
-    assert actual == {"1": "updated" if mode == "merge" else "old", "2": "new"}
-    assert spark.table(target).count() == 2
-    second_control = read_control(spark, control)
-    assert set(second_control) == {"a'`.csv", "new.csv"}
-    if mode == "merge":
-        assert second_control["a'`.csv"] > first_control["a'`.csv"]
-        assert "Recarregando origem" not in caplog.text
-        assert "linhas não carregadas" not in caplog.text
-    else:
-        assert second_control["a'`.csv"] == first_control["a'`.csv"]
-        summary_lines = [
-            line for line in caplog.text.splitlines() if "linhas não carregadas" in line
-        ]
-        assert len(summary_lines) == 1
-        assert second in summary_lines[0]
-        assert "a'`.csv" not in summary_lines[0]
-        with caplog.at_level("INFO"):
-            caplog.clear()
-            loader.upsert_iceberg(
-                second, target, ["nu_referencia"], mode=mode, control_table=control
-            )
-        assert read_control(spark, control) == second_control
-        assert spark.table(target).count() == 2
-        assert (
-            sum("linhas não carregadas" in line for line in caplog.text.splitlines())
-            == 1
-        )
-        assert "Nenhuma origem elegível" not in caplog.text
+    first = ("a.csv", "1", "first")
+    new = ("b.csv", "1", "new")
+    loader.upsert_iceberg(write_source(spark, tmp_path / "first", [first]), target)
+    before = spark.table(f"{target}.snapshots").count()
+    loader.upsert_iceberg(write_source(spark, tmp_path / "new", [new]), target)
+    assert rows(spark, target) == Counter([first, new])
+    assert spark.table(f"{target}.snapshots").count() == before + 1
 
 
-@pytest.mark.parametrize("backend", ["table", "parquet"])
-def test_many_previously_loaded_files_produce_one_summary_line(
-    spark, tmp_path, caplog, backend
-):
-    target = f"test.loads.log_{uuid4().hex}"
-    control = (
-        f"test.loads.control_{uuid4().hex}"
-        if backend == "table"
-        else (tmp_path / f"control-{uuid4().hex}.parquet").as_uri()
-    )
-    existing = [f"old-{index}.csv" for index in range(20)]
+def test_reload_multiple_origins_replaces_only_their_rows(spark, target, tmp_path):
+    loader = TrinoLoader(spark)
+    keep = ("a'`.csv.backup", "1", "keep")
+    initial = [("a'`.csv", "1", "old"), ("b.csv", "2", "old"), keep]
+    loader.upsert_iceberg(write_source(spark, tmp_path / "first", initial), target)
+    replacement = [
+        ("a'`.csv", "3", "updated"),
+        ("a'`.csv", "3", "updated"),
+        ("new.csv", "1", "new"),
+        ("b.csv", "2", "updated"),
+    ]
+    source = write_source(spark, tmp_path / "replacement", replacement)
+    for _ in range(2):
+        loader.upsert_iceberg(source, target)
+        assert rows(spark, target) == Counter([keep, *replacement])
+
+
+def test_empty_parquet_does_not_create_destination(spark, target, tmp_path):
+    source = write_source(spark, tmp_path / "empty", [])
+    TrinoLoader(spark).upsert_iceberg(source, target)
+    assert not spark.catalog.tableExists(target)
+
+
+def test_incompatible_source_preserves_existing_rows(spark, target, tmp_path):
+    loader = TrinoLoader(spark)
+    initial = ("a.csv", "1", "old")
+    loader.upsert_iceberg(write_source(spark, tmp_path / "first", [initial]), target)
     source = write_source(
         spark,
-        tmp_path / f"source-{backend}",
-        [(name, str(index), "old") for index, name in enumerate(existing)]
-        + [("new.csv", "new", "new")],
+        tmp_path / "bad",
+        [("a.csv", ["1"], "new")],
+        reference_type=T.ArrayType(T.StringType()),
     )
-    write_control(
-        spark.createDataFrame(
-            [(name, _OLD_LOAD) for name in existing], _CONTROL_SCHEMA
-        ),
-        control,
-    )
-    try:
-        with caplog.at_level("INFO"):
-            TrinoLoader(spark).upsert_iceberg(
-                source, target, ["nu_referencia"], mode="append", control_table=control
-            )
-        summaries = [
-            line for line in caplog.text.splitlines() if "linhas não carregadas" in line
-        ]
-        assert len(summaries) == 1
-        assert source in summaries[0]
-        assert all(name not in summaries[0] for name in existing)
-        assert "Pulando origem já carregada" not in caplog.text
-        assert "old-" not in caplog.text
-    finally:
-        spark.sql(f"DROP TABLE IF EXISTS {target} PURGE")
-        if backend == "table":
-            spark.sql(f"DROP TABLE IF EXISTS {control} PURGE")
+    with pytest.raises(AnalysisException, match="nu_referencia"):
+        loader.upsert_iceberg(source, target)
+    assert rows(spark, target) == Counter([initial])
 
 
-@pytest.mark.parametrize("mode", ["merge", "insert_only"])
-def test_all_consumed_origins_recorded_before_deduplication(
-    spark, tables, tmp_path, mode
+def test_insert_failure_after_delete_can_be_reprocessed(
+    spark, target, tmp_path, monkeypatch, caplog
 ):
-    target, control = tables
-    source = write_source(
-        spark, tmp_path / "source", [("a.csv", "1", "a"), ("b.csv", "1", "b")]
-    )
     loader = TrinoLoader(spark)
-    loader.upsert_iceberg(
-        source, target, ["nu_referencia"], mode=mode, control_table=control
-    )
-    assert spark.table(target).count() == 1
-    assert set(read_control(spark, control)) == {"a.csv", "b.csv"}
-    next_source = write_source(spark, tmp_path / "next", [("c.csv", "1", "c")])
-    loader.upsert_iceberg(
-        next_source, target, ["nu_referencia"], mode=mode, control_table=control
-    )
-    assert spark.table(target).count() == 1
-    assert set(read_control(spark, control)) == {"a.csv", "b.csv", "c.csv"}
+    keep = ("b.csv", "2", "keep")
+    initial = [("a.csv", "1", "old"), keep]
+    loader.upsert_iceberg(write_source(spark, tmp_path / "first", initial), target)
+    replacement = ("a.csv", "3", "updated")
+    source = write_source(spark, tmp_path / "new", [replacement])
 
+    def fail_insert(writer):
+        raise RuntimeError("insert failed")
 
-@pytest.mark.parametrize("empty", [False, True])
-def test_no_eligible_origins_prepares_control_without_loading_data(
-    spark, tables, tmp_path, empty
-):
-    target, control = tables
-    records = [] if empty else [("known.csv", "1", "old")]
-    source = write_source(spark, tmp_path / "source", records)
-    if not empty:
-        write_control(
-            spark.createDataFrame([("known.csv", _OLD_LOAD)], _CONTROL_SCHEMA), control
-        )
-    TrinoLoader(spark).upsert_iceberg(
-        source, target, mode="append", control_table=control
-    )
-    assert not spark.catalog.tableExists(target)
-    assert read_control(spark, control) == ({} if empty else {"known.csv": _OLD_LOAD})
-
-
-def test_existing_records_preserved_and_reloaded_names_updated(spark, tables, tmp_path):
-    target, control = tables
-    seed = spark.createDataFrame(
-        [("old.csv", _OLD_LOAD), ("reload.csv", _OLD_LOAD)],
-        _CONTROL_SCHEMA,
-    )
-    write_control(seed, control)
-    source = write_source(spark, tmp_path / "source", [("reload.csv", "1", "updated")])
-    TrinoLoader(spark).upsert_iceberg(source, target, control_table=control)
-    actual = read_control(spark, control)
-    assert actual["old.csv"] == _OLD_LOAD
-    assert actual["reload.csv"] > _OLD_LOAD
-
-
-@pytest.mark.parametrize("invalid", [None, "", " \t\n", "\u00a0"])
-def test_invalid_origin_fails_without_writes(spark, tables, tmp_path, invalid):
-    target, control = tables
-    source = write_source(spark, tmp_path / "source", [(invalid, "1", "bad")])
-    with pytest.raises(ValueError, match="no_arquivo_origem"):
-        TrinoLoader(spark).upsert_iceberg(source, target, control_table=control)
-    assert not spark.catalog.tableExists(target)
-    assert read_control(spark, control) == {}
-
-
-@pytest.mark.parametrize(
-    "invalid",
-    ["extra_column", "wrong_timestamp", "null_timestamp", "duplicate", "wrong_origin"],
-)
-def test_invalid_control_fails_without_writes(spark, tables, tmp_path, invalid):
-    target, control = tables
-    source = write_source(spark, tmp_path / "source", [("new.csv", "1", "new")])
-    seed = spark.createDataFrame([("old.csv", _OLD_LOAD)], _CONTROL_SCHEMA)
-    if invalid == "extra_column":
-        seed = seed.withColumn("extra", F.lit(1))
-    elif invalid == "wrong_timestamp":
-        seed = seed.withColumn("dh_carga", F.col("dh_carga").cast("timestamp"))
-    elif invalid == "null_timestamp":
-        seed = seed.withColumn("dh_carga", F.lit(None).cast("timestamp_ntz"))
-    elif invalid == "duplicate":
-        seed = seed.unionByName(seed)
-    else:
-        seed = seed.withColumn("no_arquivo_origem", F.lit(123))
-    write_control(seed, control)
-    with pytest.raises((ValueError, TypeError), match="control_table"):
-        TrinoLoader(spark).upsert_iceberg(source, target, control_table=control)
-    assert not spark.catalog.tableExists(target)
-
-
-@pytest.mark.parametrize("timezone", ["UTC", "America/Sao_Paulo", "Asia/Tokyo"])
-def test_timestamp_is_utc_without_session_timezone_conversion(
-    spark, tables, tmp_path, monkeypatch, timezone
-):
-    target, control = tables
-    source = write_source(spark, tmp_path / "source", [("new.csv", "1", "new")])
-    previous = spark.conf.get("spark.sql.session.timeZone")
-    fixed = datetime.fromisoformat("2026-10-29T13:06:25.123456+00:00")
-
-    class Clock:
-        @staticmethod
-        def now(tz):
-            return fixed.astimezone(tz)
-
-    monkeypatch.setattr("teleutils.core.loaders.trino_loader.datetime", Clock)
-    try:
-        spark.conf.set("spark.sql.session.timeZone", timezone)
-        TrinoLoader(spark).upsert_iceberg(source, target, control_table=control)
-        assert read_control(spark, control) == {"new.csv": fixed.replace(tzinfo=None)}
-        assert spark.conf.get("spark.sql.session.timeZone") == timezone
-    finally:
-        spark.conf.set("spark.sql.session.timeZone", previous)
-
-
-def test_failure_before_or_after_data_commit(
-    spark, tables, tmp_path, monkeypatch, caplog
-):
-    target, control = tables
-    source = write_source(spark, tmp_path / "source", [("new.csv", "1", "new")])
-    loader = TrinoLoader(spark)
-
-    def fail(*_args, **_kwargs):
-        raise RuntimeError("injected failure")
-
-    with monkeypatch.context() as context:
-        context.setattr(loader, "_write_data", fail)
-        with pytest.raises(RuntimeError, match="injected"):
-            loader.upsert_iceberg(source, target, control_table=control)
-    assert not spark.catalog.tableExists(target)
-    assert read_control(spark, control) == {}
-    with monkeypatch.context() as context:
-        context.setattr(loader, "_record_control", fail)
-        with pytest.raises(RuntimeError, match="injected"):
-            loader.upsert_iceberg(source, target, control_table=control)
-    assert spark.table(target).count() == 1
-    assert read_control(spark, control) == {}
+    with monkeypatch.context() as patch:
+        patch.setattr(DataFrameWriterV2, "append", fail_insert)
+        with pytest.raises(RuntimeError, match="insert failed"):
+            loader.upsert_iceberg(source, target)
     assert "Falha parcial" in caplog.text
+    assert rows(spark, target) == Counter([keep])
 
-
-def test_control_catalog_failure_is_not_treated_as_missing(
-    spark, tables, tmp_path, monkeypatch
-):
-    target, control = tables
-    source = write_source(spark, tmp_path / "source", [("new.csv", "1", "new")])
-    loader = TrinoLoader(spark)
-
-    def fail(_table):
-        raise PermissionError("catalog access denied")
-
-    with monkeypatch.context() as context:
-        context.setattr(spark.catalog, "tableExists", fail)
-        with pytest.raises(PermissionError, match="catalog access denied"):
-            loader.upsert_iceberg(source, target, control_table=control)
-    assert not spark.catalog.tableExists(target)
-
-
-def test_preflight_preserves_records_before_source_read(spark, tables, tmp_path):
-    target, control = tables
-    source = write_source(spark, tmp_path / "source", [("new.csv", "1", "new")])
-    loader = TrinoLoader(spark)
-    write_control(
-        spark.createDataFrame([("old.csv", _OLD_LOAD)], _CONTROL_SCHEMA), control
-    )
-    prepared = loader._prepare_control(control, source, target)
-    assert prepared.count() == 1
-    assert read_control(spark, control) == {"old.csv": _OLD_LOAD}
-    assert not spark.catalog.tableExists(target)
-    assert not list(tmp_path.glob("*.teleutils_*"))
-    assert not list((tmp_path / "control.parquet").glob("_teleutils_probe_*"))
-
-
-def test_internal_storage_is_released_without_uncaching_caller(spark, tables, tmp_path):
-    target, control = tables
-    source = write_source(spark, tmp_path / "source", [("new.csv", "1", "new")])
-    seed = spark.createDataFrame([], _CONTROL_SCHEMA).cache()
-    seed.count()
-    before = spark.sparkContext._jsc.getPersistentRDDs().size()
-    try:
-        TrinoLoader(spark).upsert_iceberg(source, target, control_table=control)
-        assert seed.is_cached
-        assert spark.sparkContext._jsc.getPersistentRDDs().size() == before
-    finally:
-        seed.unpersist()
-
-
-def test_control_path_cannot_overlap_iceberg_data(spark, tmp_path):
-    target = f"test.loads.overlap_{uuid4().hex}"
-    source = write_source(spark, tmp_path / "source", [("new.csv", "1", "new")])
-    try:
-        TrinoLoader(spark).upsert_iceberg(source, target)
-        details = spark.sql(f"DESCRIBE TABLE EXTENDED {target}").collect()
-        location = next(row.data_type for row in details if row.col_name == "Location")
-        control = Path(location.removeprefix("file:")).as_uri()
-        with pytest.raises(ValueError, match="sobrepor"):
-            TrinoLoader(spark).upsert_iceberg(
-                source, target, mode="append", control_table=control
-            )
-        assert spark.table(target).count() == 1
-    finally:
-        spark.sql(f"DROP TABLE IF EXISTS {target} PURGE")
+    loader.upsert_iceberg(source, target)
+    assert rows(spark, target) == Counter([keep, replacement])
