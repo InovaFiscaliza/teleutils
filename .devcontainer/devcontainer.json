@@ -44,7 +44,8 @@
         "charliermarsh.ruff",
         "tamasfe.even-better-toml",
         "mutantdino.resourcemonitor",
-        "mechatroner.rainbow-csv"
+        "mechatroner.rainbow-csv",
+        "shd101wyy.markdown-preview-enhanced"
       ],
       "settings": {
         "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python"
