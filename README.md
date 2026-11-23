@@ -59,7 +59,7 @@ Jupyter ou scripts Python com Apache Spark.
 ### Componentes
 
 Os módulos principais ficam em `teleutils.core` e formam o pipeline de CDRs. Os
-demais são acessórios e podem ser usados de forma independente.
+demais são auxiliares e podem ser usados de forma independente.
 
 | Tipo | Módulo | Função |
 | :-- | :-- | :-- |
@@ -67,8 +67,8 @@ demais são acessórios e podem ser usados de forma independente.
 | Principal | `teleutils.core.transformers` | Aplica as regras de cada layout e gera o dataset padronizado. |
 | Principal | `teleutils.core.orchestrators` | Executa extração e transformação de vários arquivos a partir de uma configuração e informa o resultado de cada um. |
 | Principal | `teleutils.core.loaders` | Carrega o dataset padronizado em tabelas Iceberg (`TrinoLoader`). |
-| Acessório | `teleutils.preprocessing` | Extrai números telefônicos brasileiros e valida CNPJ, sem Spark. |
-| Acessório | `scripts/` | Scripts Bash que enviam CDRs ao MinIO ou os copiam para uma pasta local. |
+| Auxiliar | `teleutils.preprocessing` | Extrai números telefônicos brasileiros e valida CNPJ, sem Spark. |
+| Auxiliar | `scripts/` | Scripts Bash que enviam CDRs ao MinIO ou os copiam para uma pasta local. |
 
 [⬆ Voltar ao topo](#sumário)
 
@@ -281,11 +281,11 @@ Pontos de atenção:
 - `run_etl(..., materialize_intermediate=False)` dispensa o Parquet
   intermediário e `extracted_folder`.
 
-[⬆ Voltar ao topo](#sumário)
-
 ### Carregar o resultado em Iceberg
 
-Use uma sessão Spark com extensões e catálogo Iceberg compartilhado com o Trino:
+O `TrinoLoader` carrega o Parquet padronizado em uma tabela Iceberg, substituindo
+as origens reenviadas. Use uma sessão Spark com extensões e catálogo Iceberg
+compartilhado com o Trino:
 
 ```python
 from teleutils.core.loaders import TrinoLoader
@@ -297,14 +297,15 @@ loader.upsert_iceberg(
 )
 ```
 
-Origens novas são inseridas. Em recargas, o loader exclui somente as linhas
-cujos valores de `no_arquivo_origem` aparecem na entrada e depois insere todo
-o Parquet. Cada nome deve identificar uma única origem por tabela, e a entrada
-deve conter todas as linhas das origens que apresenta.
+- Origens novas (`no_arquivo_origem`) são inseridas; em recargas, só as linhas
+  das origens presentes na entrada são excluídas antes da inserção.
+- Cada nome deve identificar uma única origem por tabela, e a entrada deve
+  conter todas as linhas das origens que apresenta.
+- Exclusão e inserção têm commits separados: se a inserção falhar, reprocesse a
+  mesma entrada completa.
+- Serialize as escritas no destino; não há tabela de controle nem `MERGE`.
 
-Exclusão e inserção têm commits separados. Serialize as escritas no destino e
-mantenha a entrada disponível para reprocessamento. Veja a
-[referência da API](docs/teleutils_api.md#teleutilscoreloaders) para detalhes.
+Mais detalhes na [referência da API](docs/teleutils_api.md#teleutilscoreloaders).
 
 ### Módulos auxiliares
 
@@ -424,4 +425,6 @@ bats tests/shell/copy_cdr_to_local.bats
 - Os testes não certificam o acesso S3A de um ambiente Big Data específico.
 - `CDRTransformer.transform` não localiza os métodos de layout da instância: use
   `transform_<layout>` ou o orquestrador.
+- A carga em Iceberg não é atômica: `DELETE` e `INSERT` são commits separados e
+  não há rollback automático.
 - Não há CLI Python; os únicos utilitários de linha de comando são os scripts Bash.

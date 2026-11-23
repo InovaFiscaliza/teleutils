@@ -689,7 +689,7 @@ em suas próprias máquinas. A existência apenas no driver não é suficiente.
 Não se verifica existência, permissões, links simbólicos ou equivalência de
 montagens; a detecção de conflitos é lexical.
 
-Para uso no Jupyter, consulte o [exemplo do README](../README.md#orquestração-de-lotes-no-jupyter).
+Para uso no Jupyter, consulte o [exemplo do README](../README.md#processar-lotes-de-cdrs-orquestrador).
 
 ## Erros e efeitos colaterais
 
