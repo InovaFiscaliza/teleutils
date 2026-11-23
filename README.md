@@ -395,6 +395,7 @@ teleutils/
 | Documento | Descrição |
 | :-- | :-- |
 | [Referência da API](docs/teleutils_api.md) | Interfaces públicas, parâmetros, retornos, erros e efeitos colaterais. |
+| [Modelo de dados dos CDRs](docs/teleutils_modelo_de_dados.md) | Campos do contrato final dos transformadores e seus significados. |
 | [Linhagem e transformações dos dados](docs/teleutils_linhagem_transformacoes_dados.md) | Origem, regras de transformação e destino das colunas dos CDRs. |
 | [Transferência semanal de CDRs para MinIO](docs/teleutils_upload_cdr_to_minio.md) | Scripts Bash de envio e cópia local: configuração JSON, opções, relatório e testes. |
 
