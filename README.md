@@ -276,8 +276,8 @@ Pontos de atenção:
 - confira o relatório (`report.items`): o término do lote não significa que todos
   os itens tiveram sucesso;
 - um mesmo item usa um único tipo de armazenamento para origem e destinos;
-- para ler a configuração de um JSON, use `load_config`; para listar arquivos
-  no MinIO, use `list_files`;
+- para ler a configuração de um JSON, use `load_etl_configs`; para listar
+  arquivos no MinIO, use `list_files`;
 - `run_etl(..., materialize_intermediate=False)` dispensa o Parquet
   intermediário e `extracted_folder`.
 

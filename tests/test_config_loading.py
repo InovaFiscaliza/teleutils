@@ -4,7 +4,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from teleutils.core.orchestrators import load_config
+from teleutils.core.orchestrators import load_etl_configs
 
 
 def test_load_example_configuration():
@@ -12,7 +12,7 @@ def test_load_example_configuration():
         Path(__file__).resolve().parents[1]
         / "src/teleutils/core/orchestrators/etl.config.example.json"
     )
-    configs = load_config(str(path))
+    configs = load_etl_configs(str(path))
     assert configs
     assert all("output_file_prefix" in config for config in configs)
 
@@ -24,7 +24,7 @@ def test_load_local_configuration_without_minio_environment(tmp_path, monkeypatc
     path = tmp_path / "etl.json"
     path.write_text(json.dumps(configs), encoding="utf-8")
 
-    assert load_config(str(path)) == configs
+    assert load_etl_configs(str(path)) == configs
 
 
 @pytest.mark.parametrize(
@@ -44,7 +44,7 @@ def test_invalid_local_configuration_is_rejected(tmp_path, content, error, messa
     path = tmp_path / "etl.json"
     path.write_text(content, encoding="utf-8")
     with pytest.raises(error, match=message):
-        load_config(str(path))
+        load_etl_configs(str(path))
 
 
 @pytest.mark.parametrize(
@@ -59,17 +59,17 @@ def test_invalid_local_configuration_is_rejected(tmp_path, content, error, messa
 )
 def test_invalid_paths_are_rejected(path):
     with pytest.raises(ValueError, match="path"):
-        load_config(path)
+        load_etl_configs(path)
 
 
 def test_missing_local_file_is_reported(tmp_path):
     with pytest.raises(FileNotFoundError):
-        load_config(str(tmp_path / "missing.json"))
+        load_etl_configs(str(tmp_path / "missing.json"))
 
 
 def test_invalid_path_type_is_rejected():
     with pytest.raises(TypeError, match="path"):
-        load_config(None)
+        load_etl_configs(None)
 
 
 def test_minio_reads_uri_uses_environment_and_releases_response(monkeypatch):
@@ -83,7 +83,7 @@ def test_minio_reads_uri_uses_environment_and_releases_response(monkeypatch):
     factory = Mock(return_value=client)
     monkeypatch.setattr("minio.Minio", factory)
 
-    result = load_config("s3a://bucket/cdr/sub/file.json", secure=True)
+    result = load_etl_configs("s3a://bucket/cdr/sub/file.json", secure=True)
 
     assert result == [{"output_file_prefix": "item"}]
     factory.assert_called_once_with(
@@ -109,7 +109,7 @@ def test_minio_explicit_options_override_environment(monkeypatch):
     monkeypatch.setattr("minio.Minio", factory)
 
     assert (
-        load_config(
+        load_etl_configs(
             "s3a://bucket/file.json",
             endpoint="server:9000",
             access_key="key",
@@ -135,7 +135,7 @@ def test_minio_releases_response_on_invalid_json_or_duplicate(monkeypatch, conte
     client.get_object.return_value = response
     monkeypatch.setattr("minio.Minio", Mock(return_value=client))
     with pytest.raises(ValueError):
-        load_config(
+        load_etl_configs(
             "s3a://bucket/file",
             endpoint="server",
             access_key="key",
@@ -152,7 +152,7 @@ def test_minio_releases_response_on_read_failure(monkeypatch):
     client.get_object.return_value = response
     monkeypatch.setattr("minio.Minio", Mock(return_value=client))
     with pytest.raises(OSError, match="read failure"):
-        load_config(
+        load_etl_configs(
             "s3a://bucket/file",
             endpoint="server",
             access_key="key",
@@ -168,7 +168,7 @@ def test_missing_minio_setting_is_explicit(monkeypatch, variable):
         monkeypatch.setenv(name, "value")
     monkeypatch.delenv(variable)
     with pytest.raises(ValueError, match=variable):
-        load_config("s3a://bucket/file")
+        load_etl_configs("s3a://bucket/file")
 
 
 def test_minio_get_error_is_propagated(monkeypatch):
@@ -176,7 +176,7 @@ def test_minio_get_error_is_propagated(monkeypatch):
     client.get_object.side_effect = RuntimeError("object unavailable")
     monkeypatch.setattr("minio.Minio", Mock(return_value=client))
     with pytest.raises(RuntimeError, match="object unavailable"):
-        load_config(
+        load_etl_configs(
             "s3a://bucket/file",
             endpoint="server",
             access_key="key",
@@ -186,4 +186,4 @@ def test_minio_get_error_is_propagated(monkeypatch):
 
 def test_minio_secure_must_be_boolean():
     with pytest.raises(TypeError, match="secure"):
-        load_config("s3a://bucket/file", secure="false")
+        load_etl_configs("s3a://bucket/file", secure="false")

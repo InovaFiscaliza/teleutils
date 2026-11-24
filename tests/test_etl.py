@@ -496,7 +496,8 @@ root = logging.getLogger()
 before = list(root.handlers)
 import teleutils.core.orchestrators as api
 assert set(api.__all__) == {
-    'ConfigPaths', 'get_config', 'list_files', 'load_config', 'ETLItemResult',
+    'ConfigPaths', 'build_config_paths', 'list_files', 'load_etl_configs',
+    'ETLItemResult',
     'ETLReport', 'print_etl_report', 'run_etl', 'run_etl_item'
 }
 assert 'pyspark' not in sys.modules

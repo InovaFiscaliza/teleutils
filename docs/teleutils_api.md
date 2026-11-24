@@ -463,7 +463,7 @@ de metadados dos extratores (e suas dependências Python), sem iniciar uma sess�
 ou executar ações Spark. Os componentes de execução são instanciados somente
 quando há itens preparados para executar.
 
-### `load_config(path, *, endpoint=None, access_key=None, secret_key=None, secure=False)`
+### `load_etl_configs(path, *, endpoint=None, access_key=None, secret_key=None, secure=False)`
 
 Lê um arquivo JSON em caminho absoluto Linux ou URI `s3a://bucket/chave` e
 retorna uma lista de dicionários. Em S3A, usa o SDK MinIO; opções omitidas são
@@ -481,7 +481,7 @@ abrange apenas o arquivo lido, não outros arquivos ou execuções.
 #### Exemplo de uso
 
 O arquivo é uma lista de objetos com os campos descritos em
-[`get_config`](#get_configconfig--materialize_intermediatetrue---configpaths).
+[`build_config_paths`](#build_config_pathsconfig--materialize_intermediatetrue---configpaths).
 Itens sem `storage_type` usam S3A.
 
 ```json
@@ -506,14 +506,14 @@ Itens sem `storage_type` usam S3A.
 ```
 
 ```python
-from teleutils.core.orchestrators import load_config
+from teleutils.core.orchestrators import load_etl_configs
 
 # Arquivo local: caminho absoluto Linux.
-configs = load_config("/dados/config/etl.json")
+configs = load_etl_configs("/dados/config/etl.json")
 
 # Arquivo no MinIO: o endpoint e as credenciais vêm de MINIO_ENDPOINT,
 # MINIO_USER e MINIO_SECRET; `secure=True` usa HTTPS.
-configs = load_config("s3a://sandbox-sfi/config/etl.json", secure=True)
+configs = load_etl_configs("s3a://sandbox-sfi/config/etl.json", secure=True)
 ```
 
 ### `list_files(base_folder, pattern="", recursive=False, *, endpoint=None, access_key=None, secret_key=None, secure=False)`
@@ -540,7 +540,7 @@ são arquivos comuns. A base não pode ser um dataset nem um caminho dentro dele
   `pattern` da configuração ETL, que compõe um caminho glob para Spark/Hadoop.
 - Marcadores de diretórios comuns não são retornados como arquivos.
 
-As opções de conexão seguem `load_config`: argumentos explícitos prevalecem
+As opções de conexão seguem `load_etl_configs`: argumentos explícitos prevalecem
 sobre `MINIO_ENDPOINT`, `MINIO_USER` e `MINIO_SECRET`; endpoint sem protocolo.
 O padrão `secure=False` usa HTTP sem criptografia; use `secure=True` para HTTPS.
 Tipos inválidos geram `TypeError`; caminhos, máscaras ou configurações de conexão
@@ -582,7 +582,7 @@ for arquivo in arquivos:
     print(arquivo)
 ```
 
-### `get_config(config, *, materialize_intermediate=True) -> ConfigPaths`
+### `build_config_paths(config, *, materialize_intermediate=True) -> ConfigPaths`
 
 Valida um mapping sem modificá-lo e constrói caminhos S3A ou locais.
 
@@ -641,7 +641,7 @@ permitidos no padrão, não nas pastas nem no prefixo.
 Os destinos representam diretórios/datasets Parquet. A validação não consulta
 S3 nem filesystem local, verifica existência ou certifica integridade.
 Suporte ao schema e conflitos
-de caminhos são verificados por `run_etl`, não por `get_config`.
+de caminhos são verificados por `run_etl`, não por `build_config_paths`.
 
 Tipos inválidos levantam `TypeError`; campos ausentes, desconhecidos, vazios
 ou com valores inválidos levantam `ValueError`.
@@ -652,7 +652,7 @@ Planejamento de caminhos no armazenamento padrão (`s3a`) e no modo `local`. A
 função apenas calcula os caminhos: não consulta S3 nem o filesystem.
 
 ```python
-from teleutils.core.orchestrators import get_config
+from teleutils.core.orchestrators import build_config_paths
 
 config_s3a = {
     "source_folder": "sandbox-sfi/cdr/bruto/tim/stfc/huawei_ngn",
@@ -662,7 +662,7 @@ config_s3a = {
     "transformed_folder": "sandbox-sfi/cdr/transformado",
     "output_file_prefix": "tim_huawei_ngn",
 }
-paths = get_config(config_s3a)
+paths = build_config_paths(config_s3a)
 print(paths.source_file)
 # -> s3a://sandbox-sfi/cdr/bruto/tim/stfc/huawei_ngn/*.csv
 print(paths.extracted_file)
@@ -677,7 +677,7 @@ config_local = {
     "extracted_folder": "/dados/cdr/extraido",
     "transformed_folder": "/dados/cdr/transformado",
 }
-paths = get_config(config_local)
+paths = build_config_paths(config_local)
 print(paths.source_file)
 # -> file:///dados/cdr/bruto/tim/stfc/huawei_ngn/*.csv
 ```
@@ -686,7 +686,7 @@ Com `materialize_intermediate=False`, não há intermediário e `extracted_file`
 `None`:
 
 ```python
-paths = get_config(config_local, materialize_intermediate=False)
+paths = build_config_paths(config_local, materialize_intermediate=False)
 assert paths.extracted_file is None
 print(paths.transformed_file)
 # -> file:///dados/cdr/transformado/tim_huawei_ngn_transformed.parquet
@@ -700,7 +700,7 @@ Strings, mappings no lugar da sequência e iteradores são rejeitados com
 sem instanciar componentes.
 
 `run_etl` não verifica a unicidade global de prefixos em listas fornecidas
-diretamente. Para arquivos JSON, `load_config` faz essa verificação durante
+diretamente. Para arquivos JSON, `load_etl_configs` faz essa verificação durante
 a leitura. Conflitos entre caminhos de destino continuam sendo rejeitados.
 
 O padrão mantém escrita e leitura do intermediário. Com

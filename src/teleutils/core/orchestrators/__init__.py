@@ -2,9 +2,9 @@
 
 from teleutils.core.orchestrators.config import (
     ConfigPaths,
-    get_config,
+    build_config_paths,
     list_files,
-    load_config,
+    load_etl_configs,
 )
 from teleutils.core.orchestrators.etl import (
     ETLItemResult,
@@ -18,9 +18,9 @@ __all__ = [
     "ConfigPaths",
     "ETLItemResult",
     "ETLReport",
-    "get_config",
+    "build_config_paths",
     "list_files",
-    "load_config",
+    "load_etl_configs",
     "print_etl_report",
     "run_etl",
     "run_etl_item",

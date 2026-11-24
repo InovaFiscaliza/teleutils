@@ -6,7 +6,7 @@ from teleutils.core.orchestrators.config import (
     ConfigPaths,
     _prepare_config,
     _validate_unique_prefixes,
-    get_config,
+    build_config_paths,
 )
 
 
@@ -24,7 +24,7 @@ def config():
 
 def test_paths_and_input_are_preserved(config):
     original = config.copy()
-    assert get_config(config) == ConfigPaths(
+    assert build_config_paths(config) == ConfigPaths(
         "stfc_huawei_ngn",
         "s3a://sandbox-sfi/cdr/bruto/algar/stfc/huawei_ngn/*.gz",
         "s3a://sandbox-sfi/cdr/extraido/algar_huawei_ngn_extracted.parquet",
@@ -38,7 +38,7 @@ def test_direct_config_has_no_intermediate_path(config, include_folder):
     if not include_folder:
         del config["extracted_folder"]
     original = config.copy()
-    paths = get_config(config, materialize_intermediate=False)
+    paths = build_config_paths(config, materialize_intermediate=False)
     assert paths.extracted_file is None
     assert paths.transformed_file.endswith("algar_huawei_ngn_transformed.parquet")
     assert config == original
@@ -48,13 +48,13 @@ def test_direct_config_has_no_intermediate_path(config, include_folder):
 def test_direct_config_validates_supplied_intermediate_folder(config, folder):
     config["extracted_folder"] = folder
     with pytest.raises((TypeError, ValueError)):
-        get_config(config, materialize_intermediate=False)
+        build_config_paths(config, materialize_intermediate=False)
 
 
 @pytest.mark.parametrize("invalid", [None, "false", 0, 1, [], {}])
 def test_config_requires_boolean_materialization_mode(config, invalid):
     with pytest.raises(TypeError, match="materialize_intermediate"):
-        get_config(config, materialize_intermediate=invalid)
+        build_config_paths(config, materialize_intermediate=invalid)
 
 
 def test_unique_prefix_validation_reports_all_duplicates_and_indices():
@@ -89,12 +89,14 @@ def test_unique_prefix_validation_leaves_invalid_items_to_individual_validation(
 def test_folder_boundaries_and_pattern(config, protocol):
     config["source_folder"] = f"{protocol}bucket/folder///"
     config["pattern"] = "/sub/file[0-9]?*.gz"
-    assert get_config(config).source_file == "s3a://bucket/folder/sub/file[0-9]?*.gz"
+    assert build_config_paths(config).source_file == (
+        "s3a://bucket/folder/sub/file[0-9]?*.gz"
+    )
 
 
 def test_bare_folder_slashes_and_significant_key_characters(config):
     config["source_folder"] = "bucket/key with spaces/dir+@%25//sub/"
-    assert get_config(config).source_file == (
+    assert build_config_paths(config).source_file == (
         "s3a://bucket/key with spaces/dir+@%25//sub/*.gz"
     )
 
@@ -113,7 +115,7 @@ def test_bare_folder_slashes_and_significant_key_characters(config):
 def test_missing_required_key(config, key):
     del config[key]
     with pytest.raises(ValueError, match=key):
-        get_config(config)
+        build_config_paths(config)
 
 
 @pytest.mark.parametrize("value", [None, 0, True, [], {}])
@@ -131,7 +133,7 @@ def test_missing_required_key(config, key):
 def test_invalid_required_types(config, key, value):
     config[key] = value
     with pytest.raises(TypeError, match=key):
-        get_config(config)
+        build_config_paths(config)
 
 
 @pytest.mark.parametrize("value", ["", " ", "\t"])
@@ -149,7 +151,7 @@ def test_invalid_required_types(config, key, value):
 def test_empty_required_values(config, key, value):
     config[key] = value
     with pytest.raises(ValueError, match=key):
-        get_config(config)
+        build_config_paths(config)
 
 
 @pytest.mark.parametrize("keep_correct", [True, False])
@@ -158,20 +160,20 @@ def test_misspelled_prefix_is_unknown(config, keep_correct):
     if not keep_correct:
         del config["output_file_prefix"]
     with pytest.raises(ValueError, match="Chaves desconhecidas"):
-        get_config(config)
+        build_config_paths(config)
 
 
 @pytest.mark.parametrize("key", ["extra", 1])
 def test_unknown_keys(config, key):
     config[key] = "value"
     with pytest.raises(ValueError, match="Chaves desconhecidas"):
-        get_config(config)
+        build_config_paths(config)
 
 
 @pytest.mark.parametrize("value", [None, [], "config", 1])
 def test_item_must_be_mapping(value):
     with pytest.raises(TypeError, match="mapping"):
-        get_config(value)
+        build_config_paths(value)
 
 
 @pytest.mark.parametrize(
@@ -195,7 +197,7 @@ def test_item_must_be_mapping(value):
 def test_invalid_folders(config, folder):
     config["source_folder"] = folder
     with pytest.raises(ValueError, match="source_folder"):
-        get_config(config)
+        build_config_paths(config)
 
 
 @pytest.mark.parametrize(
@@ -204,14 +206,14 @@ def test_invalid_folders(config, folder):
 def test_invalid_prefix(config, prefix):
     config["output_file_prefix"] = prefix
     with pytest.raises(ValueError, match="output_file_prefix"):
-        get_config(config)
+        build_config_paths(config)
 
 
 @pytest.mark.parametrize("pattern", ["/", "../*", "sub/../*", "s3a://bucket/*", "a\n*"])
 def test_invalid_pattern(config, pattern):
     config["pattern"] = pattern
     with pytest.raises(ValueError, match="pattern"):
-        get_config(config)
+        build_config_paths(config)
 
 
 @pytest.mark.parametrize("key", ["operator", "service", "cdr_type"])
@@ -226,7 +228,7 @@ def test_optional_metadata(config, key, value):
 def test_invalid_metadata(config, key, value, error):
     config[key] = value
     with pytest.raises(error, match=key):
-        get_config(config)
+        build_config_paths(config)
 
 
 def test_schema_not_normalized_and_preparation_is_frozen(config):
@@ -238,16 +240,16 @@ def test_schema_not_normalized_and_preparation_is_frozen(config):
 
 
 def test_explicit_s3a_matches_default(config):
-    default_paths = get_config(config)
+    default_paths = build_config_paths(config)
     config["storage_type"] = "s3a"
-    assert get_config(config) == default_paths
+    assert build_config_paths(config) == default_paths
 
 
 @pytest.mark.parametrize("value", [None, True, 0, [], {}])
 def test_storage_type_must_be_string(config, value):
     config["storage_type"] = value
     with pytest.raises(TypeError, match="storage_type"):
-        get_config(config)
+        build_config_paths(config)
 
 
 @pytest.mark.parametrize(
@@ -256,7 +258,7 @@ def test_storage_type_must_be_string(config, value):
 def test_unknown_storage_type(config, value):
     config["storage_type"] = value
     with pytest.raises(ValueError, match="storage_type"):
-        get_config(config)
+        build_config_paths(config)
 
 
 def local_config(config):
@@ -294,13 +296,15 @@ def test_local_paths_metadata_globs_and_no_mutation(config):
 def test_local_root_is_preserved_without_access(config):
     config = local_config(config)
     config["source_folder"] = "/"
-    assert get_config(config).source_file == "file:///*.gz"
+    assert build_config_paths(config).source_file == "file:///*.gz"
 
 
 def test_local_names_are_literal(config):
     config = local_config(config)
     config["source_folder"] = "/dados/espaço +@#%25"
-    assert get_config(config).source_file == "file:///dados/espaço +@#%25/*.gz"
+    assert build_config_paths(config).source_file == (
+        "file:///dados/espaço +@#%25/*.gz"
+    )
 
 
 @pytest.mark.parametrize(
@@ -312,7 +316,7 @@ def test_s3a_rejects_absolute_local_folders(config, key, storage):
         config["storage_type"] = storage
     config[key] = "/dados/cdr"
     with pytest.raises(ValueError, match=key):
-        get_config(config)
+        build_config_paths(config)
 
 
 @pytest.mark.parametrize(
@@ -345,7 +349,7 @@ def test_local_rejects_incompatible_or_unsafe_folder(config, key, folder):
     config = local_config(config)
     config[key] = folder
     with pytest.raises(ValueError, match=key):
-        get_config(config)
+        build_config_paths(config)
 
 
 @pytest.mark.parametrize(
@@ -357,4 +361,4 @@ def test_local_rejects_incompatible_or_unsafe_folder(config, key, folder):
 def test_s3a_rejects_other_protocols_in_all_folders(config, key, folder):
     config[key] = folder
     with pytest.raises(ValueError, match=key):
-        get_config(config)
+        build_config_paths(config)

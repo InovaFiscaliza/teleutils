@@ -550,7 +550,8 @@ def run_etl(
     """Executa extração e transformação sequenciais, continuando após falhas.
 
     Args:
-        configs: Sequência finita de configurações aceitas por get_config.
+        configs: Sequência finita de configurações aceitas por
+            ``build_config_paths``.
             Todos os caminhos são preparados antes das escritas. Itens
             envolvidos em conflitos são rejeitados, inclusive entre itens.
             Uma sequência vazia retorna relatório vazio sem criar componentes.
@@ -734,7 +735,8 @@ def run_etl_item(
     """Executa um único item usando o mesmo contrato e tratamento do lote.
 
     Args:
-        config: Configuração de extração e transformação aceita por get_config.
+        config: Configuração de extração e transformação aceita por
+            ``build_config_paths``.
         spark: Sessão Spark existente, não encerrada pelo orquestrador.
         base_folder: Pasta base opcional a prefixar à origem; deve ser
             informada junto com ``week_dir``.

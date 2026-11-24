@@ -1,8 +1,9 @@
 """Configurações ETL, construção de caminhos e listagem de arquivos no MinIO.
 
 Valida um item de configuração (mapping) e deriva os caminhos Spark/Hadoop da
-origem, do Parquet extraído e do Parquet transformado. ``load_config`` lê um
-arquivo JSON local ou S3A; ``list_files`` lista arquivos e datasets no MinIO.
+origem, do Parquet extraído e do Parquet transformado.
+``load_etl_configs`` lê um arquivo JSON local ou S3A; ``list_files`` lista
+arquivos e datasets no MinIO.
 A construção de caminhos não acessa armazenamento.
 
 Fluxo de ``_prepare_config``:
@@ -13,9 +14,10 @@ Fluxo de ``_prepare_config``:
       ↓ ``ConfigPaths`` + ``_PreparedConfig``
 
 Principais componentes:
-    - ``load_config``: lê uma lista JSON e verifica a unicidade dos prefixos.
+    - ``load_etl_configs``: lê uma lista JSON e verifica a unicidade dos
+      prefixos.
     - ``list_files``: lista arquivos, tratando diretórios Parquet como datasets.
-    - ``get_config``: API pública; retorna somente ``ConfigPaths``.
+    - ``build_config_paths``: API pública; retorna somente ``ConfigPaths``.
     - ``_validate_unique_prefixes``: verifica prefixos repetidos no lote.
     - ``_prepare_config``: validação completa. Além dos caminhos, preserva a
       ``source_folder`` normalizada e os metadados, usados pelo orquestrador
@@ -95,7 +97,7 @@ Dicionário de configuração:
         }
 
 Exemplo:
-    >>> get_config({
+    >>> build_config_paths({
     ...     "source_folder": "bucket/cdr",
     ...     "pattern": "*.parquet",
     ...     "schema": "meu_schema",
@@ -155,8 +157,8 @@ class ConfigPaths(NamedTuple):
 class _PreparedConfig:
     """Resultado interno da validação de um item de configuração.
 
-    Além dos caminhos públicos, guarda dados que ``get_config`` descarta e que
-    o orquestrador (``etl.py``) utiliza.
+    Além dos caminhos públicos, guarda dados que ``build_config_paths``
+    descarta e que o orquestrador (``etl.py``) utiliza.
 
     Attributes:
         paths: Caminhos planejados do item.
@@ -223,7 +225,7 @@ def _resolve_minio_setting(name: str, value: str | None, env_name: str) -> str:
     return value
 
 
-def load_config(
+def load_etl_configs(
     path: str,
     *,
     endpoint: str | None = None,
@@ -631,7 +633,7 @@ def _prepare_config(
     return _PreparedConfig(paths, source_folder, **metadata)
 
 
-def get_config(
+def build_config_paths(
     config: Mapping[str, object], *, materialize_intermediate: bool = True
 ) -> ConfigPaths:
     """Valida um item e constrói caminhos S3A ou locais sem acessar armazenamento.

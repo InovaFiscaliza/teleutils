@@ -200,9 +200,9 @@ Use esta matriz como ponto de partida e adapte às interfaces que efetivamente e
 | `CDRParquetExtractor` | `extract` (grava o Parquet intermediário e retorna o caminho); `extract_dataframe` (retorna o DataFrame sem escrita); verificação do retorno `None` para entrada ausente; sobrescrita de `operator`, `service` e `cdr_type`. |
 | `CDRTextExtractor` | `extract` e `extract_dataframe` com um layout de texto; lista de caminhos de origem; tratamento de retorno `None`. |
 | `CDRTransformer` | Instanciar com a sessão Spark; chamar um método `transform_<layout>` a partir de um caminho Parquet; chamar a partir de um DataFrame extraído com `transformer.spark` (a mesma sessão), quando a API suportar essa entrada. |
-| `load_config` | Leitura de um JSON local e de uma URI `s3a://`, com o formato do arquivo de configuração (bloco `json`) e a ressalva sobre credenciais via ambiente. |
+| `load_etl_configs` | Leitura de um JSON local e de uma URI `s3a://`, com o formato do arquivo de configuração (bloco `json`) e a ressalva sobre credenciais via ambiente. |
 | `list_files` | Listagem com `pattern` e `recursive`, incluindo a diferença entre datasets `.parquet` e arquivos comuns, quando relevante. |
-| `get_config` | Planejamento de caminhos para `storage_type` `s3a` e `local`; uso de `materialize_intermediate=False`; inspeção dos campos de `ConfigPaths`. |
+| `build_config_paths` | Planejamento de caminhos para `storage_type` `s3a` e `local`; uso de `materialize_intermediate=False`; inspeção dos campos de `ConfigPaths`. |
 | `run_etl` / `run_etl_item` | Execução de um lote com `spark` e uma lista de configurações; `base_folder` + `week_dir`; modo direto (`materialize_intermediate=False`); execução de um único item. |
 | `ETLReport` / `ETLItemResult` / `print_etl_report` | Percorrer `report.items` e tratar `status`, `stage` e `error_message`; imprimir o relatório. |
 | `TrinoLoader` | `upsert_iceberg` com a sessão configurada para Iceberg; recarga de uma origem já presente; pré-requisitos de catálogo explicitados em texto. |
@@ -266,13 +266,13 @@ Como referência, a documentação da API pública deverá seguir uma estrutura 
 
 ## `teleutils.core.orchestrators`
 
-### `load_config`
+### `load_etl_configs`
 #### Exemplo de uso
 
 ### `list_files`
 #### Exemplo de uso
 
-### `get_config`
+### `build_config_paths`
 #### Exemplo de uso
 
 ### `run_etl`
