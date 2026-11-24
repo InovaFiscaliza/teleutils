@@ -37,25 +37,25 @@ reais. Os limites de dados, tipos e configurações constam na seção 8.
 
 | Coluna final | Status | Resultado da auditoria |
 | :-- | :-- | :-- |
-| `nu_referencia` | Confirmada | `referencia`; SS8BF deriva de `record_id` por substring; chave. |
-| `nu_referencia_sip` | Confirmada | `referencia_sip`, fornecida em Huawei, Vivo e PCL; chave. |
+| `co_referencia` | Confirmada | `referencia`; SS8BF deriva de `record_id` por substring; chave. |
+| `co_referencia_sip` | Confirmada | `referencia_sip`, fornecida em Huawei, Vivo e PCL; chave. |
 | `dh_referencia` | Confirmada | `data_hora_referencia`; máscara específica Italtel; em SS8BF deriva de `_referencia`. |
 | `dh_chamada` | Confirmada | Início composto, selecionado ou recortado conforme layout, seguido de parsing e limite. |
 | `dh_fim_chamada` | Confirmada | Término fornecido/composto ou calculado a partir do início e da duração. |
 | `qt_duracao_segundos` | Confirmada | Ericsson converte HH:mm:ss; Nokia usa precedência; pipeline converte para inteiro. |
-| `nu_origem` | Parcialmente correta | Regra Huawei correta em linhas gerais, mas tabela omite a cópia `_tipo_cdr` → `tipo_cdr`. |
-| `ic_origem_valido` | Parcialmente correta | Indicador da UDF; mesma omissão da intermediária Huawei. |
-| `nu_origem_original` | Parcialmente correta | Restauração Huawei/Vivo e precedência Nokia descritas; mesma omissão Huawei. |
-| `nu_destino` | Parcialmente correta | Mesma omissão Huawei; tabela Nokia omite `record_type`/`tipo_chamada` como entrada da condição FORW. |
-| `ic_destino_valido` | Parcialmente correta | Indicador da UDF; mesmas omissões Huawei e da condição Nokia. |
-| `nu_destino_original` | Parcialmente correta | Restauração Huawei e valor pré-processado Nokia; mesmas omissões de entradas condicionais. |
-| `no_resultado_chamada` | Parcialmente correta | Resultado por layout, inclusive descarte de `status_chamada` Ericsson; omissão Huawei de `tipo_cdr`. |
+| `co_numero_origem` | Parcialmente correta | Regra Huawei correta em linhas gerais, mas tabela omite a cópia `_tipo_cdr` → `tipo_cdr`. |
+| `ic_numero_origem_valido` | Parcialmente correta | Indicador da UDF; mesma omissão da intermediária Huawei. |
+| `co_numero_origem_original` | Parcialmente correta | Restauração Huawei/Vivo e precedência Nokia descritas; mesma omissão Huawei. |
+| `co_numero_destino` | Parcialmente correta | Mesma omissão Huawei; tabela Nokia omite `record_type`/`tipo_chamada` como entrada da condição FORW. |
+| `ic_numero_destino_valido` | Parcialmente correta | Indicador da UDF; mesmas omissões Huawei e da condição Nokia. |
+| `co_numero_destino_original` | Parcialmente correta | Restauração Huawei e valor pré-processado Nokia; mesmas omissões de entradas condicionais. |
+| `de_resultado_chamada` | Parcialmente correta | Resultado por layout, inclusive descarte de `status_chamada` Ericsson; omissão Huawei de `tipo_cdr`. |
 | `co_resposta_sip` | Parcialmente correta | Limiar Huawei e demais cópias identificados; omissão Huawei de `tipo_cdr` e ressalva sobre cast final. |
 | `no_autenticacao` | Incorreta | Regra de prefixo correta; afirmação incondicional sobre ausência de `;` em Vivo falha com ANSI habilitado. |
-| `no_prestadora` | Confirmada | Argumento `operator` ou segmento `-4`, decodificado. |
-| `no_rota_entrada` | Confirmada | Fonte por layout e preenchimento de chave. |
-| `no_rota_saida` | Confirmada | Fonte por layout e preenchimento de chave. |
-| `no_bilhetador` | Confirmada | Fonte por layout e preenchimento de chave. |
+| `no_prestadora_cdr` | Confirmada | Argumento `operator` ou segmento `-4`, decodificado. |
+| `co_rota_entrada` | Confirmada | Fonte por layout e preenchimento de chave. |
+| `co_rota_saida` | Confirmada | Fonte por layout e preenchimento de chave. |
+| `co_bilhetador` | Confirmada | Fonte por layout e preenchimento de chave. |
 | `nu_cgi_origem` | Confirmada | Composição Ericsson/Nokia ou decodificação Huawei/Vivo, por papel quando aplicável. |
 | `nu_cgi_origem_hex` | Confirmada | Informação de rede Huawei ou campo hexadecimal Vivo. |
 | `no_tecnologia_celula_origem` | Confirmada | Primeiro trecho da informação de rede Huawei/Vivo, condicionado pelo papel Huawei. |
@@ -71,7 +71,7 @@ reais. Os limites de dados, tipos e configurações constam na seção 8.
 | `nu_ip_destino` | Confirmada | Sem fonte nos catálogos padrão; nulo no pipeline comum. |
 | `nu_porta_ip_destino` | Confirmada | Sem fonte nos catálogos padrão; nulo e cast inteiro. |
 | `no_agente_usuario` | Confirmada | `user-Agent-Value` no Huawei VoLTE TIM; sem fonte nos demais catálogos padrão. |
-| `no_esquema` | Confirmada | Literal `cdr_schema` acrescentado pelo extrator. |
+| `co_esquema_extracao` | Confirmada | Literal `cdr_schema` acrescentado pelo extrator. |
 | `no_tipo_cdr` | Confirmada | `_tipo_cdr` prevalece quando existe; caso contrário argumento ou segmento `-2`. |
 | `no_arquivo_origem` | Incorreta | Tabelas Vivo e Sigma apontam caminho/parâmetro, embora as fontes sejam `source_filename` e `source_file`. |
 | `no_tipo_chamada` | Confirmada | Cópia, classificação ou constante por layout; sentinela quando ausente; partição. |
@@ -151,9 +151,9 @@ testadas; não generalizar o comportamento para todas as versões Spark.
 
 ### 3.3 Números, indicador, resultado e resposta SIP em Huawei VoLTE TIM
 
-**Classificação:** parcialmente correta para `nu_origem`, `ic_origem_valido`,
-`nu_origem_original`, `nu_destino`, `ic_destino_valido`,
-`nu_destino_original`, `no_resultado_chamada` e `co_resposta_sip`.
+**Classificação:** parcialmente correta para `co_numero_origem`, `ic_numero_origem_valido`,
+`co_numero_origem_original`, `co_numero_destino`, `ic_numero_destino_valido`,
+`co_numero_destino_original`, `de_resultado_chamada` e `co_resposta_sip`.
 `no_autenticacao` também é afetada, mas já recebe classificação incorreta pela
 seção 3.2.
 
@@ -186,7 +186,7 @@ que o transformador recebe ou consulta uma coluna que já foi descartada.
 linhas afetadas e nas tabelas de múltiplos caminhos, distinguindo seleção
 interna do extrator de saída efetiva. Não substituir o nome na coluna original.
 
-### 3.4 `nu_destino`, `ic_destino_valido` e `nu_destino_original` em Nokia
+### 3.4 `co_numero_destino`, `ic_numero_destino_valido` e `co_numero_destino_original` em Nokia
 
 **Classificação:** parcialmente correta; a condição FORW está corretamente
 escrita na transformação.
@@ -281,25 +281,25 @@ não a afirmação geral incorreta sobre preservação de conteúdo.
 
 | Coluna anterior | Operação identificada | Coluna final | Documentação correta? |
 | :-- | :-- | :-- | :-- |
-| `referencia` | cast string + alias | `nu_referencia` | Sim |
-| `referencia_sip` | cast string + alias | `nu_referencia_sip` | Sim |
+| `referencia` | cast string + alias | `co_referencia` | Sim |
+| `referencia_sip` | cast string + alias | `co_referencia_sip` | Sim |
 | `data_hora_referencia` | cast timestamp_ntz + alias | `dh_referencia` | Sim |
 | `data_hora` | cast timestamp_ntz + alias | `dh_chamada` | Sim |
 | `data_hora_fim` | cast timestamp_ntz + alias | `dh_fim_chamada` | Sim |
 | `duracao` | cast integer + alias | `qt_duracao_segundos` | Sim |
-| `numero_origem_extraido` | cast string + alias | `nu_origem` | Sim |
-| `sucesso_extracao_origem` | cast boolean + alias | `ic_origem_valido` | Sim |
-| `numero_origem` | cast string + alias | `nu_origem_original` | Sim |
-| `numero_destino_extraido` | cast string + alias | `nu_destino` | Sim |
-| `sucesso_extracao_destino` | cast boolean + alias | `ic_destino_valido` | Sim |
-| `numero_destino` | cast string + alias | `nu_destino_original` | Sim |
-| `resultado_chamada` | cast string + alias | `no_resultado_chamada` | Sim |
+| `numero_origem_extraido` | cast string + alias | `co_numero_origem` | Sim |
+| `sucesso_extracao_origem` | cast boolean + alias | `ic_numero_origem_valido` | Sim |
+| `numero_origem` | cast string + alias | `co_numero_origem_original` | Sim |
+| `numero_destino_extraido` | cast string + alias | `co_numero_destino` | Sim |
+| `sucesso_extracao_destino` | cast boolean + alias | `ic_numero_destino_valido` | Sim |
+| `numero_destino` | cast string + alias | `co_numero_destino_original` | Sim |
+| `resultado_chamada` | cast string + alias | `de_resultado_chamada` | Sim |
 | `codigo_resposta_sip` | cast string + alias | `co_resposta_sip` | Sim |
 | `autenticacao` | cast string + alias | `no_autenticacao` | Sim |
-| `prestadora` | cast string + alias | `no_prestadora` | Sim |
-| `rota_entrada` | cast string + alias | `no_rota_entrada` | Sim |
-| `rota_saida` | cast string + alias | `no_rota_saida` | Sim |
-| `bilhetador` | cast string + alias | `no_bilhetador` | Sim |
+| `prestadora` | cast string + alias | `no_prestadora_cdr` | Sim |
+| `rota_entrada` | cast string + alias | `co_rota_entrada` | Sim |
+| `rota_saida` | cast string + alias | `co_rota_saida` | Sim |
+| `bilhetador` | cast string + alias | `co_bilhetador` | Sim |
 | `celula_origem` | cast string + alias | `nu_cgi_origem` | Sim |
 | `celula_origem_hex` | cast string + alias | `nu_cgi_origem_hex` | Sim |
 | `tecnologia_celula_origem` | cast string + alias | `no_tecnologia_celula_origem` | Sim |
@@ -315,7 +315,7 @@ não a afirmação geral incorreta sobre preservação de conteúdo.
 | `ip_destino` | cast string + alias | `nu_ip_destino` | Sim |
 | `porta_ip_destino` | cast integer + alias | `nu_porta_ip_destino` | Sim |
 | `agente_usuario` | cast string + alias | `no_agente_usuario` | Sim |
-| `esquema` | cast string + alias | `no_esquema` | Sim |
+| `esquema` | cast string + alias | `co_esquema_extracao` | Sim |
 | `tipo_cdr` | cast string + alias | `no_tipo_cdr` | Sim |
 | `arquivo_origem` | cast string + alias | `no_arquivo_origem` | Sim |
 | `tipo_chamada` | cast string + alias; particionamento | `no_tipo_chamada` | Sim |

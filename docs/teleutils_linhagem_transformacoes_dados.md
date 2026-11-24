@@ -100,25 +100,25 @@ Lista independente: as 38 chaves de `TARGET_SCHEMA`, na ordem de declaração.
 
 | # | Coluna anterior | Operação final | Coluna final | Tipo final | Chave primária |
 | --: | :-- | :-- | :-- | :-- | :-: |
-| 1 | `referencia` | cast + renomeação | `nu_referencia` | string | sim |
-| 2 | `referencia_sip` | cast + renomeação | `nu_referencia_sip` | string | sim |
+| 1 | `referencia` | cast + renomeação | `co_referencia` | string | sim |
+| 2 | `referencia_sip` | cast + renomeação | `co_referencia_sip` | string | sim |
 | 3 | `data_hora_referencia` | cast + renomeação | `dh_referencia` | timestamp_ntz | sim |
 | 4 | `data_hora` | cast + renomeação | `dh_chamada` | timestamp_ntz | sim |
 | 5 | `data_hora_fim` | cast + renomeação | `dh_fim_chamada` | timestamp_ntz | sim |
 | 6 | `duracao` | cast + renomeação | `qt_duracao_segundos` | integer | sim |
-| 7 | `numero_origem_extraido` | cast + renomeação | `nu_origem` | string | sim |
-| 8 | `sucesso_extracao_origem` | cast + renomeação | `ic_origem_valido` | boolean | não |
-| 9 | `numero_origem` | cast + renomeação | `nu_origem_original` | string | sim |
-| 10 | `numero_destino_extraido` | cast + renomeação | `nu_destino` | string | sim |
-| 11 | `sucesso_extracao_destino` | cast + renomeação | `ic_destino_valido` | boolean | não |
-| 12 | `numero_destino` | cast + renomeação | `nu_destino_original` | string | sim |
-| 13 | `resultado_chamada` | cast + renomeação | `no_resultado_chamada` | string | sim |
+| 7 | `numero_origem_extraido` | cast + renomeação | `co_numero_origem` | string | sim |
+| 8 | `sucesso_extracao_origem` | cast + renomeação | `ic_numero_origem_valido` | boolean | não |
+| 9 | `numero_origem` | cast + renomeação | `co_numero_origem_original` | string | sim |
+| 10 | `numero_destino_extraido` | cast + renomeação | `co_numero_destino` | string | sim |
+| 11 | `sucesso_extracao_destino` | cast + renomeação | `ic_numero_destino_valido` | boolean | não |
+| 12 | `numero_destino` | cast + renomeação | `co_numero_destino_original` | string | sim |
+| 13 | `resultado_chamada` | cast + renomeação | `de_resultado_chamada` | string | sim |
 | 14 | `codigo_resposta_sip` | cast + renomeação | `co_resposta_sip` | string | não |
 | 15 | `autenticacao` | cast + renomeação | `no_autenticacao` | string | não |
-| 16 | `prestadora` | cast + renomeação | `no_prestadora` | string | não |
-| 17 | `rota_entrada` | cast + renomeação | `no_rota_entrada` | string | sim |
-| 18 | `rota_saida` | cast + renomeação | `no_rota_saida` | string | sim |
-| 19 | `bilhetador` | cast + renomeação | `no_bilhetador` | string | sim |
+| 16 | `prestadora` | cast + renomeação | `no_prestadora_cdr` | string | não |
+| 17 | `rota_entrada` | cast + renomeação | `co_rota_entrada` | string | sim |
+| 18 | `rota_saida` | cast + renomeação | `co_rota_saida` | string | sim |
+| 19 | `bilhetador` | cast + renomeação | `co_bilhetador` | string | sim |
 | 20 | `celula_origem` | cast + renomeação | `nu_cgi_origem` | string | não |
 | 21 | `celula_origem_hex` | cast + renomeação | `nu_cgi_origem_hex` | string | não |
 | 22 | `tecnologia_celula_origem` | cast + renomeação | `no_tecnologia_celula_origem` | string | não |
@@ -134,7 +134,7 @@ Lista independente: as 38 chaves de `TARGET_SCHEMA`, na ordem de declaração.
 | 32 | `ip_destino` | cast + renomeação | `nu_ip_destino` | string | não |
 | 33 | `porta_ip_destino` | cast + renomeação | `nu_porta_ip_destino` | integer | não |
 | 34 | `agente_usuario` | cast + renomeação | `no_agente_usuario` | string | não |
-| 35 | `esquema` | cast + renomeação | `no_esquema` | string | não |
+| 35 | `esquema` | cast + renomeação | `co_esquema_extracao` | string | não |
 | 36 | `tipo_cdr` | cast + renomeação | `no_tipo_cdr` | string | não |
 | 37 | `arquivo_origem` | cast + renomeação | `no_arquivo_origem` | string | não |
 | 38 | `tipo_chamada` | cast + renomeação | `no_tipo_chamada` | string | sim |
@@ -164,17 +164,18 @@ Lista independente: as 38 chaves de `TARGET_SCHEMA`, na ordem de declaração.
 4. `_add_tn_validation_status`: se existir `_autenticacao`, `autenticacao` =
    `TN-Validation-Passed` (prefixo `verstat=TN-Validation-P`), `TN-Validation-Failed` (`verstat=TN-Validation-F`),
    `No-TN-Validation` (`verstat=No-TN-Validation`) ou `NULL`; sem a coluna, `autenticacao = NULL`.
-5. `_fill_primary_key_columns`: nas 15 colunas da chave (`PRIMARY_KEY_COLUMNS`, mapeadas para os nomes
-   intermediários de `TARGET_SCHEMA`), substitui nulos por `MIN_SAFE_DATE` (timestamps), `0` (numéricos)
-   e `"__NULL__"` (demais), após o cast ao tipo de `TARGET_SCHEMA`.
+5. `_fill_primary_key_columns`: as 15 colunas de `PRIMARY_KEY_COLUMNS` correspondem a nomes finais de
+   `TARGET_SCHEMA` e são mapeadas para os nomes intermediários; nessas colunas, substitui nulos por
+   `MIN_SAFE_DATE` (timestamps), `0` (numéricos) e `"__NULL__"` (demais), após o cast ao tipo de
+   `TARGET_SCHEMA`.
 
 Assim, “ausente” não significa sempre `NULL` no Parquet final. Para as colunas da chave
-(`no_tipo_chamada`, `nu_referencia`, `nu_referencia_sip`, `dh_referencia`, `dh_chamada`, `dh_fim_chamada`,
-`qt_duracao_segundos`, `nu_origem`, `nu_origem_original`, `nu_destino`, `nu_destino_original`,
-`no_resultado_chamada`, `no_rota_entrada`, `no_rota_saida`, `no_bilhetador`) vale o preenchimento acima.
+(`no_tipo_chamada`, `co_referencia`, `co_referencia_sip`, `dh_referencia`, `dh_chamada`, `dh_fim_chamada`,
+`qt_duracao_segundos`, `co_numero_origem`, `co_numero_origem_original`, `co_numero_destino`, `co_numero_destino_original`,
+`de_resultado_chamada`, `co_rota_entrada`, `co_rota_saida`, `co_bilhetador`) vale o preenchimento acima.
 Strings vazias não são nulas e não são substituídas. As demais colunas (`ic_*`, `co_resposta_sip`,
-`no_autenticacao`, `no_prestadora`, `nu_cgi_*`, `nu_imei_*`, `nu_imsi_*`, `nu_ip_*`, `nu_porta_ip_*`,
-`no_agente_usuario`, `no_tecnologia_celula_*`, `no_esquema`, `no_tipo_cdr`, `no_arquivo_origem`)
+`no_autenticacao`, `no_prestadora_cdr`, `nu_cgi_*`, `nu_imei_*`, `nu_imsi_*`, `nu_ip_*`, `nu_porta_ip_*`,
+`no_agente_usuario`, `no_tecnologia_celula_*`, `co_esquema_extracao`, `no_tipo_cdr`, `no_arquivo_origem`)
 permanecem `NULL` quando ausentes.
 
 ### 2.3 Metadados adicionados pelos extratores
@@ -223,25 +224,25 @@ Arquivo de origem
 
 | Colunas Originais | Colunas Extraídas | Coluna Intermediária / transformação | Coluna Final |
 | :-- | :-- | :-- | :-- |
-| `networkCallReference` | `referencia` | Mantida sem alteração; nulo → `__NULL__` (chave) | `nu_referencia` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns` → `__NULL__` (chave) | `nu_referencia_sip` |
+| `networkCallReference` | `referencia` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_referencia` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns` → `__NULL__` (chave) | `co_referencia_sip` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; `greatest(NULL, MIN_SAFE_DATE)` → `MIN_SAFE_DATE` | `dh_referencia` |
 | `dateForStartOfCharge`; `timeForStartOfCharge` | `_data`, `_hora` | `_concat_date_time`: `_data` + espaço + `_hora`; nulo se algum componente for nulo ou em branco; `try_to_timestamp(..., 'yy-MM-dd HH:mm:ss')` e `greatest(..., MIN_SAFE_DATE)` (nulo/inválido → `MIN_SAFE_DATE`) | `dh_chamada` |
 | `dateForStartOfCharge`; `timeForStopOfCharge` | `_data`, `_hora_fim` | `_concat_date_time(stop_date='_data')`: `_data` + espaço + `_hora_fim` (a data de início é usada também no término); se não nulo: `try_to_timestamp(..., 'yy-MM-dd HH:mm:ss')` e `greatest(..., MIN_SAFE_DATE)` (nulo/inválido → `MIN_SAFE_DATE`); se nulo: `data_hora` + `duracao` s | `dh_fim_chamada` |
 | `chargeableDuration` | `duracao` | `HH:mm:ss` → `substring(1,2)*3600 + substring(4,2)*60 + substring(7,2)`; nulo → `0`; `cast int` e `coalesce(..., 0)` (chave) | `qt_duracao_segundos` |
-| `callingPartyNumber.digits` | `numero_origem` | `numero_origem` → `_extract_numbers` (`extract_number`) → `numero_origem_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `nu_origem` |
-| `callingPartyNumber.digits` | `numero_origem` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_origem)` (mesma entrada de `nu_origem`) | `ic_origem_valido` |
-| `callingPartyNumber.digits` | `numero_origem` | `numero_origem` sem restauração (não há `_numero_origem_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `nu_origem_original` |
-| `calledPartyNumber.digits` | `numero_destino` | `numero_destino` → `_extract_numbers` (`extract_number`) → `numero_destino_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `nu_destino` |
-| `calledPartyNumber.digits` | `numero_destino` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_destino)` (mesma entrada de `nu_destino`) | `ic_destino_valido` |
-| `calledPartyNumber.digits` | `numero_destino` | `numero_destino` sem restauração (não há `_numero_destino_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `nu_destino_original` |
-| `callPosition` | `status_chamada` | `callPosition` é extraída como `status_chamada`, mas nenhuma etapa a copia para `resultado_chamada`; `status_chamada` não pertence a `TARGET_SCHEMA` e é descartada. `resultado_chamada` é criada nula; nulo → `__NULL__` (chave) | `no_resultado_chamada` |
+| `callingPartyNumber.digits` | `numero_origem` | `numero_origem` → `_extract_numbers` (`extract_number`) → `numero_origem_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `co_numero_origem` |
+| `callingPartyNumber.digits` | `numero_origem` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_origem)` (mesma entrada de `co_numero_origem`) | `ic_numero_origem_valido` |
+| `callingPartyNumber.digits` | `numero_origem` | `numero_origem` sem restauração (não há `_numero_origem_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `co_numero_origem_original` |
+| `calledPartyNumber.digits` | `numero_destino` | `numero_destino` → `_extract_numbers` (`extract_number`) → `numero_destino_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `co_numero_destino` |
+| `calledPartyNumber.digits` | `numero_destino` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_destino)` (mesma entrada de `co_numero_destino`) | `ic_numero_destino_valido` |
+| `calledPartyNumber.digits` | `numero_destino` | `numero_destino` sem restauração (não há `_numero_destino_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `co_numero_destino_original` |
+| `callPosition` | `status_chamada` | `callPosition` é extraída como `status_chamada`, mas nenhuma etapa a copia para `resultado_chamada`; `status_chamada` não pertence a `TARGET_SCHEMA` e é descartada. `resultado_chamada` é criada nula; nulo → `__NULL__` (chave) | `de_resultado_chamada` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_resposta_sip` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; `_add_tn_validation_status` mantém `NULL` (sem `_autenticacao`) | `no_autenticacao` |
-| Não aplicável (metadado) | `prestadora` | `add_source_metadata`: argumento `operator` ou `url_decode` do segmento `-4` do caminho; mantida sem alteração | `no_prestadora` |
-| `incomingRoute` | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_rota_entrada` |
-| `outgoingRoute` | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_rota_saida` |
-| `exchangeIdentity` | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_bilhetador` |
+| Não aplicável (metadado) | `prestadora` | `add_source_metadata`: argumento `operator` ou `url_decode` do segmento `-4` do caminho; mantida sem alteração | `no_prestadora_cdr` |
+| `incomingRoute` | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_entrada` |
+| `outgoingRoute` | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_saida` |
+| `exchangeIdentity` | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_bilhetador` |
 | `firstCallingLocationInformation.mcc`; `firstCallingLocationInformation.mnc`; `firstCallingLocationInformation.lac`; `firstCallingLocationInformation.ci_sac` | `celula_origem_mcc`, `celula_origem_mnc`, `celula_origem_lac`, `celula_origem_ci_sac` | `_build_composite_column('-', ...)`: componentes em branco → nulo; `lpad(celula_origem_lac, 5, '0')` e `lpad(celula_origem_ci_sac, 5, '0')`; qualquer componente nulo → `NULL` | `nu_cgi_origem` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_origem` |
@@ -257,7 +258,7 @@ Arquivo de origem
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_agente_usuario` |
-| Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'smp_ericsson_gsm'`); mantida sem alteração | `no_esquema` |
+| Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'smp_ericsson_gsm'`); mantida sem alteração | `co_esquema_extracao` |
 | Não aplicável (metadado) | `tipo_cdr` | `add_source_metadata`: argumento `cdr_type` ou `url_decode` do segmento `-2` do caminho; mantida sem alteração | `no_tipo_cdr` |
 | Não aplicável (metadado) | `arquivo_origem` | `add_source_metadata`: `url_decode` do segmento `-1` do caminho; mantida sem alteração | `no_arquivo_origem` |
 | `CallModule` | `tipo_chamada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_tipo_chamada` |
@@ -289,25 +290,25 @@ Arquivo de origem
 
 | Colunas Originais | Colunas Extraídas | Coluna Intermediária / transformação | Coluna Final |
 | :-- | :-- | :-- | :-- |
-| `call_reference` | `referencia` | Mantida sem alteração; nulo → `__NULL__` (chave) | `nu_referencia` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns` → `__NULL__` (chave) | `nu_referencia_sip` |
+| `call_reference` | `referencia` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_referencia` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns` → `__NULL__` (chave) | `co_referencia_sip` |
 | `call_reference_time` | `data_hora_referencia` | Mantida sem alteração; `try_to_timestamp(..., 'dd/MM/yyyy HH:mm:ss')` e `greatest(..., MIN_SAFE_DATE)` (nulo/inválido → `MIN_SAFE_DATE`) | `dh_referencia` |
 | `in_channel_allocated_time`; `call_reference_time` | `data_hora_alocacao_canal`, `data_hora_referencia` | `coalesce(data_hora_alocacao_canal, data_hora_referencia)`; `try_to_timestamp(..., 'dd/MM/yyyy HH:mm:ss')` e `greatest(..., MIN_SAFE_DATE)` (nulo/inválido → `MIN_SAFE_DATE`) | `dh_chamada` |
 | `charging_end_time`; `release_time`; `record_type` | `data_hora_fim`, `data_hora_desconexao`, `tipo_chamada` | se `data_hora_desconexao` existe: `tipo_chamada == 'UCA'` → `coalesce(data_hora_desconexao, data_hora_fim)`; demais tipos → `data_hora_fim`; se não nulo: `try_to_timestamp(..., 'dd/MM/yyyy HH:mm:ss')` e `greatest(..., MIN_SAFE_DATE)` (nulo/inválido → `MIN_SAFE_DATE`); se nulo: `data_hora` + `duracao` s | `dh_fim_chamada` |
 | `orig_mcz_duration`; `term_mcz_duration`; `forw_mcz_duration`; `roam_mcz_duration`; `iaz_duration`; `oaz_duration`; `chargeable_duration`; `char_band_duration` | `_duracao_orig_mcz`, `_duracao_term_mcz`, `_duracao_forw_mcz`, `_duracao_roam_mcz`, `_duracao_iaz`, `_duracao_oaz`, `_duracao_tarifavel`, `_duracao_banda_tarifavel` | colunas cujo nome começa com `_duracao`: valor `FFFFFF` → nulo; `coalesce` na ordem das colunas do DataFrame; `cast int` e `coalesce(..., 0)` (chave) | `qt_duracao_segundos` |
-| `calling_number`; `orig_calling_number` | `numero_origem`, `numero_origem_original` | pré-processamento: `coalesce(numero_origem, numero_origem_original)`; `numero_origem` → `_extract_numbers` (`extract_number`) → `numero_origem_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `nu_origem` |
-| `calling_number`; `orig_calling_number` | `numero_origem`, `numero_origem_original` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_origem)` (mesma entrada de `nu_origem`) | `ic_origem_valido` |
-| `calling_number`; `orig_calling_number` | `numero_origem`, `numero_origem_original` | `numero_origem` após o pré-processamento (`coalesce(numero_origem, numero_origem_original)`); não há `_numero_origem_original`; nulo → `__NULL__` (chave) | `nu_origem_original` |
-| `called_number`; `forwarding_number`; `record_type` | `numero_destino`, `numero_origem_encaminhamento`, `tipo_chamada` | pré-processamento: `tipo_chamada == 'FORW'` → `numero_origem_encaminhamento`; demais → `numero_destino`; `numero_destino` → `_extract_numbers` (`extract_number`) → `numero_destino_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `nu_destino` |
-| `called_number`; `forwarding_number`; `record_type` | `numero_destino`, `numero_origem_encaminhamento`, `tipo_chamada` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_destino)` (mesma entrada de `nu_destino`) | `ic_destino_valido` |
-| `called_number`; `forwarding_number`; `record_type` | `numero_destino`, `numero_origem_encaminhamento`, `tipo_chamada` | `numero_destino` após o pré-processamento (`tipo_chamada == 'FORW'` → `numero_origem_encaminhamento`; demais → `numero_destino`); não há `_numero_destino_original`; nulo → `__NULL__` (chave) | `nu_destino_original` |
-| `cause_for_termination` | `_resultado_chamada` | faixas numéricas de `_resultado_chamada` (ver “Faixas de `_resultado_chamada`” abaixo); fora das faixas → `NULL`; nulo → `__NULL__` (chave) | `no_resultado_chamada` |
+| `calling_number`; `orig_calling_number` | `numero_origem`, `numero_origem_original` | pré-processamento: `coalesce(numero_origem, numero_origem_original)`; `numero_origem` → `_extract_numbers` (`extract_number`) → `numero_origem_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `co_numero_origem` |
+| `calling_number`; `orig_calling_number` | `numero_origem`, `numero_origem_original` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_origem)` (mesma entrada de `co_numero_origem`) | `ic_numero_origem_valido` |
+| `calling_number`; `orig_calling_number` | `numero_origem`, `numero_origem_original` | `numero_origem` após o pré-processamento (`coalesce(numero_origem, numero_origem_original)`); não há `_numero_origem_original`; nulo → `__NULL__` (chave) | `co_numero_origem_original` |
+| `called_number`; `forwarding_number`; `record_type` | `numero_destino`, `numero_origem_encaminhamento`, `tipo_chamada` | pré-processamento: `tipo_chamada == 'FORW'` → `numero_origem_encaminhamento`; demais → `numero_destino`; `numero_destino` → `_extract_numbers` (`extract_number`) → `numero_destino_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `co_numero_destino` |
+| `called_number`; `forwarding_number`; `record_type` | `numero_destino`, `numero_origem_encaminhamento`, `tipo_chamada` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_destino)` (mesma entrada de `co_numero_destino`) | `ic_numero_destino_valido` |
+| `called_number`; `forwarding_number`; `record_type` | `numero_destino`, `numero_origem_encaminhamento`, `tipo_chamada` | `numero_destino` após o pré-processamento (`tipo_chamada == 'FORW'` → `numero_origem_encaminhamento`; demais → `numero_destino`); não há `_numero_destino_original`; nulo → `__NULL__` (chave) | `co_numero_destino_original` |
+| `cause_for_termination` | `_resultado_chamada` | faixas numéricas de `_resultado_chamada` (ver “Faixas de `_resultado_chamada`” abaixo); fora das faixas → `NULL`; nulo → `__NULL__` (chave) | `de_resultado_chamada` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_resposta_sip` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; `_add_tn_validation_status` mantém `NULL` (sem `_autenticacao`) | `no_autenticacao` |
-| Não aplicável (metadado) | `prestadora` | `add_source_metadata`: argumento `operator` ou `url_decode` do segmento `-4` do caminho; mantida sem alteração | `no_prestadora` |
-| `in_circuit_group` | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_rota_entrada` |
-| `out_circuit_group` | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_rota_saida` |
-| `exchange_id` | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_bilhetador` |
+| Não aplicável (metadado) | `prestadora` | `add_source_metadata`: argumento `operator` ou `url_decode` do segmento `-4` do caminho; mantida sem alteração | `no_prestadora_cdr` |
+| `in_circuit_group` | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_entrada` |
+| `out_circuit_group` | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_saida` |
+| `exchange_id` | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_bilhetador` |
 | `calling_subs_first_lac`; `calling_subs_first_ci`; metadado (caminho do arquivo ou parâmetro do extrator) | `celula_origem_lac`, `celula_origem_ci`, `prestadora` | `_build_composite_column('-', ...)` com `DEFAULT_MCC` (`724`), `_nokia_mnc`, `lpad(lac, 5, '0')` e `lpad(ci, 5, '0')`; `_nokia_mnc`: `prestadora == 'claro'` → `05`, `'algar'` → `34`, outro valor → `NULL` (composto `NULL`) | `nu_cgi_origem` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_origem` |
@@ -323,7 +324,7 @@ Arquivo de origem
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_agente_usuario` |
-| Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'smp_nokia_gsm'`); mantida sem alteração | `no_esquema` |
+| Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'smp_nokia_gsm'`); mantida sem alteração | `co_esquema_extracao` |
 | Não aplicável (metadado) | `tipo_cdr` | `add_source_metadata`: argumento `cdr_type` ou `url_decode` do segmento `-2` do caminho; mantida sem alteração | `no_tipo_cdr` |
 | Não aplicável (metadado) | `arquivo_origem` | `add_source_metadata`: `url_decode` do segmento `-1` do caminho; mantida sem alteração | `no_arquivo_origem` |
 | `record_type` | `tipo_chamada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_tipo_chamada` |
@@ -332,7 +333,7 @@ Arquivo de origem
 
 - **Faixas de `_resultado_chamada`** (comparação direta com literais inteiros; limites hexadecimais convertidos em Python): `0x0000–0x03FF` → `normal clearing`; `0x0400–0x07FF` → `internal congestion`; `0x0800–0x0BFF` → `external congestion`; `0x0C00–0x0FFF` → `subscriber errors`; `>= 0x1000` → `event codes`; demais → `NULL`.
 - **Colunas extraídas sem consumo:** `numero_destino_original`, `numero_conectado`, `numero_destino_encaminhamento` e `perfil_prestadora` não são lidas por nenhuma etapa posterior e não pertencem a `TARGET_SCHEMA`.
-- **Restauração do bruto:** o transformador não cria `_numero_origem_original` nem `_numero_destino_original`; por isso `nu_origem_original` e `nu_destino_original` refletem `numero_origem` e `numero_destino` após o `coalesce` e a regra `FORW`.
+- **Restauração do bruto:** o transformador não cria `_numero_origem_original` nem `_numero_destino_original`; por isso `co_numero_origem_original` e `co_numero_destino_original` refletem `numero_origem` e `numero_destino` após o `coalesce` e a regra `FORW`.
 
 Cobertura: 38 de 38 colunas finais documentadas; 26 com origem efetiva neste fluxo e 12 criadas nulas.
 
@@ -364,25 +365,25 @@ Arquivo de origem
 
 | Colunas Originais | Colunas Extraídas | Coluna Intermediária / transformação | Coluna Final |
 | :-- | :-- | :-- | :-- |
-| `network-Call-Reference` | `referencia` | Mantida sem alteração; nulo → `__NULL__` (chave) | `nu_referencia` |
-| `iMS-Charging-Identifier` | `referencia_sip` | Mantida sem alteração; nulo → `__NULL__` (chave) | `nu_referencia_sip` |
+| `network-Call-Reference` | `referencia` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_referencia` |
+| `iMS-Charging-Identifier` | `referencia_sip` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_referencia_sip` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; `greatest(NULL, MIN_SAFE_DATE)` → `MIN_SAFE_DATE` | `dh_referencia` |
 | `serviceRequestTimeStamp` | `data_hora` | `left(data_hora, 19)` (remove o sufixo de fuso); `try_to_timestamp(..., 'yyyy-MM-dd HH:mm:ss')` e `greatest(..., MIN_SAFE_DATE)` (nulo/inválido → `MIN_SAFE_DATE`) | `dh_chamada` |
 | `serviceDeliveryEndTimeStamp` | `data_hora_fim` | `left(data_hora_fim, 19)`; se não nulo: `try_to_timestamp(..., 'yyyy-MM-dd HH:mm:ss')` e `greatest(..., MIN_SAFE_DATE)` (nulo/inválido → `MIN_SAFE_DATE`); se nulo: `data_hora` + `duracao` s | `dh_fim_chamada` |
 | `duration` | `duracao` | Mantida sem alteração; `cast int` e `coalesce(..., 0)` (chave) | `qt_duracao_segundos` |
-| `list-Of-Calling-Party-Address`; `recordType` | `_numero_origem_ats_ibcf`, `tipo_cdr` (`recordType` → `_tipo_cdr` → `tipo_cdr`; `_tipo_cdr` descartada) | pré-processamento: `tipo_cdr == 'aTSRecord'`: `get_json_object(..., '$[0].tEL-URI')`, `substr(3, 9999)` e `regexp_replace('(.)(.)', '$2$1')`; `tipo_cdr == 'iBCFRecord'`: `regexp_extract(get_json_object(..., '$[0].sIP-URI'), 'sip:([0-9]+)[@;]', 1)`; outros tipos → `NULL`; `numero_origem` → `_extract_numbers` (`extract_number`) → `numero_origem_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `nu_origem` |
-| `list-Of-Calling-Party-Address`; `recordType` | `_numero_origem_ats_ibcf`, `tipo_cdr` (`recordType` → `_tipo_cdr` → `tipo_cdr`; `_tipo_cdr` descartada) | campo `extracao_sucesso` do struct de `_extract_numbers(numero_origem)` (mesma entrada de `nu_origem`) | `ic_origem_valido` |
-| `list-Of-Calling-Party-Address`; `recordType` | `_numero_origem_ats_ibcf`, `tipo_cdr` (`recordType` → `_tipo_cdr` → `tipo_cdr`; `_tipo_cdr` descartada) | `_numero_origem_original`: ATS → valor bruto de `$[0].tEL-URI`; demais tipos → o `numero_origem` calculado acima; restaurada em `numero_origem` após a extração; nulo → `__NULL__` (chave) | `nu_origem_original` |
-| `called-Party-Address_tEL-URI`; `called-Party-Address_sIP-URI`; `recordType` | `_numero_destino_ats`, `_numero_destino_ibcf`, `tipo_cdr` (`recordType` → `_tipo_cdr` → `tipo_cdr`; `_tipo_cdr` descartada) | pré-processamento: ATS: `_numero_destino_ats.substr(3, 9999)` + inversão de pares `(.)(.)` → `$2$1`; IBCF: `regexp_extract(_numero_destino_ibcf, 'sip:([0-9]+)[@;]', 1)`; outros tipos → `NULL`; `numero_destino` → `_extract_numbers` (`extract_number`) → `numero_destino_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `nu_destino` |
-| `called-Party-Address_tEL-URI`; `called-Party-Address_sIP-URI`; `recordType` | `_numero_destino_ats`, `_numero_destino_ibcf`, `tipo_cdr` (`recordType` → `_tipo_cdr` → `tipo_cdr`; `_tipo_cdr` descartada) | campo `extracao_sucesso` do struct de `_extract_numbers(numero_destino)` (mesma entrada de `nu_destino`) | `ic_destino_valido` |
-| `called-Party-Address_tEL-URI`; `called-Party-Address_sIP-URI`; `recordType` | `_numero_destino_ats`, `_numero_destino_ibcf`, `tipo_cdr` (`recordType` → `_tipo_cdr` → `tipo_cdr`; `_tipo_cdr` descartada) | `_numero_destino_original`: ATS → `_numero_destino_ats` bruto; demais tipos → o `numero_destino` calculado; restaurada em `numero_destino` após a extração; nulo → `__NULL__` (chave) | `nu_destino_original` |
-| `serviceReasonReturnCode`; `recordType` | `_resultado_chamada`, `tipo_cdr` (`recordType` → `_tipo_cdr` → `tipo_cdr`; `_tipo_cdr` descartada) | `_resultado_chamada` inteiro (`tipo_cdr == 'iBCFRecord'`: `regexp_extract('SIP;cause=([0-9]+);', 1)`; demais tipos: cast direto) e tabela de códigos (ver “Códigos de `_resultado_chamada`” abaixo); nulo → `__NULL__` (chave) | `no_resultado_chamada` |
+| `list-Of-Calling-Party-Address`; `recordType` | `_numero_origem_ats_ibcf`, `tipo_cdr` (`recordType` → `_tipo_cdr` → `tipo_cdr`; `_tipo_cdr` descartada) | pré-processamento: `tipo_cdr == 'aTSRecord'`: `get_json_object(..., '$[0].tEL-URI')`, `substr(3, 9999)` e `regexp_replace('(.)(.)', '$2$1')`; `tipo_cdr == 'iBCFRecord'`: `regexp_extract(get_json_object(..., '$[0].sIP-URI'), 'sip:([0-9]+)[@;]', 1)`; outros tipos → `NULL`; `numero_origem` → `_extract_numbers` (`extract_number`) → `numero_origem_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `co_numero_origem` |
+| `list-Of-Calling-Party-Address`; `recordType` | `_numero_origem_ats_ibcf`, `tipo_cdr` (`recordType` → `_tipo_cdr` → `tipo_cdr`; `_tipo_cdr` descartada) | campo `extracao_sucesso` do struct de `_extract_numbers(numero_origem)` (mesma entrada de `co_numero_origem`) | `ic_numero_origem_valido` |
+| `list-Of-Calling-Party-Address`; `recordType` | `_numero_origem_ats_ibcf`, `tipo_cdr` (`recordType` → `_tipo_cdr` → `tipo_cdr`; `_tipo_cdr` descartada) | `_numero_origem_original`: ATS → valor bruto de `$[0].tEL-URI`; demais tipos → o `numero_origem` calculado acima; restaurada em `numero_origem` após a extração; nulo → `__NULL__` (chave) | `co_numero_origem_original` |
+| `called-Party-Address_tEL-URI`; `called-Party-Address_sIP-URI`; `recordType` | `_numero_destino_ats`, `_numero_destino_ibcf`, `tipo_cdr` (`recordType` → `_tipo_cdr` → `tipo_cdr`; `_tipo_cdr` descartada) | pré-processamento: ATS: `_numero_destino_ats.substr(3, 9999)` + inversão de pares `(.)(.)` → `$2$1`; IBCF: `regexp_extract(_numero_destino_ibcf, 'sip:([0-9]+)[@;]', 1)`; outros tipos → `NULL`; `numero_destino` → `_extract_numbers` (`extract_number`) → `numero_destino_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `co_numero_destino` |
+| `called-Party-Address_tEL-URI`; `called-Party-Address_sIP-URI`; `recordType` | `_numero_destino_ats`, `_numero_destino_ibcf`, `tipo_cdr` (`recordType` → `_tipo_cdr` → `tipo_cdr`; `_tipo_cdr` descartada) | campo `extracao_sucesso` do struct de `_extract_numbers(numero_destino)` (mesma entrada de `co_numero_destino`) | `ic_numero_destino_valido` |
+| `called-Party-Address_tEL-URI`; `called-Party-Address_sIP-URI`; `recordType` | `_numero_destino_ats`, `_numero_destino_ibcf`, `tipo_cdr` (`recordType` → `_tipo_cdr` → `tipo_cdr`; `_tipo_cdr` descartada) | `_numero_destino_original`: ATS → `_numero_destino_ats` bruto; demais tipos → o `numero_destino` calculado; restaurada em `numero_destino` após a extração; nulo → `__NULL__` (chave) | `co_numero_destino_original` |
+| `serviceReasonReturnCode`; `recordType` | `_resultado_chamada`, `tipo_cdr` (`recordType` → `_tipo_cdr` → `tipo_cdr`; `_tipo_cdr` descartada) | `_resultado_chamada` inteiro (`tipo_cdr == 'iBCFRecord'`: `regexp_extract('SIP;cause=([0-9]+);', 1)`; demais tipos: cast direto) e tabela de códigos (ver “Códigos de `_resultado_chamada`” abaixo); nulo → `__NULL__` (chave) | `de_resultado_chamada` |
 | `serviceReasonReturnCode`; `recordType` | `_resultado_chamada`, `tipo_cdr` (`recordType` → `_tipo_cdr` → `tipo_cdr`; `_tipo_cdr` descartada) | `_resultado_chamada` inteiro (regra acima) mantido somente se `>= 200`; senão `NULL` | `co_resposta_sip` |
 | `calling-Party-Address-Generic`; `list-Of-Calling-Party-Address`; `recordType` | `_numero_origem_auth`, `_numero_origem_ats_ibcf`, `tipo_cdr` (`recordType` → `_tipo_cdr` → `tipo_cdr`; `_tipo_cdr` descartada) | `_autenticacao`: `tipo_cdr == 'aTSRecord'` → `regexp_extract(_numero_origem_auth, '(verstat=[a-zA-Z\-]+)', 0)`; `tipo_cdr == 'iBCFRecord'` → mesma regex sobre `_numero_origem_ats_ibcf`; demais tipos → `NULL`; depois `_add_tn_validation_status` | `no_autenticacao` |
-| Não aplicável (metadado) | `prestadora` | `add_source_metadata`: argumento `operator` ou `url_decode` do segmento `-4` do caminho; mantida sem alteração | `no_prestadora` |
-| `specifiedTreatmentField_incoming-Route` | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_rota_entrada` |
-| `specifiedTreatmentField_outgoing-Route` | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_rota_saida` |
-| `nodeAddress_domainName` | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_bilhetador` |
+| Não aplicável (metadado) | `prestadora` | `add_source_metadata`: argumento `operator` ou `url_decode` do segmento `-4` do caminho; mantida sem alteração | `no_prestadora_cdr` |
+| `specifiedTreatmentField_incoming-Route` | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_entrada` |
+| `specifiedTreatmentField_outgoing-Route` | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_saida` |
+| `nodeAddress_domainName` | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_bilhetador` |
 | `accessNetworkInformation`; `role-of-Node` | `_informacao_rede`, `tipo_chamada` | `_extract_cell_info` (`regexp_extract('3gpp=([0-9a-fA-F]+);?', 1)` → `_id_celula_hex`) e `_format_cell_id` (formato `smp_huawei_volte_tim`) → `_id_celula`; mantida somente se `tipo_chamada == 'oRIGINATING-ROLE'`; senão `NULL` | `nu_cgi_origem` |
 | `accessNetworkInformation`; `role-of-Node` | `_informacao_rede`, `tipo_chamada` | `_id_celula_hex` (`regexp_extract`, vazio se não houver correspondência) somente se `tipo_chamada == 'oRIGINATING-ROLE'` | `nu_cgi_origem_hex` |
 | `accessNetworkInformation`; `role-of-Node` | `_informacao_rede`, `tipo_chamada` | `_tecnologia_celula` = `split(_informacao_rede, ';')[0]` somente se `tipo_chamada == 'oRIGINATING-ROLE'` | `no_tecnologia_celula_origem` |
@@ -398,7 +399,7 @@ Arquivo de origem
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_destino` |
 | `user-Agent-Value` | `agente_usuario` | Mantida sem alteração | `no_agente_usuario` |
-| Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'smp_huawei_volte_tim'`); mantida sem alteração | `no_esquema` |
+| Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'smp_huawei_volte_tim'`); mantida sem alteração | `co_esquema_extracao` |
 | `recordType` | `tipo_cdr` | Catálogo mapeia `recordType` internamente para `_tipo_cdr`; `add_source_metadata` copia `_tipo_cdr` para `tipo_cdr` (prevalece sobre `cdr_type` e caminho); `_tipo_cdr` é descartada antes do retorno do extrator | `no_tipo_cdr` |
 | Não aplicável (metadado) | `arquivo_origem` | `add_source_metadata`: `url_decode` do segmento `-1` do caminho; mantida sem alteração | `no_arquivo_origem` |
 | `role-of-Node` | `tipo_chamada` | Mantida sem alteração (valor bruto de `role-of-Node`); nulo → `__NULL__` (chave) | `no_tipo_chamada` |
@@ -438,25 +439,25 @@ Arquivo de origem
 
 | Colunas Originais | Colunas Extraídas | Coluna Intermediária / transformação | Coluna Final |
 | :-- | :-- | :-- | :-- |
-| `networkCallReference` | `referencia` | Mantida sem alteração; nulo → `__NULL__` (chave) | `nu_referencia` |
-| `imsChargingIdentifier` | `referencia_sip` | Mantida sem alteração; nulo → `__NULL__` (chave) | `nu_referencia_sip` |
+| `networkCallReference` | `referencia` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_referencia` |
+| `imsChargingIdentifier` | `referencia_sip` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_referencia_sip` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; `greatest(NULL, MIN_SAFE_DATE)` → `MIN_SAFE_DATE` | `dh_referencia` |
 | `dateForStartOfCharge`; `timeForStartOfCharge` | `_data`, `_hora` | `_concat_date_time`: `_data` + espaço + `_hora`; nulo se algum componente for nulo ou em branco; `try_to_timestamp(..., 'yyyyMMdd HHmmss')` e `greatest(..., MIN_SAFE_DATE)` (nulo/inválido → `MIN_SAFE_DATE`) | `dh_chamada` |
 | `dateForStartOfCharge`; `timeForStopOfCharge` | `_data`, `_hora_fim` | `_concat_date_time(stop_date='_data')`: `_data` + espaço + `_hora_fim`; se não nulo: `try_to_timestamp(..., 'yyyyMMdd HHmmss')` e `greatest(..., MIN_SAFE_DATE)` (nulo/inválido → `MIN_SAFE_DATE`); se nulo: `data_hora` + `duracao` s | `dh_fim_chamada` |
 | `chargeableDurat` | `duracao` | Mantida sem alteração; `cast int` e `coalesce(..., 0)` (chave) | `qt_duracao_segundos` |
-| `callingPartyNumber` | `_numero_origem_original` | pré-processamento: `split(_numero_origem_original, ';')[0]` (número sem o marcador); `numero_origem` → `_extract_numbers` (`extract_number`) → `numero_origem_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `nu_origem` |
-| `callingPartyNumber` | `_numero_origem_original` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_origem)` (mesma entrada de `nu_origem`) | `ic_origem_valido` |
-| `callingPartyNumber` | `_numero_origem_original` | `_numero_origem_original` (texto completo, inclusive `;verstat=...`) restaurada em `numero_origem` após a extração; nulo → `__NULL__` (chave) | `nu_origem_original` |
-| `calledPartyNumber` | `numero_destino` | `numero_destino` → `_extract_numbers` (`extract_number`) → `numero_destino_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `nu_destino` |
-| `calledPartyNumber` | `numero_destino` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_destino)` (mesma entrada de `nu_destino`) | `ic_destino_valido` |
-| `calledPartyNumber` | `numero_destino` | `numero_destino` sem restauração (não há `_numero_destino_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `nu_destino_original` |
-| `callPosition` | `_resultado_chamada` | `'1'` → `callHasReachedCongestionOrBusyState`; `'2'` → `callHasOnlyReachedThroughConnection`; `'3'` → `b-AnswerHasBeenReceived`; outro valor → mantém o valor de `_resultado_chamada`; nulo → `__NULL__` (chave) | `no_resultado_chamada` |
+| `callingPartyNumber` | `_numero_origem_original` | pré-processamento: `split(_numero_origem_original, ';')[0]` (número sem o marcador); `numero_origem` → `_extract_numbers` (`extract_number`) → `numero_origem_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `co_numero_origem` |
+| `callingPartyNumber` | `_numero_origem_original` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_origem)` (mesma entrada de `co_numero_origem`) | `ic_numero_origem_valido` |
+| `callingPartyNumber` | `_numero_origem_original` | `_numero_origem_original` (texto completo, inclusive `;verstat=...`) restaurada em `numero_origem` após a extração; nulo → `__NULL__` (chave) | `co_numero_origem_original` |
+| `calledPartyNumber` | `numero_destino` | `numero_destino` → `_extract_numbers` (`extract_number`) → `numero_destino_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `co_numero_destino` |
+| `calledPartyNumber` | `numero_destino` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_destino)` (mesma entrada de `co_numero_destino`) | `ic_numero_destino_valido` |
+| `calledPartyNumber` | `numero_destino` | `numero_destino` sem restauração (não há `_numero_destino_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `co_numero_destino_original` |
+| `callPosition` | `_resultado_chamada` | `'1'` → `callHasReachedCongestionOrBusyState`; `'2'` → `callHasOnlyReachedThroughConnection`; `'3'` → `b-AnswerHasBeenReceived`; outro valor → mantém o valor de `_resultado_chamada`; nulo → `__NULL__` (chave) | `de_resultado_chamada` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_resposta_sip` |
 | `callingPartyNumber` | `_numero_origem_original` | `_autenticacao` = `split(_numero_origem_original, ';')[1]`; depois `_add_tn_validation_status` | `no_autenticacao` |
-| Não aplicável (metadado) | `prestadora` | `add_source_metadata`: argumento `operator` ou `url_decode` do segmento `-4` do caminho; mantida sem alteração | `no_prestadora` |
-| `incomingRoute` | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_rota_entrada` |
-| `outgoingRoute` | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_rota_saida` |
-| `exchangeIdentity` | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_bilhetador` |
+| Não aplicável (metadado) | `prestadora` | `add_source_metadata`: argumento `operator` ou `url_decode` do segmento `-4` do caminho; mantida sem alteração | `no_prestadora_cdr` |
+| `incomingRoute` | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_entrada` |
+| `outgoingRoute` | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_saida` |
+| `exchangeIdentity` | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_bilhetador` |
 | `firstCallingLocInf` | `celula_origem_hex` | `_format_cell_id(celula_origem_hex → celula_origem)`, formato `default`: comprimento 13 → 3G, 16 → 4G, 20 → 5G; outro comprimento mantém o valor bruto; vazio → `NULL` | `nu_cgi_origem` |
 | `firstCallingLocInf` | `celula_origem_hex` | Mantida sem alteração | `nu_cgi_origem_hex` |
 | `firstCallingAccessNetInf` | `_informacao_rede_origem` | `split(_informacao_rede_origem, ';')[0]` | `no_tecnologia_celula_origem` |
@@ -472,7 +473,7 @@ Arquivo de origem
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_agente_usuario` |
-| Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'smp_ericsson_volte_vivo'`); mantida sem alteração | `no_esquema` |
+| Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'smp_ericsson_volte_vivo'`); mantida sem alteração | `co_esquema_extracao` |
 | Não aplicável (metadado) | `tipo_cdr` | `add_source_metadata`: argumento `cdr_type` ou `url_decode` do segmento `-2` do caminho; mantida sem alteração | `no_tipo_cdr` |
 | `source_filename` | `arquivo_origem` | `add_source_metadata` preserva valor não nulo e usa `url_decode` do segmento `-1` do caminho como fallback quando o valor é `NULL` (inclusive se a coluna de origem estiver ausente) | `no_arquivo_origem` |
 | `callModule` | `_tipo_chamada` | `'1'` → `msOriginating`; `'3'` → `callForwarding`; `'4'` → `msTerminating`; outro valor → mantém `_tipo_chamada`; nulo → `__NULL__` (chave) | `no_tipo_chamada` |
@@ -507,25 +508,25 @@ Arquivo de origem
 
 | Colunas Originais | Colunas Extraídas | Coluna Intermediária / transformação | Coluna Final |
 | :-- | :-- | :-- | :-- |
-| `network_call_reference_sequence_number` | `referencia` | Mantida sem alteração; nulo → `__NULL__` (chave) | `nu_referencia` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns` → `__NULL__` (chave) | `nu_referencia_sip` |
+| `network_call_reference_sequence_number` | `referencia` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_referencia` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns` → `__NULL__` (chave) | `co_referencia_sip` |
 | `call_id_number_time` | `data_hora_referencia` | Mantida sem alteração; `try_to_timestamp(..., 'yyyy-MM-dd HH:mm:ss')` e `greatest(..., MIN_SAFE_DATE)` (nulo/inválido → `MIN_SAFE_DATE`) | `dh_referencia` |
 | `starting_date_of_call`; `starting_time_of_call` | `_data`, `_hora` | `_concat_date_time`: `_data` + espaço + `_hora`; `try_to_timestamp(..., 'dd/MM/yy HH:mm:ss')` e `greatest(..., MIN_SAFE_DATE)` (nulo/inválido → `MIN_SAFE_DATE`) | `dh_chamada` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; `_format_date_time` calcula `data_hora` + `duracao` s | `dh_fim_chamada` |
 | `duration_of_call_seconds` | `duracao` | Mantida sem alteração; `cast int` e `coalesce(..., 0)` (chave) | `qt_duracao_segundos` |
-| `calling_information_calling_number` | `numero_origem` | `numero_origem` → `_extract_numbers` (`extract_number`) → `numero_origem_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `nu_origem` |
-| `calling_information_calling_number` | `numero_origem` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_origem)` (mesma entrada de `nu_origem`) | `ic_origem_valido` |
-| `calling_information_calling_number` | `numero_origem` | `numero_origem` sem restauração (não há `_numero_origem_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `nu_origem_original` |
-| `called_information_called_number` | `numero_destino` | `numero_destino` → `_extract_numbers` (`extract_number`) → `numero_destino_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `nu_destino` |
-| `called_information_called_number` | `numero_destino` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_destino)` (mesma entrada de `nu_destino`) | `ic_destino_valido` |
-| `called_information_called_number` | `numero_destino` | `numero_destino` sem restauração (não há `_numero_destino_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `nu_destino_original` |
-| `call_final_status_information_final_status` | `resultado_chamada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_resultado_chamada` |
+| `calling_information_calling_number` | `numero_origem` | `numero_origem` → `_extract_numbers` (`extract_number`) → `numero_origem_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `co_numero_origem` |
+| `calling_information_calling_number` | `numero_origem` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_origem)` (mesma entrada de `co_numero_origem`) | `ic_numero_origem_valido` |
+| `calling_information_calling_number` | `numero_origem` | `numero_origem` sem restauração (não há `_numero_origem_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `co_numero_origem_original` |
+| `called_information_called_number` | `numero_destino` | `numero_destino` → `_extract_numbers` (`extract_number`) → `numero_destino_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `co_numero_destino` |
+| `called_information_called_number` | `numero_destino` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_destino)` (mesma entrada de `co_numero_destino`) | `ic_numero_destino_valido` |
+| `called_information_called_number` | `numero_destino` | `numero_destino` sem restauração (não há `_numero_destino_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `co_numero_destino_original` |
+| `call_final_status_information_final_status` | `resultado_chamada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `de_resultado_chamada` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_resposta_sip` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; `_add_tn_validation_status` mantém `NULL` (sem `_autenticacao`) | `no_autenticacao` |
-| Não aplicável (metadado) | `prestadora` | `add_source_metadata`: argumento `operator` ou `url_decode` do segmento `-4` do caminho; mantida sem alteração | `no_prestadora` |
-| `trunking_group_identity_information_incoming_trunk_group_identity` | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_rota_entrada` |
-| `trunking_group_identity_information_outgoing_trunk_group_identity` | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_rota_saida` |
-| `network_call_reference_switch_identity` | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_bilhetador` |
+| Não aplicável (metadado) | `prestadora` | `add_source_metadata`: argumento `operator` ou `url_decode` do segmento `-4` do caminho; mantida sem alteração | `no_prestadora_cdr` |
+| `trunking_group_identity_information_incoming_trunk_group_identity` | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_entrada` |
+| `trunking_group_identity_information_outgoing_trunk_group_identity` | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_saida` |
+| `network_call_reference_switch_identity` | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_bilhetador` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_origem` |
@@ -541,7 +542,7 @@ Arquivo de origem
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_agente_usuario` |
-| Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'stfc_italtel_ngn_tim'`); mantida sem alteração | `no_esquema` |
+| Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'stfc_italtel_ngn_tim'`); mantida sem alteração | `co_esquema_extracao` |
 | Não aplicável (metadado) | `tipo_cdr` | `add_source_metadata`: argumento `cdr_type` ou `url_decode` do segmento `-2` do caminho; mantida sem alteração | `no_tipo_cdr` |
 | Não aplicável (metadado) | `arquivo_origem` | `add_source_metadata`: `url_decode` do segmento `-1` do caminho; mantida sem alteração | `no_arquivo_origem` |
 | `type_of_call` | `_tipo_chamada` | `regexp_replace(_tipo_chamada, ' ', '_')`; nulo → `__NULL__` (chave) | `no_tipo_chamada` |
@@ -570,25 +571,25 @@ Arquivo de origem
 
 | Colunas Originais | Colunas Extraídas | Coluna Intermediária / transformação | Coluna Final |
 | :-- | :-- | :-- | :-- |
-| `a_sequence_number` | `referencia` | Mantida sem alteração; nulo → `__NULL__` (chave) | `nu_referencia` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns` → `__NULL__` (chave) | `nu_referencia_sip` |
+| `a_sequence_number` | `referencia` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_referencia` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns` → `__NULL__` (chave) | `co_referencia_sip` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; `greatest(NULL, MIN_SAFE_DATE)` → `MIN_SAFE_DATE` | `dh_referencia` |
 | `a_start_date`; `a_incoming_seizure_time` | `_data`, `_hora` | `concat_ws(' ', _data, _hora)` (componentes nulos são ignorados, sem anular o composto); `try_to_timestamp(..., 'ddMMyy HH:mm:ss')` e `greatest(..., MIN_SAFE_DATE)` (nulo/inválido → `MIN_SAFE_DATE`) | `dh_chamada` |
 | `a_start_date`; `a_call_release_time` | `_data`, `_hora_fim` | `concat_ws(' ', _data, _hora_fim)` (usa a data de início); se não nulo: `try_to_timestamp(..., 'ddMMyy HH:mm:ss')` e `greatest(..., MIN_SAFE_DATE)` (nulo/inválido → `MIN_SAFE_DATE`); se nulo: `data_hora` + `duracao` s | `dh_fim_chamada` |
 | `a_duration_seconds` | `duracao` | Mantida sem alteração; `cast int` e `coalesce(..., 0)` (chave) | `qt_duracao_segundos` |
-| `a_calling_party` | `numero_origem` | `numero_origem` → `_extract_numbers` (`extract_number`) → `numero_origem_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `nu_origem` |
-| `a_calling_party` | `numero_origem` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_origem)` (mesma entrada de `nu_origem`) | `ic_origem_valido` |
-| `a_calling_party` | `numero_origem` | `numero_origem` sem restauração (não há `_numero_origem_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `nu_origem_original` |
-| `a_called_party` | `numero_destino` | `numero_destino` → `_extract_numbers` (`extract_number`) → `numero_destino_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `nu_destino` |
-| `a_called_party` | `numero_destino` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_destino)` (mesma entrada de `nu_destino`) | `ic_destino_valido` |
-| `a_called_party` | `numero_destino` | `numero_destino` sem restauração (não há `_numero_destino_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `nu_destino_original` |
-| `a_call_class` | `resultado_chamada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_resultado_chamada` |
+| `a_calling_party` | `numero_origem` | `numero_origem` → `_extract_numbers` (`extract_number`) → `numero_origem_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `co_numero_origem` |
+| `a_calling_party` | `numero_origem` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_origem)` (mesma entrada de `co_numero_origem`) | `ic_numero_origem_valido` |
+| `a_calling_party` | `numero_origem` | `numero_origem` sem restauração (não há `_numero_origem_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `co_numero_origem_original` |
+| `a_called_party` | `numero_destino` | `numero_destino` → `_extract_numbers` (`extract_number`) → `numero_destino_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `co_numero_destino` |
+| `a_called_party` | `numero_destino` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_destino)` (mesma entrada de `co_numero_destino`) | `ic_numero_destino_valido` |
+| `a_called_party` | `numero_destino` | `numero_destino` sem restauração (não há `_numero_destino_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `co_numero_destino_original` |
+| `a_call_class` | `resultado_chamada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `de_resultado_chamada` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_resposta_sip` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; `_add_tn_validation_status` mantém `NULL` (sem `_autenticacao`) | `no_autenticacao` |
-| Não aplicável (metadado) | `prestadora` | `add_source_metadata`: argumento `operator` ou `url_decode` do segmento `-4` do caminho; mantida sem alteração | `no_prestadora` |
-| `a_incoming_route_name` | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_rota_entrada` |
-| `a_outgoing_route_name` | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_rota_saida` |
-| `a_exchange_id` | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_bilhetador` |
+| Não aplicável (metadado) | `prestadora` | `add_source_metadata`: argumento `operator` ou `url_decode` do segmento `-4` do caminho; mantida sem alteração | `no_prestadora_cdr` |
+| `a_incoming_route_name` | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_entrada` |
+| `a_outgoing_route_name` | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_saida` |
+| `a_exchange_id` | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_bilhetador` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_origem` |
@@ -604,7 +605,7 @@ Arquivo de origem
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_agente_usuario` |
-| Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'stfc_sigma_claro'`); mantida sem alteração | `no_esquema` |
+| Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'stfc_sigma_claro'`); mantida sem alteração | `co_esquema_extracao` |
 | `format` | `_tipo_cdr` → `tipo_cdr` | `add_source_metadata`: `_tipo_cdr` prevalece sobre `cdr_type` e sobre o caminho; `_tipo_cdr` é removida em seguida | `no_tipo_cdr` |
 | `source_file` | `arquivo_origem` | O extrator remove hífens finais (`fill_char='-'`); `add_source_metadata` preserva valor não nulo e usa `url_decode` do segmento `-1` do caminho como fallback quando o valor é `NULL` (inclusive se a coluna de origem estiver ausente) | `no_arquivo_origem` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns` → `__NULL__` (chave) | `no_tipo_chamada` |
@@ -638,25 +639,25 @@ Arquivo de origem
 
 | Colunas Originais | Colunas Extraídas | Coluna Intermediária / transformação | Coluna Final |
 | :-- | :-- | :-- | :-- |
-| campo CSV 0 (base 0) | `referencia` | Mantida sem alteração; nulo → `__NULL__` (chave) | `nu_referencia` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns` → `__NULL__` (chave) | `nu_referencia_sip` |
+| campo CSV 0 (base 0) | `referencia` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_referencia` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns` → `__NULL__` (chave) | `co_referencia_sip` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; `greatest(NULL, MIN_SAFE_DATE)` → `MIN_SAFE_DATE` | `dh_referencia` |
 | campo CSV 3 (base 0); campo CSV 4 (base 0) | `_data`, `_hora` | `_concat_date_time`: `_data` + espaço + `_hora`; `try_to_timestamp(..., 'ddMMyyyy HHmmss')` e `greatest(..., MIN_SAFE_DATE)` (nulo/inválido → `MIN_SAFE_DATE`) | `dh_chamada` |
 | campo CSV 5 (base 0); campo CSV 6 (base 0) | `_data_fim`, `_hora_fim` | `_concat_date_time`: `_data_fim` + espaço + `_hora_fim`; se não nulo: `try_to_timestamp(..., 'ddMMyyyy HHmmss')` e `greatest(..., MIN_SAFE_DATE)` (nulo/inválido → `MIN_SAFE_DATE`); se nulo: `data_hora` + `duracao` s | `dh_fim_chamada` |
 | campo CSV 7 (base 0) | `duracao` | Mantida sem alteração; `cast int` e `coalesce(..., 0)` (chave) | `qt_duracao_segundos` |
-| campo CSV 8 (base 0) | `numero_origem` | `numero_origem` → `_extract_numbers` (`extract_number`) → `numero_origem_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `nu_origem` |
-| campo CSV 8 (base 0) | `numero_origem` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_origem)` (mesma entrada de `nu_origem`) | `ic_origem_valido` |
-| campo CSV 8 (base 0) | `numero_origem` | `numero_origem` sem restauração (não há `_numero_origem_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `nu_origem_original` |
-| campo CSV 9 (base 0) | `numero_destino` | `numero_destino` → `_extract_numbers` (`extract_number`) → `numero_destino_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `nu_destino` |
-| campo CSV 9 (base 0) | `numero_destino` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_destino)` (mesma entrada de `nu_destino`) | `ic_destino_valido` |
-| campo CSV 9 (base 0) | `numero_destino` | `numero_destino` sem restauração (não há `_numero_destino_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `nu_destino_original` |
-| campo CSV 22 (base 0) | `_resultado_chamada` | `'00'` → `caller party on-hook`; `'01'` → `called party on-hook`; `'02'` → `abnormal`; demais (inclusive nulo) → `unknown`; nulo → `__NULL__` (chave) | `no_resultado_chamada` |
+| campo CSV 8 (base 0) | `numero_origem` | `numero_origem` → `_extract_numbers` (`extract_number`) → `numero_origem_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `co_numero_origem` |
+| campo CSV 8 (base 0) | `numero_origem` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_origem)` (mesma entrada de `co_numero_origem`) | `ic_numero_origem_valido` |
+| campo CSV 8 (base 0) | `numero_origem` | `numero_origem` sem restauração (não há `_numero_origem_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `co_numero_origem_original` |
+| campo CSV 9 (base 0) | `numero_destino` | `numero_destino` → `_extract_numbers` (`extract_number`) → `numero_destino_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `co_numero_destino` |
+| campo CSV 9 (base 0) | `numero_destino` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_destino)` (mesma entrada de `co_numero_destino`) | `ic_numero_destino_valido` |
+| campo CSV 9 (base 0) | `numero_destino` | `numero_destino` sem restauração (não há `_numero_destino_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `co_numero_destino_original` |
+| campo CSV 22 (base 0) | `_resultado_chamada` | `'00'` → `caller party on-hook`; `'01'` → `called party on-hook`; `'02'` → `abnormal`; demais (inclusive nulo) → `unknown`; nulo → `__NULL__` (chave) | `de_resultado_chamada` |
 | campo CSV 21 (base 0) | `codigo_resposta_sip` | Mantida sem alteração | `co_resposta_sip` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; `_add_tn_validation_status` mantém `NULL` (sem `_autenticacao`) | `no_autenticacao` |
-| Não aplicável (metadado) | `prestadora` | `add_source_metadata`: argumento `operator` ou `url_decode` do segmento `-4` do caminho; mantida sem alteração | `no_prestadora` |
-| campo CSV 17 (base 0) | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_rota_entrada` |
-| campo CSV 18 (base 0) | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_rota_saida` |
-| campo CSV 1 (base 0) | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_bilhetador` |
+| Não aplicável (metadado) | `prestadora` | `add_source_metadata`: argumento `operator` ou `url_decode` do segmento `-4` do caminho; mantida sem alteração | `no_prestadora_cdr` |
+| campo CSV 17 (base 0) | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_entrada` |
+| campo CSV 18 (base 0) | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_saida` |
+| campo CSV 1 (base 0) | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_bilhetador` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_origem` |
@@ -672,7 +673,7 @@ Arquivo de origem
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_agente_usuario` |
-| Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'stfc_huawei_ngn'`); mantida sem alteração | `no_esquema` |
+| Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'stfc_huawei_ngn'`); mantida sem alteração | `co_esquema_extracao` |
 | Não aplicável (metadado) | `tipo_cdr` | `add_source_metadata`: argumento `cdr_type` ou `url_decode` do segmento `-2` do caminho; mantida sem alteração | `no_tipo_cdr` |
 | Não aplicável (metadado) | `arquivo_origem` | `add_source_metadata`: `url_decode` do segmento `-1` do caminho; mantida sem alteração | `no_arquivo_origem` |
 | campo CSV 19 (base 0) | `_tipo_chamada` | `'01'` → `intra_office`; `'02'` → `incoming_office`; `'03'` → `outgoing_office`; `'04'` → `tandem`; `'05'` → `new_service`; demais (inclusive nulo) → `unknown`; nulo → `__NULL__` (chave) | `no_tipo_chamada` |
@@ -700,25 +701,25 @@ Arquivo de origem
 
 | Colunas Originais | Colunas Extraídas | Coluna Intermediária / transformação | Coluna Final |
 | :-- | :-- | :-- | :-- |
-| campo CSV 18 (base 0) | `referencia` | Mantida sem alteração; nulo → `__NULL__` (chave) | `nu_referencia` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns` → `__NULL__` (chave) | `nu_referencia_sip` |
+| campo CSV 18 (base 0) | `referencia` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_referencia` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns` → `__NULL__` (chave) | `co_referencia_sip` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; `greatest(NULL, MIN_SAFE_DATE)` → `MIN_SAFE_DATE` | `dh_referencia` |
 | campo CSV 29 (base 0) | `data_hora` | Mantida sem alteração; `try_to_timestamp(..., 'yyMMddHHmmss')` e `greatest(..., MIN_SAFE_DATE)` (nulo/inválido → `MIN_SAFE_DATE`) | `dh_chamada` |
 | campo CSV 30 (base 0) | `data_hora_fim` | Mantida sem alteração; se não nulo: `try_to_timestamp(..., 'yyMMddHHmmss')` e `greatest(..., MIN_SAFE_DATE)` (nulo/inválido → `MIN_SAFE_DATE`); se nulo: `data_hora` + `duracao` s | `dh_fim_chamada` |
 | campo CSV 5 (base 0) | `duracao` | Mantida sem alteração; `cast int` e `coalesce(..., 0)` (chave) | `qt_duracao_segundos` |
-| campo CSV 10 (base 0) | `numero_origem` | `numero_origem` → `_extract_numbers` (`extract_number`) → `numero_origem_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `nu_origem` |
-| campo CSV 10 (base 0) | `numero_origem` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_origem)` (mesma entrada de `nu_origem`) | `ic_origem_valido` |
-| campo CSV 10 (base 0) | `numero_origem` | `numero_origem` sem restauração (não há `_numero_origem_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `nu_origem_original` |
-| campo CSV 11 (base 0) | `numero_destino` | `numero_destino` → `_extract_numbers` (`extract_number`) → `numero_destino_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `nu_destino` |
-| campo CSV 11 (base 0) | `numero_destino` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_destino)` (mesma entrada de `nu_destino`) | `ic_destino_valido` |
-| campo CSV 11 (base 0) | `numero_destino` | `numero_destino` sem restauração (não há `_numero_destino_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `nu_destino_original` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns` → `__NULL__` (chave) | `no_resultado_chamada` |
+| campo CSV 10 (base 0) | `numero_origem` | `numero_origem` → `_extract_numbers` (`extract_number`) → `numero_origem_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `co_numero_origem` |
+| campo CSV 10 (base 0) | `numero_origem` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_origem)` (mesma entrada de `co_numero_origem`) | `ic_numero_origem_valido` |
+| campo CSV 10 (base 0) | `numero_origem` | `numero_origem` sem restauração (não há `_numero_origem_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `co_numero_origem_original` |
+| campo CSV 11 (base 0) | `numero_destino` | `numero_destino` → `_extract_numbers` (`extract_number`) → `numero_destino_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `co_numero_destino` |
+| campo CSV 11 (base 0) | `numero_destino` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_destino)` (mesma entrada de `co_numero_destino`) | `ic_numero_destino_valido` |
+| campo CSV 11 (base 0) | `numero_destino` | `numero_destino` sem restauração (não há `_numero_destino_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `co_numero_destino_original` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; nulo → `__NULL__` (chave) | `de_resultado_chamada` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_resposta_sip` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; `_add_tn_validation_status` mantém `NULL` (sem `_autenticacao`) | `no_autenticacao` |
-| Não aplicável (metadado) | `prestadora` | `add_source_metadata`: argumento `operator` ou `url_decode` do segmento `-4` do caminho; mantida sem alteração | `no_prestadora` |
-| campo CSV 6 (base 0) | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_rota_entrada` |
-| campo CSV 8 (base 0) | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_rota_saida` |
-| campo CSV 17 (base 0) | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_bilhetador` |
+| Não aplicável (metadado) | `prestadora` | `add_source_metadata`: argumento `operator` ou `url_decode` do segmento `-4` do caminho; mantida sem alteração | `no_prestadora_cdr` |
+| campo CSV 6 (base 0) | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_entrada` |
+| campo CSV 8 (base 0) | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_saida` |
+| campo CSV 17 (base 0) | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_bilhetador` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_origem` |
@@ -734,7 +735,7 @@ Arquivo de origem
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_agente_usuario` |
-| Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'stfc_huawei_ngn_tim'`); mantida sem alteração | `no_esquema` |
+| Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'stfc_huawei_ngn_tim'`); mantida sem alteração | `co_esquema_extracao` |
 | Não aplicável (metadado) | `tipo_cdr` | `add_source_metadata`: argumento `cdr_type` ou `url_decode` do segmento `-2` do caminho; mantida sem alteração | `no_tipo_cdr` |
 | Não aplicável (metadado) | `arquivo_origem` | `add_source_metadata`: `url_decode` do segmento `-1` do caminho; mantida sem alteração | `no_arquivo_origem` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns` → `__NULL__` (chave) | `no_tipo_chamada` |
@@ -769,25 +770,25 @@ Arquivo de origem
 
 | Colunas Originais | Colunas Extraídas | Coluna Intermediária / transformação | Coluna Final |
 | :-- | :-- | :-- | :-- |
-| campo CSV 68 (base 0) | `referencia` | Mantida sem alteração; nulo → `__NULL__` (chave) | `nu_referencia` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns` → `__NULL__` (chave) | `nu_referencia_sip` |
+| campo CSV 68 (base 0) | `referencia` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_referencia` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns` → `__NULL__` (chave) | `co_referencia_sip` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; `greatest(NULL, MIN_SAFE_DATE)` → `MIN_SAFE_DATE` | `dh_referencia` |
 | campo CSV 28 (base 0); campo CSV 25 (base 0) | `_data`, `_hora` | `_concat_date_time`: `_data` + espaço + `_hora`; `try_to_timestamp(..., 'ddMMyy HHmmss')` e `greatest(..., MIN_SAFE_DATE)` (nulo/inválido → `MIN_SAFE_DATE`) | `dh_chamada` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; `_format_date_time` calcula `data_hora` + `duracao` s | `dh_fim_chamada` |
 | campo CSV 27 (base 0) | `duracao` | Mantida sem alteração; `cast int` e `coalesce(..., 0)` (chave) | `qt_duracao_segundos` |
-| campo CSV 78 (base 0) | `numero_origem` | `numero_origem` → `_extract_numbers` (`extract_number`) → `numero_origem_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `nu_origem` |
-| campo CSV 78 (base 0) | `numero_origem` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_origem)` (mesma entrada de `nu_origem`) | `ic_origem_valido` |
-| campo CSV 78 (base 0) | `numero_origem` | `numero_origem` sem restauração (não há `_numero_origem_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `nu_origem_original` |
-| campo CSV 22 (base 0) | `numero_destino` | `numero_destino` → `_extract_numbers` (`extract_number`) → `numero_destino_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `nu_destino` |
-| campo CSV 22 (base 0) | `numero_destino` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_destino)` (mesma entrada de `nu_destino`) | `ic_destino_valido` |
-| campo CSV 22 (base 0) | `numero_destino` | `numero_destino` sem restauração (não há `_numero_destino_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `nu_destino_original` |
-| campo CSV 24 (base 0) | `_resultado_chamada` | `abs(cast int)` e tabela de códigos (ver “Códigos de `_resultado_chamada`” abaixo); fora da tabela → `NULL`; nulo → `__NULL__` (chave) | `no_resultado_chamada` |
+| campo CSV 78 (base 0) | `numero_origem` | `numero_origem` → `_extract_numbers` (`extract_number`) → `numero_origem_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `co_numero_origem` |
+| campo CSV 78 (base 0) | `numero_origem` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_origem)` (mesma entrada de `co_numero_origem`) | `ic_numero_origem_valido` |
+| campo CSV 78 (base 0) | `numero_origem` | `numero_origem` sem restauração (não há `_numero_origem_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `co_numero_origem_original` |
+| campo CSV 22 (base 0) | `numero_destino` | `numero_destino` → `_extract_numbers` (`extract_number`) → `numero_destino_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `co_numero_destino` |
+| campo CSV 22 (base 0) | `numero_destino` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_destino)` (mesma entrada de `co_numero_destino`) | `ic_numero_destino_valido` |
+| campo CSV 22 (base 0) | `numero_destino` | `numero_destino` sem restauração (não há `_numero_destino_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `co_numero_destino_original` |
+| campo CSV 24 (base 0) | `_resultado_chamada` | `abs(cast int)` e tabela de códigos (ver “Códigos de `_resultado_chamada`” abaixo); fora da tabela → `NULL`; nulo → `__NULL__` (chave) | `de_resultado_chamada` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_resposta_sip` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; `_add_tn_validation_status` mantém `NULL` (sem `_autenticacao`) | `no_autenticacao` |
-| Não aplicável (metadado) | `prestadora` | `add_source_metadata`: argumento `operator` ou `url_decode` do segmento `-4` do caminho; mantida sem alteração | `no_prestadora` |
-| campo CSV 33 (base 0) | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_rota_entrada` |
-| campo CSV 34 (base 0) | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_rota_saida` |
-| campo CSV 0 (base 0) | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_bilhetador` |
+| Não aplicável (metadado) | `prestadora` | `add_source_metadata`: argumento `operator` ou `url_decode` do segmento `-4` do caminho; mantida sem alteração | `no_prestadora_cdr` |
+| campo CSV 33 (base 0) | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_entrada` |
+| campo CSV 34 (base 0) | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_saida` |
+| campo CSV 0 (base 0) | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_bilhetador` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_origem` |
@@ -803,7 +804,7 @@ Arquivo de origem
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_agente_usuario` |
-| Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'stfc_fcdr_vivo'`); mantida sem alteração | `no_esquema` |
+| Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'stfc_fcdr_vivo'`); mantida sem alteração | `co_esquema_extracao` |
 | campo CSV 1 (base 0) | `_tipo_cdr` → `tipo_cdr` | `add_source_metadata`: `_tipo_cdr` prevalece sobre `cdr_type` e sobre o caminho; `_tipo_cdr` é removida em seguida | `no_tipo_cdr` |
 | Não aplicável (metadado) | `arquivo_origem` | `add_source_metadata`: `url_decode` do segmento `-1` do caminho; mantida sem alteração | `no_arquivo_origem` |
 | campo CSV 2 (base 0) | `_tipo_chamada` | `'E'` → `Entrada`; `'S'` → `Saída`; `'T'` → `Transporte`; demais → `NULL`; nulo → `__NULL__` (chave) | `no_tipo_chamada` |
@@ -837,25 +838,25 @@ Arquivo de origem
 
 | Colunas Originais | Colunas Extraídas | Coluna Intermediária / transformação | Coluna Final |
 | :-- | :-- | :-- | :-- |
-| posição 2, largura 32 (linha de largura fixa) | `referencia` | Mantida sem alteração; nulo → `__NULL__` (chave) | `nu_referencia` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns` → `__NULL__` (chave) | `nu_referencia_sip` |
+| posição 2, largura 32 (linha de largura fixa) | `referencia` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_referencia` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns` → `__NULL__` (chave) | `co_referencia_sip` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; `greatest(NULL, MIN_SAFE_DATE)` → `MIN_SAFE_DATE` | `dh_referencia` |
 | posição 194, largura 8 (linha de largura fixa); posição 202, largura 6 (linha de largura fixa) | `_data`, `_hora` | `_concat_date_time`: `_data` + espaço + `_hora`; `try_to_timestamp(..., 'ddMMyyyy HHmmss')` e `greatest(..., MIN_SAFE_DATE)` (nulo/inválido → `MIN_SAFE_DATE`) | `dh_chamada` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; `_format_date_time` calcula `data_hora` + `duracao` s | `dh_fim_chamada` |
 | posição 208, largura 6 (linha de largura fixa) | `duracao` | Mantida sem alteração; `cast int` e `coalesce(..., 0)` (chave) | `qt_duracao_segundos` |
-| posição 34, largura 16 (linha de largura fixa) | `numero_origem` | `numero_origem` → `_extract_numbers` (`extract_number`) → `numero_origem_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `nu_origem` |
-| posição 34, largura 16 (linha de largura fixa) | `numero_origem` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_origem)` (mesma entrada de `nu_origem`) | `ic_origem_valido` |
-| posição 34, largura 16 (linha de largura fixa) | `numero_origem` | `numero_origem` sem restauração (não há `_numero_origem_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `nu_origem_original` |
-| posição 85, largura 30 (linha de largura fixa) | `numero_destino` | `numero_destino` → `_extract_numbers` (`extract_number`) → `numero_destino_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `nu_destino` |
-| posição 85, largura 30 (linha de largura fixa) | `numero_destino` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_destino)` (mesma entrada de `nu_destino`) | `ic_destino_valido` |
-| posição 85, largura 30 (linha de largura fixa) | `numero_destino` | `numero_destino` sem restauração (não há `_numero_destino_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `nu_destino_original` |
-| posição 247, largura 2 (linha de largura fixa) | `_resultado_chamada` | `'10'` → `Chamada completada`; `'31'` → `Não responde`; `'32'` → `linha ocupada`; `'44'` → `Congestionamento`; `'48'` → `Falha`; `'50'`, `'51'`, `'52'`, `'53'` → `Outros`; `'99'` → `Não identificado`; demais → `NULL`; nulo → `__NULL__` (chave) | `no_resultado_chamada` |
+| posição 34, largura 16 (linha de largura fixa) | `numero_origem` | `numero_origem` → `_extract_numbers` (`extract_number`) → `numero_origem_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `co_numero_origem` |
+| posição 34, largura 16 (linha de largura fixa) | `numero_origem` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_origem)` (mesma entrada de `co_numero_origem`) | `ic_numero_origem_valido` |
+| posição 34, largura 16 (linha de largura fixa) | `numero_origem` | `numero_origem` sem restauração (não há `_numero_origem_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `co_numero_origem_original` |
+| posição 85, largura 30 (linha de largura fixa) | `numero_destino` | `numero_destino` → `_extract_numbers` (`extract_number`) → `numero_destino_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `co_numero_destino` |
+| posição 85, largura 30 (linha de largura fixa) | `numero_destino` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_destino)` (mesma entrada de `co_numero_destino`) | `ic_numero_destino_valido` |
+| posição 85, largura 30 (linha de largura fixa) | `numero_destino` | `numero_destino` sem restauração (não há `_numero_destino_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `co_numero_destino_original` |
+| posição 247, largura 2 (linha de largura fixa) | `_resultado_chamada` | `'10'` → `Chamada completada`; `'31'` → `Não responde`; `'32'` → `linha ocupada`; `'44'` → `Congestionamento`; `'48'` → `Falha`; `'50'`, `'51'`, `'52'`, `'53'` → `Outros`; `'99'` → `Não identificado`; demais → `NULL`; nulo → `__NULL__` (chave) | `de_resultado_chamada` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_resposta_sip` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; `_add_tn_validation_status` mantém `NULL` (sem `_autenticacao`) | `no_autenticacao` |
-| Não aplicável (metadado) | `prestadora` | `add_source_metadata`: argumento `operator` ou `url_decode` do segmento `-4` do caminho; mantida sem alteração | `no_prestadora` |
-| posição 222, largura 8 (linha de largura fixa) | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_rota_entrada` |
-| posição 235, largura 8 (linha de largura fixa) | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_rota_saida` |
-| posição 255, largura 4 (linha de largura fixa) | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_bilhetador` |
+| Não aplicável (metadado) | `prestadora` | `add_source_metadata`: argumento `operator` ou `url_decode` do segmento `-4` do caminho; mantida sem alteração | `no_prestadora_cdr` |
+| posição 222, largura 8 (linha de largura fixa) | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_entrada` |
+| posição 235, largura 8 (linha de largura fixa) | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_saida` |
+| posição 255, largura 4 (linha de largura fixa) | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_bilhetador` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_origem` |
@@ -871,7 +872,7 @@ Arquivo de origem
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_agente_usuario` |
-| Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'stfc_7n_oi'`); mantida sem alteração | `no_esquema` |
+| Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'stfc_7n_oi'`); mantida sem alteração | `co_esquema_extracao` |
 | Não aplicável (metadado) | `tipo_cdr` | `add_source_metadata`: argumento `cdr_type` ou `url_decode` do segmento `-2` do caminho; mantida sem alteração | `no_tipo_cdr` |
 | Não aplicável (metadado) | `arquivo_origem` | `add_source_metadata`: `url_decode` do segmento `-1` do caminho; mantida sem alteração | `no_arquivo_origem` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns` → `__NULL__` (chave) | `no_tipo_chamada` |
@@ -906,25 +907,25 @@ Arquivo de origem
 
 | Colunas Originais | Colunas Extraídas | Coluna Intermediária / transformação | Coluna Final |
 | :-- | :-- | :-- | :-- |
-| posição 9, largura 25 (linha de largura fixa) | `referencia` | Mantida sem alteração; nulo → `__NULL__` (chave) | `nu_referencia` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns` → `__NULL__` (chave) | `nu_referencia_sip` |
+| posição 9, largura 25 (linha de largura fixa) | `referencia` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_referencia` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns` → `__NULL__` (chave) | `co_referencia_sip` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; `greatest(NULL, MIN_SAFE_DATE)` → `MIN_SAFE_DATE` | `dh_referencia` |
 | posição 147, largura 6 (linha de largura fixa); posição 153, largura 6 (linha de largura fixa) | `_data`, `_hora` | `_concat_date_time`: `_data` + espaço + `_hora`; `try_to_timestamp(..., 'ddMMyy HHmmss')` e `greatest(..., MIN_SAFE_DATE)` (nulo/inválido → `MIN_SAFE_DATE`) | `dh_chamada` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; `_format_date_time` calcula `data_hora` + `duracao` s | `dh_fim_chamada` |
 | posição 159, largura 6 (linha de largura fixa) | `duracao` | Mantida sem alteração; `cast int` e `coalesce(..., 0)` (chave) | `qt_duracao_segundos` |
-| posição 45, largura 16 (linha de largura fixa) | `numero_origem` | `numero_origem` → `_extract_numbers` (`extract_number`) → `numero_origem_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `nu_origem` |
-| posição 45, largura 16 (linha de largura fixa) | `numero_origem` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_origem)` (mesma entrada de `nu_origem`) | `ic_origem_valido` |
-| posição 45, largura 16 (linha de largura fixa) | `numero_origem` | `numero_origem` sem restauração (não há `_numero_origem_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `nu_origem_original` |
-| posição 79, largura 18 (linha de largura fixa) | `numero_destino` | `numero_destino` → `_extract_numbers` (`extract_number`) → `numero_destino_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `nu_destino` |
-| posição 79, largura 18 (linha de largura fixa) | `numero_destino` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_destino)` (mesma entrada de `nu_destino`) | `ic_destino_valido` |
-| posição 79, largura 18 (linha de largura fixa) | `numero_destino` | `numero_destino` sem restauração (não há `_numero_destino_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `nu_destino_original` |
-| posição 142, largura 3 (linha de largura fixa) | `_resultado_chamada` | `abs(cast int)` e tabela de códigos (ver “Códigos de `_resultado_chamada`” abaixo); fora da tabela → `NULL`; nulo → `__NULL__` (chave) | `no_resultado_chamada` |
+| posição 45, largura 16 (linha de largura fixa) | `numero_origem` | `numero_origem` → `_extract_numbers` (`extract_number`) → `numero_origem_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `co_numero_origem` |
+| posição 45, largura 16 (linha de largura fixa) | `numero_origem` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_origem)` (mesma entrada de `co_numero_origem`) | `ic_numero_origem_valido` |
+| posição 45, largura 16 (linha de largura fixa) | `numero_origem` | `numero_origem` sem restauração (não há `_numero_origem_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `co_numero_origem_original` |
+| posição 79, largura 18 (linha de largura fixa) | `numero_destino` | `numero_destino` → `_extract_numbers` (`extract_number`) → `numero_destino_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `co_numero_destino` |
+| posição 79, largura 18 (linha de largura fixa) | `numero_destino` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_destino)` (mesma entrada de `co_numero_destino`) | `ic_numero_destino_valido` |
+| posição 79, largura 18 (linha de largura fixa) | `numero_destino` | `numero_destino` sem restauração (não há `_numero_destino_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `co_numero_destino_original` |
+| posição 142, largura 3 (linha de largura fixa) | `_resultado_chamada` | `abs(cast int)` e tabela de códigos (ver “Códigos de `_resultado_chamada`” abaixo); fora da tabela → `NULL`; nulo → `__NULL__` (chave) | `de_resultado_chamada` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_resposta_sip` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; `_add_tn_validation_status` mantém `NULL` (sem `_autenticacao`) | `no_autenticacao` |
-| Não aplicável (metadado) | `prestadora` | `add_source_metadata`: argumento `operator` ou `url_decode` do segmento `-4` do caminho; mantida sem alteração | `no_prestadora` |
-| posição 191, largura 7 (linha de largura fixa) | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_rota_entrada` |
-| posição 205, largura 7 (linha de largura fixa) | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_rota_saida` |
-| posição 175, largura 4 (linha de largura fixa) | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_bilhetador` |
+| Não aplicável (metadado) | `prestadora` | `add_source_metadata`: argumento `operator` ou `url_decode` do segmento `-4` do caminho; mantida sem alteração | `no_prestadora_cdr` |
+| posição 191, largura 7 (linha de largura fixa) | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_entrada` |
+| posição 205, largura 7 (linha de largura fixa) | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_saida` |
+| posição 175, largura 4 (linha de largura fixa) | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_bilhetador` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_origem` |
@@ -940,7 +941,7 @@ Arquivo de origem
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_agente_usuario` |
-| Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'stfc_tropico_oi'`); mantida sem alteração | `no_esquema` |
+| Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'stfc_tropico_oi'`); mantida sem alteração | `co_esquema_extracao` |
 | Não aplicável (metadado) | `tipo_cdr` | `add_source_metadata`: argumento `cdr_type` ou `url_decode` do segmento `-2` do caminho; mantida sem alteração | `no_tipo_cdr` |
 | Não aplicável (metadado) | `arquivo_origem` | `add_source_metadata`: `url_decode` do segmento `-1` do caminho; mantida sem alteração | `no_arquivo_origem` |
 | posição 173, largura 1 (linha de largura fixa) | `_tipo_chamada` | `0` → `Interna`; `1` → `Saída`; `2` → `Entrada`; demais → `NULL`; nulo → `__NULL__` (chave) | `no_tipo_chamada` |
@@ -974,25 +975,25 @@ Arquivo de origem
 
 | Colunas Originais | Colunas Extraídas | Coluna Intermediária / transformação | Coluna Final |
 | :-- | :-- | :-- | :-- |
-| posição 142, largura 8 (linha de largura fixa) | `referencia` | Mantida sem alteração; nulo → `__NULL__` (chave) | `nu_referencia` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns` → `__NULL__` (chave) | `nu_referencia_sip` |
+| posição 142, largura 8 (linha de largura fixa) | `referencia` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_referencia` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns` → `__NULL__` (chave) | `co_referencia_sip` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; `greatest(NULL, MIN_SAFE_DATE)` → `MIN_SAFE_DATE` | `dh_referencia` |
 | posição 80, largura 6 (linha de largura fixa); posição 62, largura 6 (linha de largura fixa) | `_data`, `_hora` | `_concat_date_time`: `_data` + espaço + `_hora`; `try_to_timestamp(..., 'yyMMdd HHmmss')` e `greatest(..., MIN_SAFE_DATE)` (nulo/inválido → `MIN_SAFE_DATE`) | `dh_chamada` |
 | posição 80, largura 6 (linha de largura fixa); posição 68, largura 6 (linha de largura fixa) | `_data`, `_hora_fim` | `_concat_date_time`: `_data` + espaço + `_hora_fim` (usa a data de início); se não nulo: `try_to_timestamp(..., 'yyMMdd HHmmss')` e `greatest(..., MIN_SAFE_DATE)` (nulo/inválido → `MIN_SAFE_DATE`); se nulo: `data_hora` + `duracao` s | `dh_fim_chamada` |
 | posição 74, largura 6 (linha de largura fixa) | `duracao` | Mantida sem alteração; `cast int` e `coalesce(..., 0)` (chave) | `qt_duracao_segundos` |
-| posição 15, largura 18 (linha de largura fixa) | `numero_origem` | `numero_origem` → `_extract_numbers` (`extract_number`) → `numero_origem_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `nu_origem` |
-| posição 15, largura 18 (linha de largura fixa) | `numero_origem` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_origem)` (mesma entrada de `nu_origem`) | `ic_origem_valido` |
-| posição 15, largura 18 (linha de largura fixa) | `numero_origem` | `numero_origem` sem restauração (não há `_numero_origem_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `nu_origem_original` |
-| posição 36, largura 24 (linha de largura fixa) | `numero_destino` | `numero_destino` → `_extract_numbers` (`extract_number`) → `numero_destino_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `nu_destino` |
-| posição 36, largura 24 (linha de largura fixa) | `numero_destino` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_destino)` (mesma entrada de `nu_destino`) | `ic_destino_valido` |
-| posição 36, largura 24 (linha de largura fixa) | `numero_destino` | `numero_destino` sem restauração (não há `_numero_destino_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `nu_destino_original` |
-| posição 60, largura 2 (linha de largura fixa) | `_resultado_chamada` | `cast int` e tabela de códigos (ver “Códigos de `_resultado_chamada`” abaixo); qualquer valor fora das faixas (inclusive nulo) → `Desconexão Prematura`; nulo → `__NULL__` (chave) | `no_resultado_chamada` |
+| posição 15, largura 18 (linha de largura fixa) | `numero_origem` | `numero_origem` → `_extract_numbers` (`extract_number`) → `numero_origem_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `co_numero_origem` |
+| posição 15, largura 18 (linha de largura fixa) | `numero_origem` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_origem)` (mesma entrada de `co_numero_origem`) | `ic_numero_origem_valido` |
+| posição 15, largura 18 (linha de largura fixa) | `numero_origem` | `numero_origem` sem restauração (não há `_numero_origem_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `co_numero_origem_original` |
+| posição 36, largura 24 (linha de largura fixa) | `numero_destino` | `numero_destino` → `_extract_numbers` (`extract_number`) → `numero_destino_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `co_numero_destino` |
+| posição 36, largura 24 (linha de largura fixa) | `numero_destino` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_destino)` (mesma entrada de `co_numero_destino`) | `ic_numero_destino_valido` |
+| posição 36, largura 24 (linha de largura fixa) | `numero_destino` | `numero_destino` sem restauração (não há `_numero_destino_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `co_numero_destino_original` |
+| posição 60, largura 2 (linha de largura fixa) | `_resultado_chamada` | `cast int` e tabela de códigos (ver “Códigos de `_resultado_chamada`” abaixo); qualquer valor fora das faixas (inclusive nulo) → `Desconexão Prematura`; nulo → `__NULL__` (chave) | `de_resultado_chamada` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_resposta_sip` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; `_add_tn_validation_status` mantém `NULL` (sem `_autenticacao`) | `no_autenticacao` |
-| Não aplicável (metadado) | `prestadora` | `add_source_metadata`: argumento `operator` ou `url_decode` do segmento `-4` do caminho; mantida sem alteração | `no_prestadora` |
-| posição 92, largura 4 (linha de largura fixa) | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_rota_entrada` |
-| posição 103, largura 4 (linha de largura fixa) | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_rota_saida` |
-| posição 2, largura 8 (linha de largura fixa) | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_bilhetador` |
+| Não aplicável (metadado) | `prestadora` | `add_source_metadata`: argumento `operator` ou `url_decode` do segmento `-4` do caminho; mantida sem alteração | `no_prestadora_cdr` |
+| posição 92, largura 4 (linha de largura fixa) | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_entrada` |
+| posição 103, largura 4 (linha de largura fixa) | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_saida` |
+| posição 2, largura 8 (linha de largura fixa) | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_bilhetador` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_origem` |
@@ -1008,7 +1009,7 @@ Arquivo de origem
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_agente_usuario` |
-| Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'stfc_axe_claro'`); mantida sem alteração | `no_esquema` |
+| Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'stfc_axe_claro'`); mantida sem alteração | `co_esquema_extracao` |
 | Não aplicável (metadado) | `tipo_cdr` | `add_source_metadata`: argumento `cdr_type` ou `url_decode` do segmento `-2` do caminho; mantida sem alteração | `no_tipo_cdr` |
 | Não aplicável (metadado) | `arquivo_origem` | `add_source_metadata`: `url_decode` do segmento `-1` do caminho; mantida sem alteração | `no_arquivo_origem` |
 | posição 13, largura 2 (linha de largura fixa) | `_tipo_chamada` | tabela de códigos `01`–`0B` (ver “Códigos de `_tipo_chamada`” abaixo); demais → `NULL`; nulo → `__NULL__` (chave) | `no_tipo_chamada` |
@@ -1043,25 +1044,25 @@ Arquivo de origem
 
 | Colunas Originais | Colunas Extraídas | Coluna Intermediária / transformação | Coluna Final |
 | :-- | :-- | :-- | :-- |
-| posição 519, largura 10 (linha de largura fixa) | `referencia` | Mantida sem alteração; nulo → `__NULL__` (chave) | `nu_referencia` |
-| posição 499, largura 10 (linha de largura fixa) | `referencia_sip` | Mantida sem alteração; nulo → `__NULL__` (chave) | `nu_referencia_sip` |
+| posição 519, largura 10 (linha de largura fixa) | `referencia` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_referencia` |
+| posição 499, largura 10 (linha de largura fixa) | `referencia_sip` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_referencia_sip` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; `greatest(NULL, MIN_SAFE_DATE)` → `MIN_SAFE_DATE` | `dh_referencia` |
 | posição 90, largura 8 (linha de largura fixa); posição 98, largura 6 (linha de largura fixa) | `_data`, `_hora` | `_concat_date_time`: `_data` + espaço + `_hora`; `try_to_timestamp(..., 'yyyyMMdd HHmmss')` e `greatest(..., MIN_SAFE_DATE)` (nulo/inválido → `MIN_SAFE_DATE`) | `dh_chamada` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; `_format_date_time` calcula `data_hora` + `duracao` s | `dh_fim_chamada` |
 | posição 110, largura 6 (linha de largura fixa) | `duracao` | Mantida sem alteração; `cast int` e `coalesce(..., 0)` (chave) | `qt_duracao_segundos` |
-| posição 116, largura 22 (linha de largura fixa) | `numero_origem` | `numero_origem` → `_extract_numbers` (`extract_number`) → `numero_origem_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `nu_origem` |
-| posição 116, largura 22 (linha de largura fixa) | `numero_origem` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_origem)` (mesma entrada de `nu_origem`) | `ic_origem_valido` |
-| posição 116, largura 22 (linha de largura fixa) | `numero_origem` | `numero_origem` sem restauração (não há `_numero_origem_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `nu_origem_original` |
-| posição 138, largura 28 (linha de largura fixa) | `numero_destino` | `numero_destino` → `_extract_numbers` (`extract_number`) → `numero_destino_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `nu_destino` |
-| posição 138, largura 28 (linha de largura fixa) | `numero_destino` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_destino)` (mesma entrada de `nu_destino`) | `ic_destino_valido` |
-| posição 138, largura 28 (linha de largura fixa) | `numero_destino` | `numero_destino` sem restauração (não há `_numero_destino_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `nu_destino_original` |
-| posição 550, largura 1 (linha de largura fixa) | `_resultado_chamada` | `'3'` → `b-AnswerHasBeenReceived`; demais → `NULL`; nulo → `__NULL__` (chave) | `no_resultado_chamada` |
+| posição 116, largura 22 (linha de largura fixa) | `numero_origem` | `numero_origem` → `_extract_numbers` (`extract_number`) → `numero_origem_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `co_numero_origem` |
+| posição 116, largura 22 (linha de largura fixa) | `numero_origem` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_origem)` (mesma entrada de `co_numero_origem`) | `ic_numero_origem_valido` |
+| posição 116, largura 22 (linha de largura fixa) | `numero_origem` | `numero_origem` sem restauração (não há `_numero_origem_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `co_numero_origem_original` |
+| posição 138, largura 28 (linha de largura fixa) | `numero_destino` | `numero_destino` → `_extract_numbers` (`extract_number`) → `numero_destino_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `co_numero_destino` |
+| posição 138, largura 28 (linha de largura fixa) | `numero_destino` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_destino)` (mesma entrada de `co_numero_destino`) | `ic_numero_destino_valido` |
+| posição 138, largura 28 (linha de largura fixa) | `numero_destino` | `numero_destino` sem restauração (não há `_numero_destino_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `co_numero_destino_original` |
+| posição 550, largura 1 (linha de largura fixa) | `_resultado_chamada` | `'3'` → `b-AnswerHasBeenReceived`; demais → `NULL`; nulo → `__NULL__` (chave) | `de_resultado_chamada` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_resposta_sip` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; `_add_tn_validation_status` mantém `NULL` (sem `_autenticacao`) | `no_autenticacao` |
-| Não aplicável (metadado) | `prestadora` | `add_source_metadata`: argumento `operator` ou `url_decode` do segmento `-4` do caminho; mantida sem alteração | `no_prestadora` |
-| posição 297, largura 8 (linha de largura fixa) | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_rota_entrada` |
-| posição 313, largura 8 (linha de largura fixa) | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_rota_saida` |
-| posição 24, largura 8 (linha de largura fixa) | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_bilhetador` |
+| Não aplicável (metadado) | `prestadora` | `add_source_metadata`: argumento `operator` ou `url_decode` do segmento `-4` do caminho; mantida sem alteração | `no_prestadora_cdr` |
+| posição 297, largura 8 (linha de largura fixa) | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_entrada` |
+| posição 313, largura 8 (linha de largura fixa) | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_saida` |
+| posição 24, largura 8 (linha de largura fixa) | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_bilhetador` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_origem` |
@@ -1077,7 +1078,7 @@ Arquivo de origem
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_agente_usuario` |
-| Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'stfc_pcl_claro'`); mantida sem alteração | `no_esquema` |
+| Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'stfc_pcl_claro'`); mantida sem alteração | `co_esquema_extracao` |
 | Não aplicável (metadado) | `tipo_cdr` | `add_source_metadata`: argumento `cdr_type` ou `url_decode` do segmento `-2` do caminho; mantida sem alteração | `no_tipo_cdr` |
 | Não aplicável (metadado) | `arquivo_origem` | `add_source_metadata`: `url_decode` do segmento `-1` do caminho; mantida sem alteração | `no_arquivo_origem` |
 | posição 32, largura 2 (linha de largura fixa) | `_tipo_chamada` | `cast string` do código recebido, sem rótulo de domínio; nulo → `__NULL__` (chave) | `no_tipo_chamada` |
@@ -1112,25 +1113,25 @@ Arquivo de origem
 
 | Colunas Originais | Colunas Extraídas | Coluna Intermediária / transformação | Coluna Final |
 | :-- | :-- | :-- | :-- |
-| campo CSV 42 (base 0) | `referencia` | Mantida sem alteração; nulo → `__NULL__` (chave) | `nu_referencia` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns` → `__NULL__` (chave) | `nu_referencia_sip` |
+| campo CSV 42 (base 0) | `referencia` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_referencia` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns` → `__NULL__` (chave) | `co_referencia_sip` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; `greatest(NULL, MIN_SAFE_DATE)` → `MIN_SAFE_DATE` | `dh_referencia` |
 | campo CSV 3 (base 0); campo CSV 4 (base 0) | `_data`, `_hora` | `_concat_date_time`: `_data` + espaço + `_hora`; `try_to_timestamp(..., 'ddMMyyyy HHmmss')` e `greatest(..., MIN_SAFE_DATE)` (nulo/inválido → `MIN_SAFE_DATE`) | `dh_chamada` |
 | campo CSV 5 (base 0); campo CSV 6 (base 0) | `_data_fim`, `_hora_fim` | `_concat_date_time`: `_data_fim` + espaço + `_hora_fim`; se não nulo: `try_to_timestamp(..., 'ddMMyyyy HHmmss')` e `greatest(..., MIN_SAFE_DATE)` (nulo/inválido → `MIN_SAFE_DATE`); se nulo: `data_hora` + `duracao` s | `dh_fim_chamada` |
 | campo CSV 7 (base 0) | `duracao` | Mantida sem alteração; `cast int` e `coalesce(..., 0)` (chave) | `qt_duracao_segundos` |
-| campo CSV 8 (base 0) | `numero_origem` | `numero_origem` → `_extract_numbers` (`extract_number`) → `numero_origem_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `nu_origem` |
-| campo CSV 8 (base 0) | `numero_origem` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_origem)` (mesma entrada de `nu_origem`) | `ic_origem_valido` |
-| campo CSV 8 (base 0) | `numero_origem` | `numero_origem` sem restauração (não há `_numero_origem_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `nu_origem_original` |
-| campo CSV 9 (base 0) | `numero_destino` | `numero_destino` → `_extract_numbers` (`extract_number`) → `numero_destino_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `nu_destino` |
-| campo CSV 9 (base 0) | `numero_destino` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_destino)` (mesma entrada de `nu_destino`) | `ic_destino_valido` |
-| campo CSV 9 (base 0) | `numero_destino` | `numero_destino` sem restauração (não há `_numero_destino_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `nu_destino_original` |
-| campo CSV 2 (base 0) | `_resultado_chamada` | tabela de códigos de três dígitos (ver “Códigos de `_resultado_chamada`” abaixo); qualquer outro valor (inclusive nulo) → `unknown`; nulo → `__NULL__` (chave) | `no_resultado_chamada` |
+| campo CSV 8 (base 0) | `numero_origem` | `numero_origem` → `_extract_numbers` (`extract_number`) → `numero_origem_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `co_numero_origem` |
+| campo CSV 8 (base 0) | `numero_origem` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_origem)` (mesma entrada de `co_numero_origem`) | `ic_numero_origem_valido` |
+| campo CSV 8 (base 0) | `numero_origem` | `numero_origem` sem restauração (não há `_numero_origem_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `co_numero_origem_original` |
+| campo CSV 9 (base 0) | `numero_destino` | `numero_destino` → `_extract_numbers` (`extract_number`) → `numero_destino_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `co_numero_destino` |
+| campo CSV 9 (base 0) | `numero_destino` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_destino)` (mesma entrada de `co_numero_destino`) | `ic_numero_destino_valido` |
+| campo CSV 9 (base 0) | `numero_destino` | `numero_destino` sem restauração (não há `_numero_destino_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `co_numero_destino_original` |
+| campo CSV 2 (base 0) | `_resultado_chamada` | tabela de códigos de três dígitos (ver “Códigos de `_resultado_chamada`” abaixo); qualquer outro valor (inclusive nulo) → `unknown`; nulo → `__NULL__` (chave) | `de_resultado_chamada` |
 | campo CSV 25 (base 0) | `codigo_resposta_sip` | Mantida sem alteração | `co_resposta_sip` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; `_add_tn_validation_status` mantém `NULL` (sem `_autenticacao`) | `no_autenticacao` |
-| Não aplicável (metadado) | `prestadora` | `add_source_metadata`: argumento `operator` ou `url_decode` do segmento `-4` do caminho; mantida sem alteração | `no_prestadora` |
-| campo CSV 17 (base 0) | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_rota_entrada` |
-| campo CSV 18 (base 0) | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_rota_saida` |
-| campo CSV 1 (base 0) | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_bilhetador` |
+| Não aplicável (metadado) | `prestadora` | `add_source_metadata`: argumento `operator` ou `url_decode` do segmento `-4` do caminho; mantida sem alteração | `no_prestadora_cdr` |
+| campo CSV 17 (base 0) | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_entrada` |
+| campo CSV 18 (base 0) | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_saida` |
+| campo CSV 1 (base 0) | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_bilhetador` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_origem` |
@@ -1146,7 +1147,7 @@ Arquivo de origem
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_agente_usuario` |
-| Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'stfc_tropico_claro_lega'`); mantida sem alteração | `no_esquema` |
+| Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'stfc_tropico_claro_lega'`); mantida sem alteração | `co_esquema_extracao` |
 | Não aplicável (metadado) | `tipo_cdr` | `add_source_metadata`: argumento `cdr_type` ou `url_decode` do segmento `-2` do caminho; mantida sem alteração | `no_tipo_cdr` |
 | Não aplicável (metadado) | `arquivo_origem` | `add_source_metadata`: `url_decode` do segmento `-1` do caminho; mantida sem alteração | `no_arquivo_origem` |
 | Não aplicável (constante) | Não aplicável | constante `'tandem'` (`F.lit`), sem origem em coluna; nulo → `__NULL__` (chave) | `no_tipo_chamada` |
@@ -1181,25 +1182,25 @@ Arquivo de origem
 
 | Colunas Originais | Colunas Extraídas | Coluna Intermediária / transformação | Coluna Final |
 | :-- | :-- | :-- | :-- |
-| campo CSV 45 (base 0) | `referencia` | Mantida sem alteração; nulo → `__NULL__` (chave) | `nu_referencia` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns` → `__NULL__` (chave) | `nu_referencia_sip` |
+| campo CSV 45 (base 0) | `referencia` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_referencia` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns` → `__NULL__` (chave) | `co_referencia_sip` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; `greatest(NULL, MIN_SAFE_DATE)` → `MIN_SAFE_DATE` | `dh_referencia` |
 | campo CSV 3 (base 0); campo CSV 4 (base 0) | `_data`, `_hora` | `_concat_date_time`: `_data` + espaço + `_hora`; `try_to_timestamp(..., 'ddMMyyyy HHmmss')` e `greatest(..., MIN_SAFE_DATE)` (nulo/inválido → `MIN_SAFE_DATE`) | `dh_chamada` |
 | campo CSV 5 (base 0); campo CSV 6 (base 0) | `_data_fim`, `_hora_fim` | `_concat_date_time`: `_data_fim` + espaço + `_hora_fim`; se não nulo: `try_to_timestamp(..., 'ddMMyyyy HHmmss')` e `greatest(..., MIN_SAFE_DATE)` (nulo/inválido → `MIN_SAFE_DATE`); se nulo: `data_hora` + `duracao` s | `dh_fim_chamada` |
 | campo CSV 7 (base 0) | `duracao` | Mantida sem alteração; `cast int` e `coalesce(..., 0)` (chave) | `qt_duracao_segundos` |
-| campo CSV 8 (base 0) | `numero_origem` | `numero_origem` → `_extract_numbers` (`extract_number`) → `numero_origem_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `nu_origem` |
-| campo CSV 8 (base 0) | `numero_origem` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_origem)` (mesma entrada de `nu_origem`) | `ic_origem_valido` |
-| campo CSV 8 (base 0) | `numero_origem` | `numero_origem` sem restauração (não há `_numero_origem_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `nu_origem_original` |
-| campo CSV 9 (base 0) | `numero_destino` | `numero_destino` → `_extract_numbers` (`extract_number`) → `numero_destino_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `nu_destino` |
-| campo CSV 9 (base 0) | `numero_destino` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_destino)` (mesma entrada de `nu_destino`) | `ic_destino_valido` |
-| campo CSV 9 (base 0) | `numero_destino` | `numero_destino` sem restauração (não há `_numero_destino_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `nu_destino_original` |
-| campo CSV 2 (base 0) | `_resultado_chamada` | tabela de códigos de três dígitos (ver “Códigos de `_resultado_chamada`” abaixo); qualquer outro valor (inclusive nulo) → `unknown`; nulo → `__NULL__` (chave) | `no_resultado_chamada` |
+| campo CSV 8 (base 0) | `numero_origem` | `numero_origem` → `_extract_numbers` (`extract_number`) → `numero_origem_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `co_numero_origem` |
+| campo CSV 8 (base 0) | `numero_origem` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_origem)` (mesma entrada de `co_numero_origem`) | `ic_numero_origem_valido` |
+| campo CSV 8 (base 0) | `numero_origem` | `numero_origem` sem restauração (não há `_numero_origem_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `co_numero_origem_original` |
+| campo CSV 9 (base 0) | `numero_destino` | `numero_destino` → `_extract_numbers` (`extract_number`) → `numero_destino_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `co_numero_destino` |
+| campo CSV 9 (base 0) | `numero_destino` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_destino)` (mesma entrada de `co_numero_destino`) | `ic_numero_destino_valido` |
+| campo CSV 9 (base 0) | `numero_destino` | `numero_destino` sem restauração (não há `_numero_destino_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `co_numero_destino_original` |
+| campo CSV 2 (base 0) | `_resultado_chamada` | tabela de códigos de três dígitos (ver “Códigos de `_resultado_chamada`” abaixo); qualquer outro valor (inclusive nulo) → `unknown`; nulo → `__NULL__` (chave) | `de_resultado_chamada` |
 | campo CSV 25 (base 0) | `codigo_resposta_sip` | Mantida sem alteração | `co_resposta_sip` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; `_add_tn_validation_status` mantém `NULL` (sem `_autenticacao`) | `no_autenticacao` |
-| Não aplicável (metadado) | `prestadora` | `add_source_metadata`: argumento `operator` ou `url_decode` do segmento `-4` do caminho; mantida sem alteração | `no_prestadora` |
-| campo CSV 14 (base 0) | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_rota_entrada` |
-| campo CSV 15 (base 0) | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_rota_saida` |
-| campo CSV 1 (base 0) | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_bilhetador` |
+| Não aplicável (metadado) | `prestadora` | `add_source_metadata`: argumento `operator` ou `url_decode` do segmento `-4` do caminho; mantida sem alteração | `no_prestadora_cdr` |
+| campo CSV 14 (base 0) | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_entrada` |
+| campo CSV 15 (base 0) | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_saida` |
+| campo CSV 1 (base 0) | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_bilhetador` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_origem` |
@@ -1215,7 +1216,7 @@ Arquivo de origem
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_agente_usuario` |
-| Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'stfc_tropico_claro_legb'`); mantida sem alteração | `no_esquema` |
+| Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'stfc_tropico_claro_legb'`); mantida sem alteração | `co_esquema_extracao` |
 | Não aplicável (metadado) | `tipo_cdr` | `add_source_metadata`: argumento `cdr_type` ou `url_decode` do segmento `-2` do caminho; mantida sem alteração | `no_tipo_cdr` |
 | Não aplicável (metadado) | `arquivo_origem` | `add_source_metadata`: `url_decode` do segmento `-1` do caminho; mantida sem alteração | `no_arquivo_origem` |
 | Não aplicável (constante) | Não aplicável | constante `'tandem'` (`F.lit`), sem origem em coluna; nulo → `__NULL__` (chave) | `no_tipo_chamada` |
@@ -1250,25 +1251,25 @@ Arquivo de origem
 
 | Colunas Originais | Colunas Extraídas | Coluna Intermediária / transformação | Coluna Final |
 | :-- | :-- | :-- | :-- |
-| `networkcallreference` (campo 42 de `stfc_pit_claro_schema`) | `referencia` | Mantida sem alteração; nulo → `__NULL__` (chave) | `nu_referencia` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns` → `__NULL__` (chave) | `nu_referencia_sip` |
+| `networkcallreference` (campo 42 de `stfc_pit_claro_schema`) | `referencia` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_referencia` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns` → `__NULL__` (chave) | `co_referencia_sip` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; `greatest(NULL, MIN_SAFE_DATE)` → `MIN_SAFE_DATE` | `dh_referencia` |
 | `setuptime` (campo 43 de `stfc_pit_claro_schema`) | `_data_hora` | `substring(_data_hora, 1, 14)`; `try_to_timestamp(..., 'yyyyMMddHHmmss')` e `greatest(..., MIN_SAFE_DATE)` (nulo/inválido → `MIN_SAFE_DATE`) | `dh_chamada` |
 | `releasetime` (campo 9 de `stfc_pit_claro_schema`) | `_data_hora_fim` | `substring(_data_hora_fim, 1, 14)`; se não nulo: `try_to_timestamp(..., 'yyyyMMddHHmmss')` e `greatest(..., MIN_SAFE_DATE)` (nulo/inválido → `MIN_SAFE_DATE`); se nulo: `data_hora` + `duracao` s | `dh_fim_chamada` |
 | `callduration` (campo 10 de `stfc_pit_claro_schema`) | `duracao` | Mantida sem alteração; `cast int` e `coalesce(..., 0)` (chave) | `qt_duracao_segundos` |
-| `callingnumber` (campo 4 de `stfc_pit_claro_schema`) | `numero_origem` | `numero_origem` → `_extract_numbers` (`extract_number`) → `numero_origem_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `nu_origem` |
-| `callingnumber` (campo 4 de `stfc_pit_claro_schema`) | `numero_origem` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_origem)` (mesma entrada de `nu_origem`) | `ic_origem_valido` |
-| `callingnumber` (campo 4 de `stfc_pit_claro_schema`) | `numero_origem` | `numero_origem` sem restauração (não há `_numero_origem_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `nu_origem_original` |
-| `callednumber` (campo 5 de `stfc_pit_claro_schema`) | `numero_destino` | `numero_destino` → `_extract_numbers` (`extract_number`) → `numero_destino_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `nu_destino` |
-| `callednumber` (campo 5 de `stfc_pit_claro_schema`) | `numero_destino` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_destino)` (mesma entrada de `nu_destino`) | `ic_destino_valido` |
-| `callednumber` (campo 5 de `stfc_pit_claro_schema`) | `numero_destino` | `numero_destino` sem restauração (não há `_numero_destino_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `nu_destino_original` |
-| `causeforterm` (campo 11 de `stfc_pit_claro_schema`) | `resultado_chamada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_resultado_chamada` |
+| `callingnumber` (campo 4 de `stfc_pit_claro_schema`) | `numero_origem` | `numero_origem` → `_extract_numbers` (`extract_number`) → `numero_origem_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `co_numero_origem` |
+| `callingnumber` (campo 4 de `stfc_pit_claro_schema`) | `numero_origem` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_origem)` (mesma entrada de `co_numero_origem`) | `ic_numero_origem_valido` |
+| `callingnumber` (campo 4 de `stfc_pit_claro_schema`) | `numero_origem` | `numero_origem` sem restauração (não há `_numero_origem_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `co_numero_origem_original` |
+| `callednumber` (campo 5 de `stfc_pit_claro_schema`) | `numero_destino` | `numero_destino` → `_extract_numbers` (`extract_number`) → `numero_destino_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `co_numero_destino` |
+| `callednumber` (campo 5 de `stfc_pit_claro_schema`) | `numero_destino` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_destino)` (mesma entrada de `co_numero_destino`) | `ic_numero_destino_valido` |
+| `callednumber` (campo 5 de `stfc_pit_claro_schema`) | `numero_destino` | `numero_destino` sem restauração (não há `_numero_destino_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `co_numero_destino_original` |
+| `causeforterm` (campo 11 de `stfc_pit_claro_schema`) | `resultado_chamada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `de_resultado_chamada` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_resposta_sip` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; `_add_tn_validation_status` mantém `NULL` (sem `_autenticacao`) | `no_autenticacao` |
-| Não aplicável (metadado) | `prestadora` | `add_source_metadata`: argumento `operator` ou `url_decode` do segmento `-4` do caminho; mantida sem alteração | `no_prestadora` |
-| `mscincomingroute` (campo 2 de `stfc_pit_claro_schema`) | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_rota_entrada` |
-| `mscoutgoingroute` (campo 3 de `stfc_pit_claro_schema`) | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_rota_saida` |
-| `recordingentity` (campo 1 de `stfc_pit_claro_schema`) | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_bilhetador` |
+| Não aplicável (metadado) | `prestadora` | `add_source_metadata`: argumento `operator` ou `url_decode` do segmento `-4` do caminho; mantida sem alteração | `no_prestadora_cdr` |
+| `mscincomingroute` (campo 2 de `stfc_pit_claro_schema`) | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_entrada` |
+| `mscoutgoingroute` (campo 3 de `stfc_pit_claro_schema`) | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_saida` |
+| `recordingentity` (campo 1 de `stfc_pit_claro_schema`) | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_bilhetador` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_origem` |
@@ -1284,7 +1285,7 @@ Arquivo de origem
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_agente_usuario` |
-| Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'stfc_pit_claro'`); mantida sem alteração | `no_esquema` |
+| Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'stfc_pit_claro'`); mantida sem alteração | `co_esquema_extracao` |
 | Não aplicável (metadado) | `tipo_cdr` | `add_source_metadata`: argumento `cdr_type` ou `url_decode` do segmento `-2` do caminho; mantida sem alteração | `no_tipo_cdr` |
 | Não aplicável (metadado) | `arquivo_origem` | `add_source_metadata`: `url_decode` do segmento `-1` do caminho; mantida sem alteração | `no_arquivo_origem` |
 | `originatingoperator` (campo 108 de `stfc_pit_claro_schema`) | `_prestadora_origem` | `_prestadora_origem == 'BRAEBT'` → `Originating`; qualquer outro valor (inclusive nulo) → `Terminating`; nulo → `__NULL__` (chave) | `no_tipo_chamada` |
@@ -1314,25 +1315,25 @@ Arquivo de origem
 
 | Colunas Originais | Colunas Extraídas | Coluna Intermediária / transformação | Coluna Final |
 | :-- | :-- | :-- | :-- |
-| `record_id` (campo 5 de `stfc_ss8bf_claro_schema`) | `_referencia` | `substring(_referencia, 52, 8)`; nulo → `__NULL__` (chave) | `nu_referencia` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns` → `__NULL__` (chave) | `nu_referencia_sip` |
+| `record_id` (campo 5 de `stfc_ss8bf_claro_schema`) | `_referencia` | `substring(_referencia, 52, 8)`; nulo → `__NULL__` (chave) | `co_referencia` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns` → `__NULL__` (chave) | `co_referencia_sip` |
 | `record_id` (campo 5 de `stfc_ss8bf_claro_schema`) | `_referencia` | `substring(_referencia, 1, 19)`; `try_to_timestamp(..., 'yyyy-MM-dd'T'HH:mm:ss')` e `greatest(..., MIN_SAFE_DATE)` (nulo/inválido → `MIN_SAFE_DATE`) | `dh_referencia` |
 | `start_time` (campo 2 de `stfc_ss8bf_claro_schema`) | `_data_hora` | `substring(_data_hora, 1, 19)`; `try_to_timestamp(..., 'yyyy-MM-dd'T'HH:mm:ss')` e `greatest(..., MIN_SAFE_DATE)` (nulo/inválido → `MIN_SAFE_DATE`) | `dh_chamada` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; `_format_date_time` calcula `data_hora` + `duracao` s | `dh_fim_chamada` |
 | `duration_of_call` (campo 3 de `stfc_ss8bf_claro_schema`) | `duracao` | Mantida sem alteração; `cast int` e `coalesce(..., 0)` (chave) | `qt_duracao_segundos` |
-| `originating_number_calling_party` (campo 11 de `stfc_ss8bf_claro_schema`) | `numero_origem` | `numero_origem` → `_extract_numbers` (`extract_number`) → `numero_origem_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `nu_origem` |
-| `originating_number_calling_party` (campo 11 de `stfc_ss8bf_claro_schema`) | `numero_origem` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_origem)` (mesma entrada de `nu_origem`) | `ic_origem_valido` |
-| `originating_number_calling_party` (campo 11 de `stfc_ss8bf_claro_schema`) | `numero_origem` | `numero_origem` sem restauração (não há `_numero_origem_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `nu_origem_original` |
-| `terminating_number_called_party` (campo 10 de `stfc_ss8bf_claro_schema`) | `numero_destino` | `numero_destino` → `_extract_numbers` (`extract_number`) → `numero_destino_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `nu_destino` |
-| `terminating_number_called_party` (campo 10 de `stfc_ss8bf_claro_schema`) | `numero_destino` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_destino)` (mesma entrada de `nu_destino`) | `ic_destino_valido` |
-| `terminating_number_called_party` (campo 10 de `stfc_ss8bf_claro_schema`) | `numero_destino` | `numero_destino` sem restauração (não há `_numero_destino_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `nu_destino_original` |
-| `attempt_indicator` (campo 17 de `stfc_ss8bf_claro_schema`) | `_resultado_chamada` | `'0'`–`'9'` → mensagens `Call was ...` (ver “Códigos de `_resultado_chamada`” abaixo); demais → `NULL`; nulo → `__NULL__` (chave) | `no_resultado_chamada` |
+| `originating_number_calling_party` (campo 11 de `stfc_ss8bf_claro_schema`) | `numero_origem` | `numero_origem` → `_extract_numbers` (`extract_number`) → `numero_origem_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `co_numero_origem` |
+| `originating_number_calling_party` (campo 11 de `stfc_ss8bf_claro_schema`) | `numero_origem` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_origem)` (mesma entrada de `co_numero_origem`) | `ic_numero_origem_valido` |
+| `originating_number_calling_party` (campo 11 de `stfc_ss8bf_claro_schema`) | `numero_origem` | `numero_origem` sem restauração (não há `_numero_origem_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `co_numero_origem_original` |
+| `terminating_number_called_party` (campo 10 de `stfc_ss8bf_claro_schema`) | `numero_destino` | `numero_destino` → `_extract_numbers` (`extract_number`) → `numero_destino_extraido`; entrada vazia → `5599999999999`; extração sem sucesso → entrada original; nulo → `__NULL__` (chave) | `co_numero_destino` |
+| `terminating_number_called_party` (campo 10 de `stfc_ss8bf_claro_schema`) | `numero_destino` | campo `extracao_sucesso` do struct de `_extract_numbers(numero_destino)` (mesma entrada de `co_numero_destino`) | `ic_numero_destino_valido` |
+| `terminating_number_called_party` (campo 10 de `stfc_ss8bf_claro_schema`) | `numero_destino` | `numero_destino` sem restauração (não há `_numero_destino_original`): mantida sem alteração; nulo → `__NULL__` (chave) | `co_numero_destino_original` |
+| `attempt_indicator` (campo 17 de `stfc_ss8bf_claro_schema`) | `_resultado_chamada` | `'0'`–`'9'` → mensagens `Call was ...` (ver “Códigos de `_resultado_chamada`” abaixo); demais → `NULL`; nulo → `__NULL__` (chave) | `de_resultado_chamada` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_resposta_sip` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; `_add_tn_validation_status` mantém `NULL` (sem `_autenticacao`) | `no_autenticacao` |
-| Não aplicável (metadado) | `prestadora` | `add_source_metadata`: argumento `operator` ou `url_decode` do segmento `-4` do caminho; mantida sem alteração | `no_prestadora` |
-| `ingress_sip_endpoint_address` (campo 125 de `stfc_ss8bf_claro_schema`) | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_rota_entrada` |
-| `egress_sip_endpoint_address` (campo 126 de `stfc_ss8bf_claro_schema`) | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_rota_saida` |
-| `switch_id` (campo 4 de `stfc_ss8bf_claro_schema`) | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `no_bilhetador` |
+| Não aplicável (metadado) | `prestadora` | `add_source_metadata`: argumento `operator` ou `url_decode` do segmento `-4` do caminho; mantida sem alteração | `no_prestadora_cdr` |
+| `ingress_sip_endpoint_address` (campo 125 de `stfc_ss8bf_claro_schema`) | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_entrada` |
+| `egress_sip_endpoint_address` (campo 126 de `stfc_ss8bf_claro_schema`) | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_saida` |
+| `switch_id` (campo 4 de `stfc_ss8bf_claro_schema`) | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_bilhetador` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_origem` |
@@ -1348,7 +1349,7 @@ Arquivo de origem
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_agente_usuario` |
-| Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'stfc_ss8bf_claro'`); mantida sem alteração | `no_esquema` |
+| Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'stfc_ss8bf_claro'`); mantida sem alteração | `co_esquema_extracao` |
 | Não aplicável (metadado) | `tipo_cdr` | `add_source_metadata`: argumento `cdr_type` ou `url_decode` do segmento `-2` do caminho; mantida sem alteração | `no_tipo_cdr` |
 | Não aplicável (metadado) | `arquivo_origem` | `add_source_metadata`: `url_decode` do segmento `-1` do caminho; mantida sem alteração | `no_arquivo_origem` |
 | `originating_party_identifier` (campo 39 de `stfc_ss8bf_claro_schema`); `terminating_party_identifier` (campo 40 de `stfc_ss8bf_claro_schema`); `forwarded_from_dn` (campo 64 de `stfc_ss8bf_claro_schema`) | `_identificador_origem`, `_identificador_destino`, `_numero_encaminhado` | `originating == '900'` → `Originating`; `'901'` + destino `'902'`/`'903'` + `_numero_encaminhado` não nulo → `Forwarding`; `'901'` + `'902'` sem encaminhamento → `Terminating`; `'901'` + `'903'` sem encaminhamento → `Transit`; demais → `Unknown`; nulo → `__NULL__` (chave) | `no_tipo_chamada` |
@@ -1367,7 +1368,7 @@ identificada em um fluxo não é universal: cada linha vale somente para o fluxo
 mesmos da seção 3; as regras comuns da seção 2.2 (máscaras de data, `MIN_SAFE_DATE`, sentinelas da chave, cast final) valem para todos os fluxos
 e não são repetidas aqui.
 
-### `nu_referencia_sip`
+### `co_referencia_sip`
 
 | Fluxo | Colunas extraídas | Tratamento |
 | :-- | :-- | :-- |
@@ -1449,7 +1450,7 @@ Fluxos sem origem (coluna criada nula): `stfc_italtel_ngn_tim`, `stfc_fcdr_vivo`
 | `stfc_pit_claro` | `duracao` | Mantida sem alteração |
 | `stfc_ss8bf_claro` | `duracao` | Mantida sem alteração |
 
-### `nu_origem_original`
+### `co_numero_origem_original`
 
 | Fluxo | Colunas extraídas | Tratamento |
 | :-- | :-- | :-- |
@@ -1471,9 +1472,9 @@ Fluxos sem origem (coluna criada nula): `stfc_italtel_ngn_tim`, `stfc_fcdr_vivo`
 | `stfc_pit_claro` | `numero_origem` | Mantida sem alteração |
 | `stfc_ss8bf_claro` | `numero_origem` | Mantida sem alteração |
 
-`nu_origem` (`numero_origem_extraido`) e `ic_origem_valido` derivam sempre da coluna `numero_origem` **antes** da restauração; `nu_origem_original` recebe o valor restaurado quando há `_numero_origem_original` (Huawei TIM e Ericsson VoLTE Vivo) ou o valor pré-processado nos demais fluxos. As mesmas regras valem, espelhadas, para `numero_destino` (restauração de `_numero_destino_original` somente no Huawei TIM).
+`co_numero_origem` (`numero_origem_extraido`) e `ic_numero_origem_valido` derivam sempre da coluna `numero_origem` **antes** da restauração; `co_numero_origem_original` recebe o valor restaurado quando há `_numero_origem_original` (Huawei TIM e Ericsson VoLTE Vivo) ou o valor pré-processado nos demais fluxos. As mesmas regras valem, espelhadas, para `numero_destino` (restauração de `_numero_destino_original` somente no Huawei TIM).
 
-### `nu_destino_original`
+### `co_numero_destino_original`
 
 | Fluxo | Colunas extraídas | Tratamento |
 | :-- | :-- | :-- |
@@ -1495,7 +1496,7 @@ Fluxos sem origem (coluna criada nula): `stfc_italtel_ngn_tim`, `stfc_fcdr_vivo`
 | `stfc_pit_claro` | `numero_destino` | Mantida sem alteração |
 | `stfc_ss8bf_claro` | `numero_destino` | Mantida sem alteração |
 
-### `no_resultado_chamada`
+### `de_resultado_chamada`
 
 | Fluxo | Colunas extraídas | Tratamento |
 | :-- | :-- | :-- |
@@ -1622,12 +1623,12 @@ Fluxos sem origem (coluna criada nula): `stfc_sigma_claro`, `stfc_huawei_ngn_tim
 
 ### Colunas sem variação entre fluxos
 
-- `nu_referencia`: sempre `referencia` (cópia), exceto SS8BF Claro (`substring(_referencia, 52, 8)`).
-- `no_prestadora` e `no_esquema`: metadados do extrator em todos os fluxos.
+- `co_referencia`: sempre `referencia` (cópia), exceto SS8BF Claro (`substring(_referencia, 52, 8)`).
+- `no_prestadora_cdr` e `co_esquema_extracao`: metadados do extrator em todos os fluxos.
 - `no_tipo_cdr`: segmento `-2` do caminho (ou `cdr_type`), exceto nos fluxos que mapeiam `_tipo_cdr`: `smp_huawei_volte_tim`, `stfc_sigma_claro`, `stfc_fcdr_vivo`.
 - `no_arquivo_origem`: segmento `-1` do caminho, exceto nos fluxos que mapeiam `arquivo_origem` no schema: `smp_ericsson_volte_vivo`, `stfc_sigma_claro`.
-- `nu_origem`, `ic_origem_valido`, `nu_destino`, `ic_destino_valido`: sempre `_extract_numbers` sobre `numero_origem`/`numero_destino`.
-- `no_rota_entrada`, `no_rota_saida`, `no_bilhetador`: cópia das colunas de mesmo nome em todos os fluxos.
+- `co_numero_origem`, `ic_numero_origem_valido`, `co_numero_destino`, `ic_numero_destino_valido`: sempre `_extract_numbers` sobre `numero_origem`/`numero_destino`.
+- `co_rota_entrada`, `co_rota_saida`, `co_bilhetador`: cópia das colunas de mesmo nome em todos os fluxos.
 - `nu_ip_origem`, `nu_ip_destino`, `nu_porta_ip_origem`, `nu_porta_ip_destino`: nenhum fluxo as extrai ou deriva; são criadas nulas em todos.
 - `nu_cgi_*`, `nu_cgi_*_hex`, `no_tecnologia_celula_*`, `nu_imei_*`, `nu_imsi_*`: preenchidas apenas por Ericsson GSM, Nokia GSM, Huawei VoLTE TIM e Ericsson VoLTE Vivo (ver tabelas acima); nulas nos 13 fluxos restantes.
 
@@ -1650,25 +1651,25 @@ O `cast` é uma conversão de tipo e pode alterar o tipo ou a representação do
 
 | # | Coluna anterior | Operação | Coluna final |
 | --: | :-- | :-- | :-- |
-| 1 | `referencia` | cast `string` + renomeação (`alias`) | `nu_referencia` |
-| 2 | `referencia_sip` | cast `string` + renomeação (`alias`) | `nu_referencia_sip` |
+| 1 | `referencia` | cast `string` + renomeação (`alias`) | `co_referencia` |
+| 2 | `referencia_sip` | cast `string` + renomeação (`alias`) | `co_referencia_sip` |
 | 3 | `data_hora_referencia` | cast `timestamp_ntz` + renomeação (`alias`) | `dh_referencia` |
 | 4 | `data_hora` | cast `timestamp_ntz` + renomeação (`alias`) | `dh_chamada` |
 | 5 | `data_hora_fim` | cast `timestamp_ntz` + renomeação (`alias`) | `dh_fim_chamada` |
 | 6 | `duracao` | cast `integer` + renomeação (`alias`) | `qt_duracao_segundos` |
-| 7 | `numero_origem_extraido` | cast `string` + renomeação (`alias`) | `nu_origem` |
-| 8 | `sucesso_extracao_origem` | cast `boolean` + renomeação (`alias`) | `ic_origem_valido` |
-| 9 | `numero_origem` | cast `string` + renomeação (`alias`) | `nu_origem_original` |
-| 10 | `numero_destino_extraido` | cast `string` + renomeação (`alias`) | `nu_destino` |
-| 11 | `sucesso_extracao_destino` | cast `boolean` + renomeação (`alias`) | `ic_destino_valido` |
-| 12 | `numero_destino` | cast `string` + renomeação (`alias`) | `nu_destino_original` |
-| 13 | `resultado_chamada` | cast `string` + renomeação (`alias`) | `no_resultado_chamada` |
+| 7 | `numero_origem_extraido` | cast `string` + renomeação (`alias`) | `co_numero_origem` |
+| 8 | `sucesso_extracao_origem` | cast `boolean` + renomeação (`alias`) | `ic_numero_origem_valido` |
+| 9 | `numero_origem` | cast `string` + renomeação (`alias`) | `co_numero_origem_original` |
+| 10 | `numero_destino_extraido` | cast `string` + renomeação (`alias`) | `co_numero_destino` |
+| 11 | `sucesso_extracao_destino` | cast `boolean` + renomeação (`alias`) | `ic_numero_destino_valido` |
+| 12 | `numero_destino` | cast `string` + renomeação (`alias`) | `co_numero_destino_original` |
+| 13 | `resultado_chamada` | cast `string` + renomeação (`alias`) | `de_resultado_chamada` |
 | 14 | `codigo_resposta_sip` | cast `string` + renomeação (`alias`) | `co_resposta_sip` |
 | 15 | `autenticacao` | cast `string` + renomeação (`alias`) | `no_autenticacao` |
-| 16 | `prestadora` | cast `string` + renomeação (`alias`) | `no_prestadora` |
-| 17 | `rota_entrada` | cast `string` + renomeação (`alias`) | `no_rota_entrada` |
-| 18 | `rota_saida` | cast `string` + renomeação (`alias`) | `no_rota_saida` |
-| 19 | `bilhetador` | cast `string` + renomeação (`alias`) | `no_bilhetador` |
+| 16 | `prestadora` | cast `string` + renomeação (`alias`) | `no_prestadora_cdr` |
+| 17 | `rota_entrada` | cast `string` + renomeação (`alias`) | `co_rota_entrada` |
+| 18 | `rota_saida` | cast `string` + renomeação (`alias`) | `co_rota_saida` |
+| 19 | `bilhetador` | cast `string` + renomeação (`alias`) | `co_bilhetador` |
 | 20 | `celula_origem` | cast `string` + renomeação (`alias`) | `nu_cgi_origem` |
 | 21 | `celula_origem_hex` | cast `string` + renomeação (`alias`) | `nu_cgi_origem_hex` |
 | 22 | `tecnologia_celula_origem` | cast `string` + renomeação (`alias`) | `no_tecnologia_celula_origem` |
@@ -1684,7 +1685,7 @@ O `cast` é uma conversão de tipo e pode alterar o tipo ou a representação do
 | 32 | `ip_destino` | cast `string` + renomeação (`alias`) | `nu_ip_destino` |
 | 33 | `porta_ip_destino` | cast `integer` + renomeação (`alias`) | `nu_porta_ip_destino` |
 | 34 | `agente_usuario` | cast `string` + renomeação (`alias`) | `no_agente_usuario` |
-| 35 | `esquema` | cast `string` + renomeação (`alias`) | `no_esquema` |
+| 35 | `esquema` | cast `string` + renomeação (`alias`) | `co_esquema_extracao` |
 | 36 | `tipo_cdr` | cast `string` + renomeação (`alias`) | `no_tipo_cdr` |
 | 37 | `arquivo_origem` | cast `string` + renomeação (`alias`) | `no_arquivo_origem` |
 | 38 | `tipo_chamada` | cast `string` + renomeação (`alias`); coluna de partição da escrita | `no_tipo_chamada` |
@@ -1858,7 +1859,7 @@ Classificadas como comuns por serem reutilizadas por mais de um fluxo ou por rea
 - **Finalidade:** localizar e validar o número telefônico em `numero_origem`/`numero_destino`.
 - **Entradas/saídas:** `pd.Series` de números brutos → `pd.DataFrame` com `numero_extraido` (string) e `extracao_sucesso` (boolean). `extract_number` recebe o valor e devolve `ExtractionResult(number, success)`.
 - **Regra:** valor falsy → `("5599999999999", False)`. Caso contrário: minúsculas, remoção de um `f` final, `CLEAN_PATTERN` (`^0+|(\d)\1{7,}$`: zeros à esquerda e sufixo de oito ou mais dígitos iguais) e tentativa inicial por comprimento (3–7: serviços; 8–9: fixo/móvel sem CN ou CNG curto; 10–11: com CN ou CNG). Se não houver resultado, `FALLBACK_PATTERNS` em ordem (móvel no fim, móvel no início, fixo no fim, fixo no início, CNG no fim, CNG no início, chamada a cobrar `9090`, móvel em qualquer posição, fixo em qualquer posição, CNG em qualquer posição). Números que casam `REJECTED_NUMBERS_PATTERN` (dígitos repetidos) não são aceitos. Sem extração válida devolve o valor original e `False`.
-- **Colunas impactadas:** `nu_origem`, `ic_origem_valido`, `nu_destino`, `ic_destino_valido`.
+- **Colunas impactadas:** `co_numero_origem`, `ic_numero_origem_valido`, `co_numero_destino`, `ic_numero_destino_valido`.
 - **Fluxos:** todos os 17.
 
 ### `add_source_metadata` e `validate_metadata_arguments`
@@ -1866,7 +1867,7 @@ Classificadas como comuns por serem reutilizadas por mais de um fluxo ou por rea
 - **Localização:** `core/extractors/_extractors_utils.py`.
 - **Finalidade:** validar `operator`, `service`, `cdr_type` (`str` ou `None`, sem valores só com espaços) e adicionar `esquema`, `prestadora`, `servico`, `tipo_cdr` e `arquivo_origem` (ver 2.3).
 - **Entradas/saídas:** DataFrame com `__teleutils_source_path` e argumentos → DataFrame sem essa coluna.
-- **Colunas impactadas:** `no_esquema`, `no_prestadora`, `no_tipo_cdr`, `no_arquivo_origem` (e `servico`, descartada).
+- **Colunas impactadas:** `co_esquema_extracao`, `no_prestadora_cdr`, `no_tipo_cdr`, `no_arquivo_origem` (e `servico`, descartada).
 - **Fluxos:** todos os 17.
 
 ### `resolve_cdr_schema`
@@ -1931,7 +1932,7 @@ Quando indicado, a resposta depende de dados reais ou de execução.
 
 ### Tipo físico de `cause_for_termination` (Nokia)
 
-**Elemento afetado:** `no_resultado_chamada` do fluxo `smp_nokia_gsm`.
+**Elemento afetado:** `de_resultado_chamada` do fluxo `smp_nokia_gsm`.
 
 **Ponto do rastreamento:** o extrator preserva o tipo físico do Parquet e o transformador compara `_resultado_chamada`
 diretamente com literais inteiros (`int("0000", 16)` … `int("1000", 16)`).
@@ -1943,7 +1944,7 @@ determina se a origem chega como inteiro, decimal ou texto hexadecimal, nem o co
 
 ### Semântica da precedência nos campos Nokia
 
-**Elemento afetado:** `dh_chamada`, `dh_fim_chamada`, `qt_duracao_segundos`, `nu_origem*` e `nu_destino*` do fluxo `smp_nokia_gsm`.
+**Elemento afetado:** `dh_chamada`, `dh_fim_chamada`, `qt_duracao_segundos`, `co_numero_origem*` e `co_numero_destino*` do fluxo `smp_nokia_gsm`.
 
 **Ponto do rastreamento:** os `coalesce` e os ramos `UCA`/`FORW` são determinísticos, mas o código não contém evidência
 suficiente para afirmar por que uma fonte tem prioridade semântica sobre outra.
@@ -1971,8 +1972,8 @@ estaticamente como o leitor CSV trata linhas que contenham o separador padrão (
 
 ### Casts e comparações dependentes de configuração ANSI
 
-**Elemento afetado:** `qt_duracao_segundos` (todos os fluxos), `codigo_resposta_sip`/`no_resultado_chamada` (Huawei TIM, FCDR Vivo, Trópico Oi, AXE Claro),
-`no_resultado_chamada` (Nokia) e comparações de `_resultado_chamada` inteiro com literais string (Trópico Oi).
+**Elemento afetado:** `qt_duracao_segundos` (todos os fluxos), `codigo_resposta_sip`/`de_resultado_chamada` (Huawei TIM, FCDR Vivo, Trópico Oi, AXE Claro),
+`de_resultado_chamada` (Nokia) e comparações de `_resultado_chamada` inteiro com literais string (Trópico Oi).
 
 **Ponto do rastreamento:** `cast("int")` de strings não numéricas e a coerção implícita nas comparações produzem `NULL` ou erro conforme `spark.sql.ansi.enabled`. Os testes do repositório
 exercitam as duas configurações apenas para a normalização de timestamps. O ambiente instalado usa PySpark 3.5.5, mas `pyproject.toml` declara `pyspark>=3.5.5`.
@@ -1981,7 +1982,7 @@ exercitam as duas configurações apenas para a normalização de timestamps. O 
 
 ### Valores nulos entregues à pandas UDF `_extract_numbers`
 
-**Elemento afetado:** `nu_origem`, `ic_origem_valido`, `nu_destino`, `ic_destino_valido`.
+**Elemento afetado:** `co_numero_origem`, `ic_numero_origem_valido`, `co_numero_destino`, `ic_numero_destino_valido`.
 
 **Ponto do rastreamento:** `extract_number` trata valores falsy como entrada vazia (`5599999999999`, `False`). A análise estática não confirma se um nulo Spark chega à UDF como `None`
 (falsy) ou como outro valor (por exemplo `NaN`, que é truthy e seria convertido em texto); isso depende da conversão Arrow → pandas em execução.
@@ -1990,7 +1991,7 @@ exercitam as duas configurações apenas para a normalização de timestamps. O 
 
 ### Conteúdo real dos campos JSON e URIs do Huawei VoLTE TIM
 
-**Elemento afetado:** `nu_origem_original`, `nu_destino_original`, `nu_origem`, `nu_destino`, `no_autenticacao`, `nu_imsi_*` do fluxo `smp_huawei_volte_tim`.
+**Elemento afetado:** `co_numero_origem_original`, `co_numero_destino_original`, `co_numero_origem`, `co_numero_destino`, `no_autenticacao`, `nu_imsi_*` do fluxo `smp_huawei_volte_tim`.
 
 **Ponto do rastreamento:** o código assume `list-Of-Calling-Party-Address` como JSON com `$[0].tEL-URI`/`$[0].sIP-URI`, `list-of-subscription-ID` como array de `{info_type, info_value}` e
 `tipo_cdr` iguais a `aTSRecord`/`iBCFRecord`. O formato real desses campos e o conjunto completo de valores de `recordType` não estão no código.
@@ -1999,7 +2000,7 @@ exercitam as duas configurações apenas para a normalização de timestamps. O 
 
 ### Hierarquia dos caminhos de entrada
 
-**Elemento afetado:** `no_prestadora`, `no_tipo_cdr` (quando não vem de `_tipo_cdr`) e `no_arquivo_origem` (quando não vem do schema).
+**Elemento afetado:** `no_prestadora_cdr`, `no_tipo_cdr` (quando não vem de `_tipo_cdr`) e `no_arquivo_origem` (quando não vem do schema).
 
 **Ponto do rastreamento:** quando `operator`, `cdr_type` e `service` não são informados, a extração assume que os segmentos `-4`, `-2` e `-1` do caminho
 representam, respectivamente, prestadora, tipo de CDR e arquivo (`-3` é `servico`). Só há validação de valores nulos ou em branco, não da estrutura do caminho.
@@ -2025,7 +2026,7 @@ Nenhuma alteração de código foi feita; as sugestões abaixo são apenas regis
 1. **Ericsson GSM: `status_chamada` não alimenta o contrato.**
    - **Localização:** `("callPosition", "status_chamada")` em `PARQUET_DEFAULT_SCHEMAS["smp_ericsson_gsm"]`; `transform_smp_ericsson_gsm`; `TARGET_SCHEMA` (`resultado_chamada`).
    - **Descrição:** a coluna extraída `status_chamada` não é lida por nenhuma etapa e não pertence a `TARGET_SCHEMA`, cujo nome intermediário é `resultado_chamada`.
-   - **Impacto potencial:** `no_resultado_chamada` recebe `__NULL__` em todos os registros desse fluxo.
+   - **Impacto potencial:** `de_resultado_chamada` recebe `__NULL__` em todos os registros desse fluxo.
    - **Sugestão:** confirmar a intenção do contrato e, em alteração separada, alinhar o nome extraído ou criar a derivação.
 2. **Fluxos sem `tipo_chamada`.**
    - **Localização:** `transform_stfc_sigma_claro`, `transform_stfc_huawei_ngn_tim`, `transform_stfc_7n_oi`.
@@ -2035,7 +2036,7 @@ Nenhuma alteração de código foi feita; as sugestões abaixo são apenas regis
 3. **Huawei NGN TIM sem `resultado_chamada`.**
    - **Localização:** `CDRTextSchema` `stfc_huawei_ngn_tim` e `transform_stfc_huawei_ngn_tim`.
    - **Descrição:** o schema não mapeia nenhuma coluna de resultado e o transformador só executa o pipeline comum.
-   - **Impacto potencial:** `no_resultado_chamada` = `__NULL__` em todos os registros.
+   - **Impacto potencial:** `de_resultado_chamada` recebe `__NULL__` em todos os registros.
    - **Sugestão:** verificar se o layout fornece o campo.
 4. **Despachante `CDRTransformer.transform` não encontra os transformadores.**
    - **Localização:** `CDRTransformer.transform` (`globals().get(f"transform_{cdr_schema}")`).
@@ -2061,12 +2062,12 @@ Nenhuma alteração de código foi feita; as sugestões abaixo são apenas regis
    - **Localização:** Nokia (`numero_destino_original`, `numero_conectado`, `numero_destino_encaminhamento`, `perfil_prestadora`), PCL Claro (`tecnologia_fornecedor`), Ericsson GSM (`status_chamada`) e `servico` (todos os fluxos).
    - **Impacto potencial:** informação disponível é descartada.
    - **Sugestão:** avaliar se devem compor o contrato.
-9. **Natureza heterogênea de `nu_origem_original`/`nu_destino_original` no Huawei TIM.**
+9. **Natureza heterogênea de `co_numero_origem_original`/`co_numero_destino_original` no Huawei TIM.**
    - **Localização:** `_numero_origem_original` e `_numero_destino_original` em `transform_smp_huawei_volte_tim`.
    - **Descrição:** em registros `aTSRecord` o valor é o campo bruto (`tEL-URI` ou `_numero_destino_ats`); nos demais é o número já extraído da `sIP-URI`/`_numero_destino_ibcf`.
    - **Impacto potencial:** a mesma coluna final mistura formatos.
    - **Sugestão:** documentar o contrato esperado do valor “original”.
-10. **Taxonomias de `no_resultado_chamada` e valores de fallback divergentes entre fluxos.**
+10. **Taxonomias de `de_resultado_chamada` e valores de fallback divergentes entre fluxos.**
     - **Localização:** `transform_stfc_huawei_ngn` e `transform_stfc_tropico_claro` (`unknown`), `transform_stfc_axe_claro` (`Desconexão Prematura`), `transform_smp_ericsson_volte_vivo` (mantém o código), demais (`NULL` → `__NULL__`).
     - **Impacto potencial:** comparações entre fornecedores não são diretamente equivalentes; valores nulos ou desconhecidos recebem rótulos diferentes.
     - **Sugestão:** consolidar uma taxonomia comum mantendo também o código bruto.

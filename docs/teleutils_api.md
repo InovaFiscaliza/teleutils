@@ -1250,10 +1250,10 @@ destino. Os structs temporários `_extracao_numero_origem` e
 
 | Coluna intermediária | Coluna final | Conteúdo |
 | :-- | :-- | :-- |
-| `numero_origem_extraido` | `nu_origem` | Número extraído; valor de entrada se a extração falha; sentinela se vazio |
-| `sucesso_extracao_origem` | `ic_origem_valido` | Sucesso da extração da origem |
-| `numero_destino_extraido` | `nu_destino` | Número extraído; valor de entrada se a extração falha; sentinela se vazio |
-| `sucesso_extracao_destino` | `ic_destino_valido` | Sucesso da extração do destino |
+| `numero_origem_extraido` | `co_numero_origem` | Número extraído; valor de entrada se a extração falha; sentinela se vazio |
+| `sucesso_extracao_origem` | `ic_numero_origem_valido` | Sucesso da extração da origem |
+| `numero_destino_extraido` | `co_numero_destino` | Número extraído; valor de entrada se a extração falha; sentinela se vazio |
+| `sucesso_extracao_destino` | `ic_numero_destino_valido` | Sucesso da extração do destino |
 
 Os nomes finais `ic_*_valido` permanecem por compatibilidade, com valores
 provenientes de `success`. Essa etapa final é apenas renomeação e conversão
