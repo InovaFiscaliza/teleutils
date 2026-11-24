@@ -94,20 +94,20 @@ SUBSCRIBER_NUMBER_NULL_SENTINEL_VALUE = "5599999999999"
 # CDRBaseTransformer._fill_primary_key_columns antes da escrita.
 PRIMARY_KEY_COLUMNS = [
     "no_tipo_chamada",
-    "nu_referencia",
-    "nu_referencia_sip",
+    "co_referencia",
+    "co_referencia_sip",
     "dh_referencia",
     "dh_chamada",
     "dh_fim_chamada",
     "qt_duracao_segundos",
-    "nu_origem",
-    "nu_origem_original",
-    "nu_destino",
-    "nu_destino_original",
-    "no_resultado_chamada",
-    "no_rota_entrada",
-    "no_rota_saida",
-    "no_bilhetador",
+    "co_numero_origem",
+    "co_numero_origem_original",
+    "co_numero_destino",
+    "co_numero_destino_original",
+    "de_resultado_chamada",
+    "co_rota_entrada",
+    "co_rota_saida",
+    "co_bilhetador",
 ]
 
 # Contrato final de saída: {nome intermediário: (nome final, tipo Spark)}.
@@ -117,28 +117,28 @@ PRIMARY_KEY_COLUMNS = [
 # finais (primeiro elemento de cada tupla) no Parquet a carregar.
 TARGET_SCHEMA = {
     # 1. Identificação Geral & Tempo (Quando e qual o contexto da carga)
-    "referencia": ("nu_referencia", T.StringType()),
-    "referencia_sip": ("nu_referencia_sip", T.StringType()),
+    "referencia": ("co_referencia", T.StringType()),
+    "referencia_sip": ("co_referencia_sip", T.StringType()),
     "data_hora_referencia": ("dh_referencia", T.TimestampNTZType()),
     "data_hora": ("dh_chamada", T.TimestampNTZType()),
     "data_hora_fim": ("dh_fim_chamada", T.TimestampNTZType()),
     "duracao": ("qt_duracao_segundos", T.IntegerType()),
     # 2. Partes Envolvidas (Quem ligou para quem)
-    "numero_origem_extraido": ("nu_origem", T.StringType()),
-    "sucesso_extracao_origem": ("ic_origem_valido", T.BooleanType()),
-    "numero_origem": ("nu_origem_original", T.StringType()),
-    "numero_destino_extraido": ("nu_destino", T.StringType()),
-    "sucesso_extracao_destino": ("ic_destino_valido", T.BooleanType()),
-    "numero_destino": ("nu_destino_original", T.StringType()),
+    "numero_origem_extraido": ("co_numero_origem", T.StringType()),
+    "sucesso_extracao_origem": ("ic_numero_origem_valido", T.BooleanType()),
+    "numero_origem": ("co_numero_origem_original", T.StringType()),
+    "numero_destino_extraido": ("co_numero_destino", T.StringType()),
+    "sucesso_extracao_destino": ("ic_numero_destino_valido", T.BooleanType()),
+    "numero_destino": ("co_numero_destino_original", T.StringType()),
     # 3. Status & Resultado da Chamada (O que aconteceu com a ligação)
-    "resultado_chamada": ("no_resultado_chamada", T.StringType()),
+    "resultado_chamada": ("de_resultado_chamada", T.StringType()),
     "codigo_resposta_sip": ("co_resposta_sip", T.StringType()),
     "autenticacao": ("no_autenticacao", T.StringType()),
     # 4. Roteamento & Rede Telecom (Por onde a chamada passou)
-    "prestadora": ("no_prestadora", T.StringType()),
-    "rota_entrada": ("no_rota_entrada", T.StringType()),
-    "rota_saida": ("no_rota_saida", T.StringType()),
-    "bilhetador": ("no_bilhetador", T.StringType()),
+    "prestadora": ("no_prestadora_cdr", T.StringType()),
+    "rota_entrada": ("co_rota_entrada", T.StringType()),
+    "rota_saida": ("co_rota_saida", T.StringType()),
+    "bilhetador": ("co_bilhetador", T.StringType()),
     # 5. Dados Técnicos de Dispositivo & IP (Células, aparelhos e IPs)
     "celula_origem": ("nu_cgi_origem", T.StringType()),
     "celula_origem_hex": ("nu_cgi_origem_hex", T.StringType()),
@@ -156,7 +156,7 @@ TARGET_SCHEMA = {
     "porta_ip_destino": ("nu_porta_ip_destino", T.IntegerType()),
     "agente_usuario": ("no_agente_usuario", T.StringType()),
     # 6. Metadados do Arquivo & Regras de Negócio (Para auditoria e particionamento)
-    "esquema": ("no_esquema", T.StringType()),
+    "esquema": ("co_esquema_extracao", T.StringType()),
     "tipo_cdr": ("no_tipo_cdr", T.StringType()),
     "arquivo_origem": ("no_arquivo_origem", T.StringType()),
     "tipo_chamada": ("no_tipo_chamada", T.StringType()),
