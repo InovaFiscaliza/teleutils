@@ -56,21 +56,21 @@ reais. Os limites de dados, tipos e configurações constam na seção 8.
 | `co_rota_entrada` | Confirmada | Fonte por layout e preenchimento de chave. |
 | `co_rota_saida` | Confirmada | Fonte por layout e preenchimento de chave. |
 | `co_bilhetador` | Confirmada | Fonte por layout e preenchimento de chave. |
-| `nu_cgi_origem` | Confirmada | Composição Ericsson/Nokia ou decodificação Huawei/Vivo, por papel quando aplicável. |
-| `nu_cgi_origem_hex` | Confirmada | Informação de rede Huawei ou campo hexadecimal Vivo. |
+| `co_cgi_origem` | Confirmada | Composição Ericsson/Nokia ou decodificação Huawei/Vivo, por papel quando aplicável. |
+| `co_cgi_origem_hex` | Confirmada | Informação de rede Huawei ou campo hexadecimal Vivo. |
 | `no_tecnologia_celula_origem` | Confirmada | Primeiro trecho da informação de rede Huawei/Vivo, condicionado pelo papel Huawei. |
-| `nu_imei_origem` | Confirmada | Componentes Ericsson, cópia Nokia, filtro Huawei ou remoção de hífen Vivo. |
-| `nu_imsi_origem` | Confirmada | Componentes Ericsson, cópia Nokia/Vivo ou JSON e papel Huawei. |
-| `nu_ip_origem` | Confirmada | Sem fonte nos catálogos padrão; nulo no pipeline comum. |
+| `co_imei_origem` | Confirmada | Componentes Ericsson, cópia Nokia, filtro Huawei ou remoção de hífen Vivo. |
+| `co_imsi_origem` | Confirmada | Componentes Ericsson, cópia Nokia/Vivo ou JSON e papel Huawei. |
+| `ed_ip_origem` | Confirmada | Sem fonte nos catálogos padrão; nulo no pipeline comum. |
 | `nu_porta_ip_origem` | Confirmada | Sem fonte nos catálogos padrão; nulo e cast inteiro. |
-| `nu_cgi_destino` | Confirmada | Composição ou decodificação por layout, inclusive papel Huawei. |
-| `nu_cgi_destino_hex` | Confirmada | Informação de rede Huawei ou campo hexadecimal Vivo. |
+| `co_cgi_destino` | Confirmada | Composição ou decodificação por layout, inclusive papel Huawei. |
+| `co_cgi_destino_hex` | Confirmada | Informação de rede Huawei ou campo hexadecimal Vivo. |
 | `no_tecnologia_celula_destino` | Confirmada | Primeiro trecho da informação de rede, condicionado pelo papel Huawei. |
-| `nu_imei_destino` | Confirmada | Composição, cópia, filtro por papel ou remoção de hífen, conforme layout. |
-| `nu_imsi_destino` | Confirmada | Composição, cópia ou JSON e papel, conforme layout. |
-| `nu_ip_destino` | Confirmada | Sem fonte nos catálogos padrão; nulo no pipeline comum. |
+| `co_imei_destino` | Confirmada | Composição, cópia, filtro por papel ou remoção de hífen, conforme layout. |
+| `co_imsi_destino` | Confirmada | Composição, cópia ou JSON e papel, conforme layout. |
+| `ed_ip_destino` | Confirmada | Sem fonte nos catálogos padrão; nulo no pipeline comum. |
 | `nu_porta_ip_destino` | Confirmada | Sem fonte nos catálogos padrão; nulo e cast inteiro. |
-| `no_agente_usuario` | Confirmada | `user-Agent-Value` no Huawei VoLTE TIM; sem fonte nos demais catálogos padrão. |
+| `de_agente_usuario` | Confirmada | `user-Agent-Value` no Huawei VoLTE TIM; sem fonte nos demais catálogos padrão. |
 | `co_esquema_extracao` | Confirmada | Literal `cdr_schema` acrescentado pelo extrator. |
 | `no_tipo_cdr` | Confirmada | `_tipo_cdr` prevalece quando existe; caso contrário argumento ou segmento `-2`. |
 | `no_arquivo_origem` | Incorreta | Tabelas Vivo e Sigma apontam caminho/parâmetro, embora as fontes sejam `source_filename` e `source_file`. |
@@ -300,21 +300,21 @@ não a afirmação geral incorreta sobre preservação de conteúdo.
 | `rota_entrada` | cast string + alias | `co_rota_entrada` | Sim |
 | `rota_saida` | cast string + alias | `co_rota_saida` | Sim |
 | `bilhetador` | cast string + alias | `co_bilhetador` | Sim |
-| `celula_origem` | cast string + alias | `nu_cgi_origem` | Sim |
-| `celula_origem_hex` | cast string + alias | `nu_cgi_origem_hex` | Sim |
+| `celula_origem` | cast string + alias | `co_cgi_origem` | Sim |
+| `celula_origem_hex` | cast string + alias | `co_cgi_origem_hex` | Sim |
 | `tecnologia_celula_origem` | cast string + alias | `no_tecnologia_celula_origem` | Sim |
-| `imei_origem` | cast string + alias | `nu_imei_origem` | Sim |
-| `imsi_origem` | cast string + alias | `nu_imsi_origem` | Sim |
-| `ip_origem` | cast string + alias | `nu_ip_origem` | Sim |
+| `imei_origem` | cast string + alias | `co_imei_origem` | Sim |
+| `imsi_origem` | cast string + alias | `co_imsi_origem` | Sim |
+| `ip_origem` | cast string + alias | `ed_ip_origem` | Sim |
 | `porta_ip_origem` | cast integer + alias | `nu_porta_ip_origem` | Sim |
-| `celula_destino` | cast string + alias | `nu_cgi_destino` | Sim |
-| `celula_destino_hex` | cast string + alias | `nu_cgi_destino_hex` | Sim |
+| `celula_destino` | cast string + alias | `co_cgi_destino` | Sim |
+| `celula_destino_hex` | cast string + alias | `co_cgi_destino_hex` | Sim |
 | `tecnologia_celula_destino` | cast string + alias | `no_tecnologia_celula_destino` | Sim |
-| `imei_destino` | cast string + alias | `nu_imei_destino` | Sim |
-| `imsi_destino` | cast string + alias | `nu_imsi_destino` | Sim |
-| `ip_destino` | cast string + alias | `nu_ip_destino` | Sim |
+| `imei_destino` | cast string + alias | `co_imei_destino` | Sim |
+| `imsi_destino` | cast string + alias | `co_imsi_destino` | Sim |
+| `ip_destino` | cast string + alias | `ed_ip_destino` | Sim |
 | `porta_ip_destino` | cast integer + alias | `nu_porta_ip_destino` | Sim |
-| `agente_usuario` | cast string + alias | `no_agente_usuario` | Sim |
+| `agente_usuario` | cast string + alias | `de_agente_usuario` | Sim |
 | `esquema` | cast string + alias | `co_esquema_extracao` | Sim |
 | `tipo_cdr` | cast string + alias | `no_tipo_cdr` | Sim |
 | `arquivo_origem` | cast string + alias | `no_arquivo_origem` | Sim |

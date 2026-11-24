@@ -119,21 +119,21 @@ Lista independente: as 38 chaves de `TARGET_SCHEMA`, na ordem de declaração.
 | 17 | `rota_entrada` | cast + renomeação | `co_rota_entrada` | string | sim |
 | 18 | `rota_saida` | cast + renomeação | `co_rota_saida` | string | sim |
 | 19 | `bilhetador` | cast + renomeação | `co_bilhetador` | string | sim |
-| 20 | `celula_origem` | cast + renomeação | `nu_cgi_origem` | string | não |
-| 21 | `celula_origem_hex` | cast + renomeação | `nu_cgi_origem_hex` | string | não |
+| 20 | `celula_origem` | cast + renomeação | `co_cgi_origem` | string | não |
+| 21 | `celula_origem_hex` | cast + renomeação | `co_cgi_origem_hex` | string | não |
 | 22 | `tecnologia_celula_origem` | cast + renomeação | `no_tecnologia_celula_origem` | string | não |
-| 23 | `imei_origem` | cast + renomeação | `nu_imei_origem` | string | não |
-| 24 | `imsi_origem` | cast + renomeação | `nu_imsi_origem` | string | não |
-| 25 | `ip_origem` | cast + renomeação | `nu_ip_origem` | string | não |
+| 23 | `imei_origem` | cast + renomeação | `co_imei_origem` | string | não |
+| 24 | `imsi_origem` | cast + renomeação | `co_imsi_origem` | string | não |
+| 25 | `ip_origem` | cast + renomeação | `ed_ip_origem` | string | não |
 | 26 | `porta_ip_origem` | cast + renomeação | `nu_porta_ip_origem` | integer | não |
-| 27 | `celula_destino` | cast + renomeação | `nu_cgi_destino` | string | não |
-| 28 | `celula_destino_hex` | cast + renomeação | `nu_cgi_destino_hex` | string | não |
+| 27 | `celula_destino` | cast + renomeação | `co_cgi_destino` | string | não |
+| 28 | `celula_destino_hex` | cast + renomeação | `co_cgi_destino_hex` | string | não |
 | 29 | `tecnologia_celula_destino` | cast + renomeação | `no_tecnologia_celula_destino` | string | não |
-| 30 | `imei_destino` | cast + renomeação | `nu_imei_destino` | string | não |
-| 31 | `imsi_destino` | cast + renomeação | `nu_imsi_destino` | string | não |
-| 32 | `ip_destino` | cast + renomeação | `nu_ip_destino` | string | não |
+| 30 | `imei_destino` | cast + renomeação | `co_imei_destino` | string | não |
+| 31 | `imsi_destino` | cast + renomeação | `co_imsi_destino` | string | não |
+| 32 | `ip_destino` | cast + renomeação | `ed_ip_destino` | string | não |
 | 33 | `porta_ip_destino` | cast + renomeação | `nu_porta_ip_destino` | integer | não |
-| 34 | `agente_usuario` | cast + renomeação | `no_agente_usuario` | string | não |
+| 34 | `agente_usuario` | cast + renomeação | `de_agente_usuario` | string | não |
 | 35 | `esquema` | cast + renomeação | `co_esquema_extracao` | string | não |
 | 36 | `tipo_cdr` | cast + renomeação | `no_tipo_cdr` | string | não |
 | 37 | `arquivo_origem` | cast + renomeação | `no_arquivo_origem` | string | não |
@@ -175,7 +175,7 @@ Assim, “ausente” não significa sempre `NULL` no Parquet final. Para as colu
 `de_resultado_chamada`, `co_rota_entrada`, `co_rota_saida`, `co_bilhetador`) vale o preenchimento acima.
 Strings vazias não são nulas e não são substituídas. As demais colunas (`ic_*`, `co_resposta_sip`,
 `no_autenticacao`, `no_prestadora_cdr`, `nu_cgi_*`, `nu_imei_*`, `nu_imsi_*`, `nu_ip_*`, `nu_porta_ip_*`,
-`no_agente_usuario`, `no_tecnologia_celula_*`, `co_esquema_extracao`, `no_tipo_cdr`, `no_arquivo_origem`)
+`de_agente_usuario`, `no_tecnologia_celula_*`, `co_esquema_extracao`, `no_tipo_cdr`, `no_arquivo_origem`)
 permanecem `NULL` quando ausentes.
 
 ### 2.3 Metadados adicionados pelos extratores
@@ -243,21 +243,21 @@ Arquivo de origem
 | `incomingRoute` | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_entrada` |
 | `outgoingRoute` | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_saida` |
 | `exchangeIdentity` | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_bilhetador` |
-| `firstCallingLocationInformation.mcc`; `firstCallingLocationInformation.mnc`; `firstCallingLocationInformation.lac`; `firstCallingLocationInformation.ci_sac` | `celula_origem_mcc`, `celula_origem_mnc`, `celula_origem_lac`, `celula_origem_ci_sac` | `_build_composite_column('-', ...)`: componentes em branco → nulo; `lpad(celula_origem_lac, 5, '0')` e `lpad(celula_origem_ci_sac, 5, '0')`; qualquer componente nulo → `NULL` | `nu_cgi_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem_hex` |
+| `firstCallingLocationInformation.mcc`; `firstCallingLocationInformation.mnc`; `firstCallingLocationInformation.lac`; `firstCallingLocationInformation.ci_sac` | `celula_origem_mcc`, `celula_origem_mnc`, `celula_origem_lac`, `celula_origem_ci_sac` | `_build_composite_column('-', ...)`: componentes em branco → nulo; `lpad(celula_origem_lac, 5, '0')` e `lpad(celula_origem_ci_sac, 5, '0')`; qualquer componente nulo → `NULL` | `co_cgi_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_origem_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_origem` |
-| `callingSubscriberIMEI.type_allocation_code`; `callingSubscriberIMEI.serial_number` | `imei_origem_tac`, `imei_origem_sn` | `_build_composite_column('', ...)`: TAC + SN sem separador; componente em branco ou nulo → `NULL` | `nu_imei_origem` |
-| `callingSubscriberIMSI.mcc`; `callingSubscriberIMSI.mnc`; `callingSubscriberIMSI.msin` | `imsi_origem_mcc`, `imsi_origem_mnc`, `imsi_origem_msin` | `_build_composite_column('', ...)`: concatenação sem separador; componente em branco ou nulo → `NULL` | `nu_imsi_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_origem` |
+| `callingSubscriberIMEI.type_allocation_code`; `callingSubscriberIMEI.serial_number` | `imei_origem_tac`, `imei_origem_sn` | `_build_composite_column('', ...)`: TAC + SN sem separador; componente em branco ou nulo → `NULL` | `co_imei_origem` |
+| `callingSubscriberIMSI.mcc`; `callingSubscriberIMSI.mnc`; `callingSubscriberIMSI.msin` | `imsi_origem_mcc`, `imsi_origem_mnc`, `imsi_origem_msin` | `_build_composite_column('', ...)`: concatenação sem separador; componente em branco ou nulo → `NULL` | `co_imsi_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `ed_ip_origem` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_origem` |
-| `firstCalledLocationInformation.mcc`; `firstCalledLocationInformation.mnc`; `firstCalledLocationInformation.lac`; `firstCalledLocationInformation.ci_sac` | `celula_destino_mcc`, `celula_destino_mnc`, `celula_destino_lac`, `celula_destino_ci_sac` | `_build_composite_column('-', ...)`: mesmas regras da origem, com os componentes de destino | `nu_cgi_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_destino_hex` |
+| `firstCalledLocationInformation.mcc`; `firstCalledLocationInformation.mnc`; `firstCalledLocationInformation.lac`; `firstCalledLocationInformation.ci_sac` | `celula_destino_mcc`, `celula_destino_mnc`, `celula_destino_lac`, `celula_destino_ci_sac` | `_build_composite_column('-', ...)`: mesmas regras da origem, com os componentes de destino | `co_cgi_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_destino_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_destino` |
-| `calledSubscriberIMEI.type_allocation_code`; `calledSubscriberIMEI.serial_number` | `imei_destino_tac`, `imei_destino_sn` | `_build_composite_column('', ...)`: mesmas regras da origem | `nu_imei_destino` |
-| `calledSubscriberIMSI.mcc`; `calledSubscriberIMSI.mnc`; `calledSubscriberIMSI.msin` | `imsi_destino_mcc`, `imsi_destino_mnc`, `imsi_destino_msin` | `_build_composite_column('', ...)`: mesmas regras da origem | `nu_imsi_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_destino` |
+| `calledSubscriberIMEI.type_allocation_code`; `calledSubscriberIMEI.serial_number` | `imei_destino_tac`, `imei_destino_sn` | `_build_composite_column('', ...)`: mesmas regras da origem | `co_imei_destino` |
+| `calledSubscriberIMSI.mcc`; `calledSubscriberIMSI.mnc`; `calledSubscriberIMSI.msin` | `imsi_destino_mcc`, `imsi_destino_mnc`, `imsi_destino_msin` | `_build_composite_column('', ...)`: mesmas regras da origem | `co_imsi_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `ed_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_agente_usuario` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `de_agente_usuario` |
 | Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'smp_ericsson_gsm'`); mantida sem alteração | `co_esquema_extracao` |
 | Não aplicável (metadado) | `tipo_cdr` | `add_source_metadata`: argumento `cdr_type` ou `url_decode` do segmento `-2` do caminho; mantida sem alteração | `no_tipo_cdr` |
 | Não aplicável (metadado) | `arquivo_origem` | `add_source_metadata`: `url_decode` do segmento `-1` do caminho; mantida sem alteração | `no_arquivo_origem` |
@@ -309,21 +309,21 @@ Arquivo de origem
 | `in_circuit_group` | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_entrada` |
 | `out_circuit_group` | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_saida` |
 | `exchange_id` | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_bilhetador` |
-| `calling_subs_first_lac`; `calling_subs_first_ci`; metadado (caminho do arquivo ou parâmetro do extrator) | `celula_origem_lac`, `celula_origem_ci`, `prestadora` | `_build_composite_column('-', ...)` com `DEFAULT_MCC` (`724`), `_nokia_mnc`, `lpad(lac, 5, '0')` e `lpad(ci, 5, '0')`; `_nokia_mnc`: `prestadora == 'claro'` → `05`, `'algar'` → `34`, outro valor → `NULL` (composto `NULL`) | `nu_cgi_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem_hex` |
+| `calling_subs_first_lac`; `calling_subs_first_ci`; metadado (caminho do arquivo ou parâmetro do extrator) | `celula_origem_lac`, `celula_origem_ci`, `prestadora` | `_build_composite_column('-', ...)` com `DEFAULT_MCC` (`724`), `_nokia_mnc`, `lpad(lac, 5, '0')` e `lpad(ci, 5, '0')`; `_nokia_mnc`: `prestadora == 'claro'` → `05`, `'algar'` → `34`, outro valor → `NULL` (composto `NULL`) | `co_cgi_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_origem_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_origem` |
-| `calling_imei` | `imei_origem` | Mantida sem alteração | `nu_imei_origem` |
-| `calling_imsi` | `imsi_origem` | Mantida sem alteração | `nu_imsi_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_origem` |
+| `calling_imei` | `imei_origem` | Mantida sem alteração | `co_imei_origem` |
+| `calling_imsi` | `imsi_origem` | Mantida sem alteração | `co_imsi_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `ed_ip_origem` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_origem` |
-| `called_subs_first_lac`; `called_subs_first_ci`; metadado (caminho do arquivo ou parâmetro do extrator) | `celula_destino_lac`, `celula_destino_ci`, `prestadora` | mesma regra da origem, com `celula_destino_lac` e `celula_destino_ci` | `nu_cgi_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_destino_hex` |
+| `called_subs_first_lac`; `called_subs_first_ci`; metadado (caminho do arquivo ou parâmetro do extrator) | `celula_destino_lac`, `celula_destino_ci`, `prestadora` | mesma regra da origem, com `celula_destino_lac` e `celula_destino_ci` | `co_cgi_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_destino_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_destino` |
-| `called_imei` | `imei_destino` | Mantida sem alteração | `nu_imei_destino` |
-| `called_imsi` | `imsi_destino` | Mantida sem alteração | `nu_imsi_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_destino` |
+| `called_imei` | `imei_destino` | Mantida sem alteração | `co_imei_destino` |
+| `called_imsi` | `imsi_destino` | Mantida sem alteração | `co_imsi_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `ed_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_agente_usuario` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `de_agente_usuario` |
 | Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'smp_nokia_gsm'`); mantida sem alteração | `co_esquema_extracao` |
 | Não aplicável (metadado) | `tipo_cdr` | `add_source_metadata`: argumento `cdr_type` ou `url_decode` do segmento `-2` do caminho; mantida sem alteração | `no_tipo_cdr` |
 | Não aplicável (metadado) | `arquivo_origem` | `add_source_metadata`: `url_decode` do segmento `-1` do caminho; mantida sem alteração | `no_arquivo_origem` |
@@ -384,21 +384,21 @@ Arquivo de origem
 | `specifiedTreatmentField_incoming-Route` | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_entrada` |
 | `specifiedTreatmentField_outgoing-Route` | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_saida` |
 | `nodeAddress_domainName` | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_bilhetador` |
-| `accessNetworkInformation`; `role-of-Node` | `_informacao_rede`, `tipo_chamada` | `_extract_cell_info` (`regexp_extract('3gpp=([0-9a-fA-F]+);?', 1)` → `_id_celula_hex`) e `_format_cell_id` (formato `smp_huawei_volte_tim`) → `_id_celula`; mantida somente se `tipo_chamada == 'oRIGINATING-ROLE'`; senão `NULL` | `nu_cgi_origem` |
-| `accessNetworkInformation`; `role-of-Node` | `_informacao_rede`, `tipo_chamada` | `_id_celula_hex` (`regexp_extract`, vazio se não houver correspondência) somente se `tipo_chamada == 'oRIGINATING-ROLE'` | `nu_cgi_origem_hex` |
+| `accessNetworkInformation`; `role-of-Node` | `_informacao_rede`, `tipo_chamada` | `_extract_cell_info` (`regexp_extract('3gpp=([0-9a-fA-F]+);?', 1)` → `_id_celula_hex`) e `_format_cell_id` (formato `smp_huawei_volte_tim`) → `_id_celula`; mantida somente se `tipo_chamada == 'oRIGINATING-ROLE'`; senão `NULL` | `co_cgi_origem` |
+| `accessNetworkInformation`; `role-of-Node` | `_informacao_rede`, `tipo_chamada` | `_id_celula_hex` (`regexp_extract`, vazio se não houver correspondência) somente se `tipo_chamada == 'oRIGINATING-ROLE'` | `co_cgi_origem_hex` |
 | `accessNetworkInformation`; `role-of-Node` | `_informacao_rede`, `tipo_chamada` | `_tecnologia_celula` = `split(_informacao_rede, ';')[0]` somente se `tipo_chamada == 'oRIGINATING-ROLE'` | `no_tecnologia_celula_origem` |
-| `private-User-Equipment-Info_private-User-Equipment-Info-Type`; `private-User-Equipment-Info_private-User-Equipment-Info-Value`; `role-of-Node` | `_info_imei`, `_imei`, `tipo_chamada` | `_imei` = `_imei` se `_info_imei == 'iMEI'`, senão `NULL`; atribuída somente se `tipo_chamada == 'oRIGINATING-ROLE'` | `nu_imei_origem` |
-| `list-of-subscription-ID`; `role-of-Node` | `_info_imsi`, `tipo_chamada` | `_imsi` = `from_json(_info_imsi, array<struct<info_type,info_value>>)[0].info_value` se `info_type == 'eND-USER-IMSI'`; atribuída somente se `tipo_chamada == 'oRIGINATING-ROLE'` | `nu_imsi_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_origem` |
+| `private-User-Equipment-Info_private-User-Equipment-Info-Type`; `private-User-Equipment-Info_private-User-Equipment-Info-Value`; `role-of-Node` | `_info_imei`, `_imei`, `tipo_chamada` | `_imei` = `_imei` se `_info_imei == 'iMEI'`, senão `NULL`; atribuída somente se `tipo_chamada == 'oRIGINATING-ROLE'` | `co_imei_origem` |
+| `list-of-subscription-ID`; `role-of-Node` | `_info_imsi`, `tipo_chamada` | `_imsi` = `from_json(_info_imsi, array<struct<info_type,info_value>>)[0].info_value` se `info_type == 'eND-USER-IMSI'`; atribuída somente se `tipo_chamada == 'oRIGINATING-ROLE'` | `co_imsi_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `ed_ip_origem` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_origem` |
-| `accessNetworkInformation`; `role-of-Node` | `_informacao_rede`, `tipo_chamada` | mesma derivação de `_id_celula`, atribuída somente se `tipo_chamada == 'tERMINATING-ROLE'`; senão `NULL` | `nu_cgi_destino` |
-| `accessNetworkInformation`; `role-of-Node` | `_informacao_rede`, `tipo_chamada` | `_id_celula_hex` somente se `tipo_chamada == 'tERMINATING-ROLE'` | `nu_cgi_destino_hex` |
+| `accessNetworkInformation`; `role-of-Node` | `_informacao_rede`, `tipo_chamada` | mesma derivação de `_id_celula`, atribuída somente se `tipo_chamada == 'tERMINATING-ROLE'`; senão `NULL` | `co_cgi_destino` |
+| `accessNetworkInformation`; `role-of-Node` | `_informacao_rede`, `tipo_chamada` | `_id_celula_hex` somente se `tipo_chamada == 'tERMINATING-ROLE'` | `co_cgi_destino_hex` |
 | `accessNetworkInformation`; `role-of-Node` | `_informacao_rede`, `tipo_chamada` | `_tecnologia_celula` somente se `tipo_chamada == 'tERMINATING-ROLE'` | `no_tecnologia_celula_destino` |
-| `private-User-Equipment-Info_private-User-Equipment-Info-Type`; `private-User-Equipment-Info_private-User-Equipment-Info-Value`; `role-of-Node` | `_info_imei`, `_imei`, `tipo_chamada` | mesma derivação de `_imei`, atribuída somente se `tipo_chamada == 'tERMINATING-ROLE'` | `nu_imei_destino` |
-| `list-of-subscription-ID`; `role-of-Node` | `_info_imsi`, `tipo_chamada` | mesma derivação de `_imsi`, atribuída somente se `tipo_chamada == 'tERMINATING-ROLE'` | `nu_imsi_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_destino` |
+| `private-User-Equipment-Info_private-User-Equipment-Info-Type`; `private-User-Equipment-Info_private-User-Equipment-Info-Value`; `role-of-Node` | `_info_imei`, `_imei`, `tipo_chamada` | mesma derivação de `_imei`, atribuída somente se `tipo_chamada == 'tERMINATING-ROLE'` | `co_imei_destino` |
+| `list-of-subscription-ID`; `role-of-Node` | `_info_imsi`, `tipo_chamada` | mesma derivação de `_imsi`, atribuída somente se `tipo_chamada == 'tERMINATING-ROLE'` | `co_imsi_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `ed_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_destino` |
-| `user-Agent-Value` | `agente_usuario` | Mantida sem alteração | `no_agente_usuario` |
+| `user-Agent-Value` | `agente_usuario` | Mantida sem alteração | `de_agente_usuario` |
 | Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'smp_huawei_volte_tim'`); mantida sem alteração | `co_esquema_extracao` |
 | `recordType` | `tipo_cdr` | Catálogo mapeia `recordType` internamente para `_tipo_cdr`; `add_source_metadata` copia `_tipo_cdr` para `tipo_cdr` (prevalece sobre `cdr_type` e caminho); `_tipo_cdr` é descartada antes do retorno do extrator | `no_tipo_cdr` |
 | Não aplicável (metadado) | `arquivo_origem` | `add_source_metadata`: `url_decode` do segmento `-1` do caminho; mantida sem alteração | `no_arquivo_origem` |
@@ -458,21 +458,21 @@ Arquivo de origem
 | `incomingRoute` | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_entrada` |
 | `outgoingRoute` | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_saida` |
 | `exchangeIdentity` | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_bilhetador` |
-| `firstCallingLocInf` | `celula_origem_hex` | `_format_cell_id(celula_origem_hex → celula_origem)`, formato `default`: comprimento 13 → 3G, 16 → 4G, 20 → 5G; outro comprimento mantém o valor bruto; vazio → `NULL` | `nu_cgi_origem` |
-| `firstCallingLocInf` | `celula_origem_hex` | Mantida sem alteração | `nu_cgi_origem_hex` |
+| `firstCallingLocInf` | `celula_origem_hex` | `_format_cell_id(celula_origem_hex → celula_origem)`, formato `default`: comprimento 13 → 3G, 16 → 4G, 20 → 5G; outro comprimento mantém o valor bruto; vazio → `NULL` | `co_cgi_origem` |
+| `firstCallingLocInf` | `celula_origem_hex` | Mantida sem alteração | `co_cgi_origem_hex` |
 | `firstCallingAccessNetInf` | `_informacao_rede_origem` | `split(_informacao_rede_origem, ';')[0]` | `no_tecnologia_celula_origem` |
-| `callingSubscriberIMEI` | `imei_origem` | `translate(imei_origem, '-', '')` (remove hífens) | `nu_imei_origem` |
-| `callingSubscriberIMSI` | `imsi_origem` | Mantida sem alteração | `nu_imsi_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_origem` |
+| `callingSubscriberIMEI` | `imei_origem` | `translate(imei_origem, '-', '')` (remove hífens) | `co_imei_origem` |
+| `callingSubscriberIMSI` | `imsi_origem` | Mantida sem alteração | `co_imsi_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `ed_ip_origem` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_origem` |
-| `firstCalledLocInfo` | `celula_destino_hex` | `_format_cell_id(celula_destino_hex → celula_destino)`, formato `default` (mesmas regras da origem) | `nu_cgi_destino` |
-| `firstCalledLocInfo` | `celula_destino_hex` | Mantida sem alteração | `nu_cgi_destino_hex` |
+| `firstCalledLocInfo` | `celula_destino_hex` | `_format_cell_id(celula_destino_hex → celula_destino)`, formato `default` (mesmas regras da origem) | `co_cgi_destino` |
+| `firstCalledLocInfo` | `celula_destino_hex` | Mantida sem alteração | `co_cgi_destino_hex` |
 | `firstCalledAccessNetInf` | `_informacao_rede_destino` | `split(_informacao_rede_destino, ';')[0]` | `no_tecnologia_celula_destino` |
-| `calledSubscriberIMEI` | `imei_destino` | `translate(imei_destino, '-', '')` (remove hífens) | `nu_imei_destino` |
-| `calledSubscriberIMSI` | `imsi_destino` | Mantida sem alteração | `nu_imsi_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_destino` |
+| `calledSubscriberIMEI` | `imei_destino` | `translate(imei_destino, '-', '')` (remove hífens) | `co_imei_destino` |
+| `calledSubscriberIMSI` | `imsi_destino` | Mantida sem alteração | `co_imsi_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `ed_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_agente_usuario` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `de_agente_usuario` |
 | Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'smp_ericsson_volte_vivo'`); mantida sem alteração | `co_esquema_extracao` |
 | Não aplicável (metadado) | `tipo_cdr` | `add_source_metadata`: argumento `cdr_type` ou `url_decode` do segmento `-2` do caminho; mantida sem alteração | `no_tipo_cdr` |
 | `source_filename` | `arquivo_origem` | `add_source_metadata` preserva valor não nulo e usa `url_decode` do segmento `-1` do caminho como fallback quando o valor é `NULL` (inclusive se a coluna de origem estiver ausente) | `no_arquivo_origem` |
@@ -527,21 +527,21 @@ Arquivo de origem
 | `trunking_group_identity_information_incoming_trunk_group_identity` | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_entrada` |
 | `trunking_group_identity_information_outgoing_trunk_group_identity` | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_saida` |
 | `network_call_reference_switch_identity` | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_bilhetador` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem_hex` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_origem_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imei_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imsi_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imei_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imsi_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `ed_ip_origem` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_destino_hex` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_destino_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imei_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imsi_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imei_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imsi_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `ed_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_agente_usuario` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `de_agente_usuario` |
 | Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'stfc_italtel_ngn_tim'`); mantida sem alteração | `co_esquema_extracao` |
 | Não aplicável (metadado) | `tipo_cdr` | `add_source_metadata`: argumento `cdr_type` ou `url_decode` do segmento `-2` do caminho; mantida sem alteração | `no_tipo_cdr` |
 | Não aplicável (metadado) | `arquivo_origem` | `add_source_metadata`: `url_decode` do segmento `-1` do caminho; mantida sem alteração | `no_arquivo_origem` |
@@ -590,21 +590,21 @@ Arquivo de origem
 | `a_incoming_route_name` | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_entrada` |
 | `a_outgoing_route_name` | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_saida` |
 | `a_exchange_id` | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_bilhetador` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem_hex` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_origem_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imei_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imsi_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imei_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imsi_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `ed_ip_origem` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_destino_hex` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_destino_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imei_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imsi_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imei_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imsi_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `ed_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_agente_usuario` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `de_agente_usuario` |
 | Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'stfc_sigma_claro'`); mantida sem alteração | `co_esquema_extracao` |
 | `format` | `_tipo_cdr` → `tipo_cdr` | `add_source_metadata`: `_tipo_cdr` prevalece sobre `cdr_type` e sobre o caminho; `_tipo_cdr` é removida em seguida | `no_tipo_cdr` |
 | `source_file` | `arquivo_origem` | O extrator remove hífens finais (`fill_char='-'`); `add_source_metadata` preserva valor não nulo e usa `url_decode` do segmento `-1` do caminho como fallback quando o valor é `NULL` (inclusive se a coluna de origem estiver ausente) | `no_arquivo_origem` |
@@ -658,21 +658,21 @@ Arquivo de origem
 | campo CSV 17 (base 0) | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_entrada` |
 | campo CSV 18 (base 0) | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_saida` |
 | campo CSV 1 (base 0) | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_bilhetador` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem_hex` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_origem_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imei_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imsi_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imei_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imsi_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `ed_ip_origem` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_destino_hex` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_destino_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imei_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imsi_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imei_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imsi_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `ed_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_agente_usuario` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `de_agente_usuario` |
 | Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'stfc_huawei_ngn'`); mantida sem alteração | `co_esquema_extracao` |
 | Não aplicável (metadado) | `tipo_cdr` | `add_source_metadata`: argumento `cdr_type` ou `url_decode` do segmento `-2` do caminho; mantida sem alteração | `no_tipo_cdr` |
 | Não aplicável (metadado) | `arquivo_origem` | `add_source_metadata`: `url_decode` do segmento `-1` do caminho; mantida sem alteração | `no_arquivo_origem` |
@@ -720,21 +720,21 @@ Arquivo de origem
 | campo CSV 6 (base 0) | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_entrada` |
 | campo CSV 8 (base 0) | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_saida` |
 | campo CSV 17 (base 0) | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_bilhetador` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem_hex` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_origem_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imei_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imsi_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imei_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imsi_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `ed_ip_origem` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_destino_hex` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_destino_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imei_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imsi_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imei_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imsi_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `ed_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_agente_usuario` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `de_agente_usuario` |
 | Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'stfc_huawei_ngn_tim'`); mantida sem alteração | `co_esquema_extracao` |
 | Não aplicável (metadado) | `tipo_cdr` | `add_source_metadata`: argumento `cdr_type` ou `url_decode` do segmento `-2` do caminho; mantida sem alteração | `no_tipo_cdr` |
 | Não aplicável (metadado) | `arquivo_origem` | `add_source_metadata`: `url_decode` do segmento `-1` do caminho; mantida sem alteração | `no_arquivo_origem` |
@@ -789,21 +789,21 @@ Arquivo de origem
 | campo CSV 33 (base 0) | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_entrada` |
 | campo CSV 34 (base 0) | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_saida` |
 | campo CSV 0 (base 0) | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_bilhetador` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem_hex` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_origem_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imei_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imsi_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imei_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imsi_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `ed_ip_origem` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_destino_hex` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_destino_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imei_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imsi_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imei_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imsi_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `ed_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_agente_usuario` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `de_agente_usuario` |
 | Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'stfc_fcdr_vivo'`); mantida sem alteração | `co_esquema_extracao` |
 | campo CSV 1 (base 0) | `_tipo_cdr` → `tipo_cdr` | `add_source_metadata`: `_tipo_cdr` prevalece sobre `cdr_type` e sobre o caminho; `_tipo_cdr` é removida em seguida | `no_tipo_cdr` |
 | Não aplicável (metadado) | `arquivo_origem` | `add_source_metadata`: `url_decode` do segmento `-1` do caminho; mantida sem alteração | `no_arquivo_origem` |
@@ -857,21 +857,21 @@ Arquivo de origem
 | posição 222, largura 8 (linha de largura fixa) | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_entrada` |
 | posição 235, largura 8 (linha de largura fixa) | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_saida` |
 | posição 255, largura 4 (linha de largura fixa) | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_bilhetador` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem_hex` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_origem_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imei_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imsi_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imei_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imsi_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `ed_ip_origem` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_destino_hex` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_destino_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imei_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imsi_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imei_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imsi_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `ed_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_agente_usuario` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `de_agente_usuario` |
 | Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'stfc_7n_oi'`); mantida sem alteração | `co_esquema_extracao` |
 | Não aplicável (metadado) | `tipo_cdr` | `add_source_metadata`: argumento `cdr_type` ou `url_decode` do segmento `-2` do caminho; mantida sem alteração | `no_tipo_cdr` |
 | Não aplicável (metadado) | `arquivo_origem` | `add_source_metadata`: `url_decode` do segmento `-1` do caminho; mantida sem alteração | `no_arquivo_origem` |
@@ -926,21 +926,21 @@ Arquivo de origem
 | posição 191, largura 7 (linha de largura fixa) | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_entrada` |
 | posição 205, largura 7 (linha de largura fixa) | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_saida` |
 | posição 175, largura 4 (linha de largura fixa) | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_bilhetador` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem_hex` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_origem_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imei_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imsi_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imei_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imsi_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `ed_ip_origem` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_destino_hex` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_destino_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imei_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imsi_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imei_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imsi_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `ed_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_agente_usuario` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `de_agente_usuario` |
 | Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'stfc_tropico_oi'`); mantida sem alteração | `co_esquema_extracao` |
 | Não aplicável (metadado) | `tipo_cdr` | `add_source_metadata`: argumento `cdr_type` ou `url_decode` do segmento `-2` do caminho; mantida sem alteração | `no_tipo_cdr` |
 | Não aplicável (metadado) | `arquivo_origem` | `add_source_metadata`: `url_decode` do segmento `-1` do caminho; mantida sem alteração | `no_arquivo_origem` |
@@ -994,21 +994,21 @@ Arquivo de origem
 | posição 92, largura 4 (linha de largura fixa) | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_entrada` |
 | posição 103, largura 4 (linha de largura fixa) | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_saida` |
 | posição 2, largura 8 (linha de largura fixa) | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_bilhetador` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem_hex` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_origem_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imei_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imsi_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imei_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imsi_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `ed_ip_origem` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_destino_hex` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_destino_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imei_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imsi_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imei_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imsi_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `ed_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_agente_usuario` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `de_agente_usuario` |
 | Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'stfc_axe_claro'`); mantida sem alteração | `co_esquema_extracao` |
 | Não aplicável (metadado) | `tipo_cdr` | `add_source_metadata`: argumento `cdr_type` ou `url_decode` do segmento `-2` do caminho; mantida sem alteração | `no_tipo_cdr` |
 | Não aplicável (metadado) | `arquivo_origem` | `add_source_metadata`: `url_decode` do segmento `-1` do caminho; mantida sem alteração | `no_arquivo_origem` |
@@ -1063,21 +1063,21 @@ Arquivo de origem
 | posição 297, largura 8 (linha de largura fixa) | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_entrada` |
 | posição 313, largura 8 (linha de largura fixa) | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_saida` |
 | posição 24, largura 8 (linha de largura fixa) | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_bilhetador` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem_hex` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_origem_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imei_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imsi_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imei_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imsi_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `ed_ip_origem` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_destino_hex` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_destino_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imei_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imsi_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imei_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imsi_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `ed_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_agente_usuario` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `de_agente_usuario` |
 | Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'stfc_pcl_claro'`); mantida sem alteração | `co_esquema_extracao` |
 | Não aplicável (metadado) | `tipo_cdr` | `add_source_metadata`: argumento `cdr_type` ou `url_decode` do segmento `-2` do caminho; mantida sem alteração | `no_tipo_cdr` |
 | Não aplicável (metadado) | `arquivo_origem` | `add_source_metadata`: `url_decode` do segmento `-1` do caminho; mantida sem alteração | `no_arquivo_origem` |
@@ -1132,21 +1132,21 @@ Arquivo de origem
 | campo CSV 17 (base 0) | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_entrada` |
 | campo CSV 18 (base 0) | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_saida` |
 | campo CSV 1 (base 0) | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_bilhetador` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem_hex` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_origem_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imei_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imsi_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imei_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imsi_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `ed_ip_origem` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_destino_hex` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_destino_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imei_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imsi_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imei_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imsi_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `ed_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_agente_usuario` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `de_agente_usuario` |
 | Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'stfc_tropico_claro_lega'`); mantida sem alteração | `co_esquema_extracao` |
 | Não aplicável (metadado) | `tipo_cdr` | `add_source_metadata`: argumento `cdr_type` ou `url_decode` do segmento `-2` do caminho; mantida sem alteração | `no_tipo_cdr` |
 | Não aplicável (metadado) | `arquivo_origem` | `add_source_metadata`: `url_decode` do segmento `-1` do caminho; mantida sem alteração | `no_arquivo_origem` |
@@ -1201,21 +1201,21 @@ Arquivo de origem
 | campo CSV 14 (base 0) | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_entrada` |
 | campo CSV 15 (base 0) | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_saida` |
 | campo CSV 1 (base 0) | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_bilhetador` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem_hex` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_origem_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imei_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imsi_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imei_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imsi_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `ed_ip_origem` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_destino_hex` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_destino_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imei_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imsi_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imei_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imsi_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `ed_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_agente_usuario` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `de_agente_usuario` |
 | Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'stfc_tropico_claro_legb'`); mantida sem alteração | `co_esquema_extracao` |
 | Não aplicável (metadado) | `tipo_cdr` | `add_source_metadata`: argumento `cdr_type` ou `url_decode` do segmento `-2` do caminho; mantida sem alteração | `no_tipo_cdr` |
 | Não aplicável (metadado) | `arquivo_origem` | `add_source_metadata`: `url_decode` do segmento `-1` do caminho; mantida sem alteração | `no_arquivo_origem` |
@@ -1270,21 +1270,21 @@ Arquivo de origem
 | `mscincomingroute` (campo 2 de `stfc_pit_claro_schema`) | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_entrada` |
 | `mscoutgoingroute` (campo 3 de `stfc_pit_claro_schema`) | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_saida` |
 | `recordingentity` (campo 1 de `stfc_pit_claro_schema`) | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_bilhetador` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem_hex` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_origem_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imei_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imsi_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imei_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imsi_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `ed_ip_origem` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_destino_hex` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_destino_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imei_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imsi_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imei_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imsi_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `ed_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_agente_usuario` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `de_agente_usuario` |
 | Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'stfc_pit_claro'`); mantida sem alteração | `co_esquema_extracao` |
 | Não aplicável (metadado) | `tipo_cdr` | `add_source_metadata`: argumento `cdr_type` ou `url_decode` do segmento `-2` do caminho; mantida sem alteração | `no_tipo_cdr` |
 | Não aplicável (metadado) | `arquivo_origem` | `add_source_metadata`: `url_decode` do segmento `-1` do caminho; mantida sem alteração | `no_arquivo_origem` |
@@ -1334,21 +1334,21 @@ Arquivo de origem
 | `ingress_sip_endpoint_address` (campo 125 de `stfc_ss8bf_claro_schema`) | `rota_entrada` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_entrada` |
 | `egress_sip_endpoint_address` (campo 126 de `stfc_ss8bf_claro_schema`) | `rota_saida` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_rota_saida` |
 | `switch_id` (campo 4 de `stfc_ss8bf_claro_schema`) | `bilhetador` | Mantida sem alteração; nulo → `__NULL__` (chave) | `co_bilhetador` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_origem_hex` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_origem_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imei_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imsi_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imei_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imsi_origem` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `ed_ip_origem` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_origem` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_cgi_destino_hex` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_cgi_destino_hex` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_tecnologia_celula_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imei_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_imsi_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_ip_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imei_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `co_imsi_destino` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `ed_ip_destino` |
 | Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `nu_porta_ip_destino` |
-| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `no_agente_usuario` |
+| Não aplicável | Não aplicável | criada nula por `_fill_missing_columns`; permanece `NULL` | `de_agente_usuario` |
 | Não aplicável (constante do extrator) | `esquema` | `add_source_metadata`: literal com a chave `cdr_schema` (`'stfc_ss8bf_claro'`); mantida sem alteração | `co_esquema_extracao` |
 | Não aplicável (metadado) | `tipo_cdr` | `add_source_metadata`: argumento `cdr_type` ou `url_decode` do segmento `-2` do caminho; mantida sem alteração | `no_tipo_cdr` |
 | Não aplicável (metadado) | `arquivo_origem` | `add_source_metadata`: `url_decode` do segmento `-1` do caminho; mantida sem alteração | `no_arquivo_origem` |
@@ -1539,7 +1539,7 @@ Fluxos sem origem (coluna criada nula): `smp_ericsson_gsm`, `smp_nokia_gsm`, `sm
 
 Fluxos sem origem (coluna criada nula): `smp_ericsson_gsm`, `smp_nokia_gsm`, `stfc_italtel_ngn_tim`, `stfc_sigma_claro`, `stfc_huawei_ngn`, `stfc_huawei_ngn_tim`, `stfc_fcdr_vivo`, `stfc_7n_oi`, `stfc_tropico_oi`, `stfc_axe_claro`, `stfc_pcl_claro`, `stfc_tropico_claro_lega`, `stfc_tropico_claro_legb`, `stfc_pit_claro`, `stfc_ss8bf_claro`.
 
-### `nu_cgi_origem`
+### `co_cgi_origem`
 
 | Fluxo | Colunas extraídas | Tratamento |
 | :-- | :-- | :-- |
@@ -1552,7 +1552,7 @@ Fluxos sem origem (coluna criada nula): `stfc_italtel_ngn_tim`, `stfc_sigma_clar
 
 As colunas de destino (`celula_destino*`, `tecnologia_celula_destino`, `imei_destino`, `imsi_destino`) seguem as mesmas regras com os componentes de destino ou `tERMINATING-ROLE` (Huawei TIM).
 
-### `nu_cgi_origem_hex`
+### `co_cgi_origem_hex`
 
 | Fluxo | Colunas extraídas | Tratamento |
 | :-- | :-- | :-- |
@@ -1570,7 +1570,7 @@ Fluxos sem origem (coluna criada nula): `smp_ericsson_gsm`, `smp_nokia_gsm`, `st
 
 Fluxos sem origem (coluna criada nula): `smp_ericsson_gsm`, `smp_nokia_gsm`, `stfc_italtel_ngn_tim`, `stfc_sigma_claro`, `stfc_huawei_ngn`, `stfc_huawei_ngn_tim`, `stfc_fcdr_vivo`, `stfc_7n_oi`, `stfc_tropico_oi`, `stfc_axe_claro`, `stfc_pcl_claro`, `stfc_tropico_claro_lega`, `stfc_tropico_claro_legb`, `stfc_pit_claro`, `stfc_ss8bf_claro`.
 
-### `nu_imei_origem`
+### `co_imei_origem`
 
 | Fluxo | Colunas extraídas | Tratamento |
 | :-- | :-- | :-- |
@@ -1581,7 +1581,7 @@ Fluxos sem origem (coluna criada nula): `smp_ericsson_gsm`, `smp_nokia_gsm`, `st
 
 Fluxos sem origem (coluna criada nula): `stfc_italtel_ngn_tim`, `stfc_sigma_claro`, `stfc_huawei_ngn`, `stfc_huawei_ngn_tim`, `stfc_fcdr_vivo`, `stfc_7n_oi`, `stfc_tropico_oi`, `stfc_axe_claro`, `stfc_pcl_claro`, `stfc_tropico_claro_lega`, `stfc_tropico_claro_legb`, `stfc_pit_claro`, `stfc_ss8bf_claro`.
 
-### `nu_imsi_origem`
+### `co_imsi_origem`
 
 | Fluxo | Colunas extraídas | Tratamento |
 | :-- | :-- | :-- |
@@ -1592,7 +1592,7 @@ Fluxos sem origem (coluna criada nula): `stfc_italtel_ngn_tim`, `stfc_sigma_clar
 
 Fluxos sem origem (coluna criada nula): `stfc_italtel_ngn_tim`, `stfc_sigma_claro`, `stfc_huawei_ngn`, `stfc_huawei_ngn_tim`, `stfc_fcdr_vivo`, `stfc_7n_oi`, `stfc_tropico_oi`, `stfc_axe_claro`, `stfc_pcl_claro`, `stfc_tropico_claro_lega`, `stfc_tropico_claro_legb`, `stfc_pit_claro`, `stfc_ss8bf_claro`.
 
-### `no_agente_usuario`
+### `de_agente_usuario`
 
 | Fluxo | Colunas extraídas | Tratamento |
 | :-- | :-- | :-- |
@@ -1629,7 +1629,7 @@ Fluxos sem origem (coluna criada nula): `stfc_sigma_claro`, `stfc_huawei_ngn_tim
 - `no_arquivo_origem`: segmento `-1` do caminho, exceto nos fluxos que mapeiam `arquivo_origem` no schema: `smp_ericsson_volte_vivo`, `stfc_sigma_claro`.
 - `co_numero_origem`, `ic_numero_origem_valido`, `co_numero_destino`, `ic_numero_destino_valido`: sempre `_extract_numbers` sobre `numero_origem`/`numero_destino`.
 - `co_rota_entrada`, `co_rota_saida`, `co_bilhetador`: cópia das colunas de mesmo nome em todos os fluxos.
-- `nu_ip_origem`, `nu_ip_destino`, `nu_porta_ip_origem`, `nu_porta_ip_destino`: nenhum fluxo as extrai ou deriva; são criadas nulas em todos.
+- `ed_ip_origem`, `ed_ip_destino`, `nu_porta_ip_origem`, `nu_porta_ip_destino`: nenhum fluxo as extrai ou deriva; são criadas nulas em todos.
 - `nu_cgi_*`, `nu_cgi_*_hex`, `no_tecnologia_celula_*`, `nu_imei_*`, `nu_imsi_*`: preenchidas apenas por Ericsson GSM, Nokia GSM, Huawei VoLTE TIM e Ericsson VoLTE Vivo (ver tabelas acima); nulas nos 13 fluxos restantes.
 
 # 5. Etapa final de geração do Parquet
@@ -1670,21 +1670,21 @@ O `cast` é uma conversão de tipo e pode alterar o tipo ou a representação do
 | 17 | `rota_entrada` | cast `string` + renomeação (`alias`) | `co_rota_entrada` |
 | 18 | `rota_saida` | cast `string` + renomeação (`alias`) | `co_rota_saida` |
 | 19 | `bilhetador` | cast `string` + renomeação (`alias`) | `co_bilhetador` |
-| 20 | `celula_origem` | cast `string` + renomeação (`alias`) | `nu_cgi_origem` |
-| 21 | `celula_origem_hex` | cast `string` + renomeação (`alias`) | `nu_cgi_origem_hex` |
+| 20 | `celula_origem` | cast `string` + renomeação (`alias`) | `co_cgi_origem` |
+| 21 | `celula_origem_hex` | cast `string` + renomeação (`alias`) | `co_cgi_origem_hex` |
 | 22 | `tecnologia_celula_origem` | cast `string` + renomeação (`alias`) | `no_tecnologia_celula_origem` |
-| 23 | `imei_origem` | cast `string` + renomeação (`alias`) | `nu_imei_origem` |
-| 24 | `imsi_origem` | cast `string` + renomeação (`alias`) | `nu_imsi_origem` |
-| 25 | `ip_origem` | cast `string` + renomeação (`alias`) | `nu_ip_origem` |
+| 23 | `imei_origem` | cast `string` + renomeação (`alias`) | `co_imei_origem` |
+| 24 | `imsi_origem` | cast `string` + renomeação (`alias`) | `co_imsi_origem` |
+| 25 | `ip_origem` | cast `string` + renomeação (`alias`) | `ed_ip_origem` |
 | 26 | `porta_ip_origem` | cast `integer` + renomeação (`alias`) | `nu_porta_ip_origem` |
-| 27 | `celula_destino` | cast `string` + renomeação (`alias`) | `nu_cgi_destino` |
-| 28 | `celula_destino_hex` | cast `string` + renomeação (`alias`) | `nu_cgi_destino_hex` |
+| 27 | `celula_destino` | cast `string` + renomeação (`alias`) | `co_cgi_destino` |
+| 28 | `celula_destino_hex` | cast `string` + renomeação (`alias`) | `co_cgi_destino_hex` |
 | 29 | `tecnologia_celula_destino` | cast `string` + renomeação (`alias`) | `no_tecnologia_celula_destino` |
-| 30 | `imei_destino` | cast `string` + renomeação (`alias`) | `nu_imei_destino` |
-| 31 | `imsi_destino` | cast `string` + renomeação (`alias`) | `nu_imsi_destino` |
-| 32 | `ip_destino` | cast `string` + renomeação (`alias`) | `nu_ip_destino` |
+| 30 | `imei_destino` | cast `string` + renomeação (`alias`) | `co_imei_destino` |
+| 31 | `imsi_destino` | cast `string` + renomeação (`alias`) | `co_imsi_destino` |
+| 32 | `ip_destino` | cast `string` + renomeação (`alias`) | `ed_ip_destino` |
 | 33 | `porta_ip_destino` | cast `integer` + renomeação (`alias`) | `nu_porta_ip_destino` |
-| 34 | `agente_usuario` | cast `string` + renomeação (`alias`) | `no_agente_usuario` |
+| 34 | `agente_usuario` | cast `string` + renomeação (`alias`) | `de_agente_usuario` |
 | 35 | `esquema` | cast `string` + renomeação (`alias`) | `co_esquema_extracao` |
 | 36 | `tipo_cdr` | cast `string` + renomeação (`alias`) | `no_tipo_cdr` |
 | 37 | `arquivo_origem` | cast `string` + renomeação (`alias`) | `no_arquivo_origem` |
@@ -1784,7 +1784,7 @@ SS8BF: `start_time`, `duration_of_call`, `switch_id`, `record_id`, `terminating_
 
 **Finalidade:** criar as expressões literais `default_mcc` (`DEFAULT_MCC = "724"`), `algar_mnc` (`"34"`) e `claro_mnc` (`"05"`) de `teleutils._config`.
 
-**Colunas impactadas:** `nu_cgi_origem` e `nu_cgi_destino` do fluxo `smp_nokia_gsm`.
+**Colunas impactadas:** `co_cgi_origem` e `co_cgi_destino` do fluxo `smp_nokia_gsm`.
 
 **Transformação realizada:** valores literais; sem origem em coluna.
 

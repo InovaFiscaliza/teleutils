@@ -26,21 +26,21 @@ Cada linha representa um registro CDR, não necessariamente uma chamada inteira.
 | `co_rota_entrada` | Rota de entrada associada ao segmento da chamada. |
 | `co_rota_saida` | Rota de saída associada ao segmento da chamada. |
 | `co_bilhetador` | Identificação do bilhetador associada ao registro. |
-| `nu_cgi_origem` | Identificador de célula associado à origem. |
-| `nu_cgi_origem_hex` | Identificador de célula de origem em representação hexadecimal. |
+| `co_cgi_origem` | Identificador de célula associado à origem. |
+| `co_cgi_origem_hex` | Identificador de célula de origem em representação hexadecimal. |
 | `no_tecnologia_celula_origem` | Tecnologia de acesso da célula associada à origem. |
-| `nu_imei_origem` | Identificador IMEI associado à origem. |
-| `nu_imsi_origem` | Identificador IMSI associado à origem. |
-| `nu_ip_origem` | Não implementado: reservado para implementação futura. |
+| `co_imei_origem` | Identificador IMEI associado à origem. |
+| `co_imsi_origem` | Identificador IMSI associado à origem. |
+| `ed_ip_origem` | Não implementado: reservado para implementação futura. |
 | `nu_porta_ip_origem` | Não implementado: reservado para implementação futura. |
-| `nu_cgi_destino` | Identificador de célula associado ao destino. |
-| `nu_cgi_destino_hex` | Identificador de célula de destino em representação hexadecimal. |
+| `co_cgi_destino` | Identificador de célula associado ao destino. |
+| `co_cgi_destino_hex` | Identificador de célula de destino em representação hexadecimal. |
 | `no_tecnologia_celula_destino` | Tecnologia de acesso da célula associada ao destino. |
-| `nu_imei_destino` | Identificador IMEI associado ao destino. |
-| `nu_imsi_destino` | Identificador IMSI associado ao destino. |
-| `nu_ip_destino` | Não implementado: reservado para implementação futura. |
+| `co_imei_destino` | Identificador IMEI associado ao destino. |
+| `co_imsi_destino` | Identificador IMSI associado ao destino. |
+| `ed_ip_destino` | Não implementado: reservado para implementação futura. |
 | `nu_porta_ip_destino` | Não implementado: reservado para implementação futura. |
-| `no_agente_usuario` | Valor do agente de usuário informado no CDR. |
+| `de_agente_usuario` | Valor do agente de usuário informado no CDR. |
 | `co_esquema_extracao` | Chave do esquema de extração usado para processar o CDR. |
 | `no_tipo_cdr` | Tipo de CDR associado ao registro. |
 | `no_arquivo_origem` | Nome do arquivo de origem associado ao registro. |
