@@ -55,7 +55,7 @@ from __future__ import annotations
 
 import logging
 
-from pyspark.errors import AnalysisException
+from pyspark.errors import AnalysisException  # type: ignore
 from pyspark.sql import DataFrame, SparkSession  # type: ignore
 from pyspark.sql import functions as F  # type: ignore
 

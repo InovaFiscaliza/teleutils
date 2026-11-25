@@ -48,7 +48,7 @@ Notes:
     processamento.
 """
 
-from pyspark.sql import types as T
+from pyspark.sql import types as T  # type: ignore
 
 # Valor textual 'TN-Validation-Passed'. Coincide com o rótulo produzido por
 # CDRBaseTransformer._add_tn_validation_status, mas aquele método usa um
