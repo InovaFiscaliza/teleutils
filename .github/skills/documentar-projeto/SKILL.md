@@ -982,7 +982,7 @@ No `README.md`, a única referência ao DeepWiki deve ser um badge na primeira
 linha, no seguinte formato:
 
 ```markdown
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/<proprietário>/<repositório>)
+[![Ask DeepWiki](./docs/deepwiki-badge.svg)](https://deepwiki.com/InovaFiscaliza/teleutils)
 ```
 
 Substitua `<proprietário>` e `<repositório>` pelos identificadores reais do
